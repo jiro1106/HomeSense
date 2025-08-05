@@ -1,0 +1,18 @@
+# USER REQUIREMENTS
+
+
+# Real-time monitoring: Real-time information about household electricity usage should be available to homeowners.
+
+# Appliance registration: Homeowners must be able to register each appliance individually in the system. This makes it possible for the system to monitor and evaluate energy consumption for each item, allowing for more thorough tracking and personalized suggestions.
+
+# Bill prediction: Accurate monthly bill predictions based on real-time consumption are essential for homeowners. The prediction should be updated regularly based on the latest consumption data.
+
+# Energy consumption monitoring: To show patterns of electricity usage in daily, weekly, and monthly views, the system should have visual infographics like summary panels and colorful icons. Important details like which devices consume the most energy, estimated billing, and changes in usage over time will be highlighted by these graphics.
+
+# Energy-saving recommendations: To assist homeowners in lowering their energy usage, the system should provide personalized suggestions. Analysis of their usage patterns should serve as the basis for these recommendations, including activities like switching to energy-efficient appliances or changing usage patterns during peak hours.
+
+# User-friendly interface: The mobile application should be simple to use and intuitive, allowing users to quickly access essential functions, including recommendations, predictions, and real-time monitoring.
+
+# Alerts and Notifications: Homeowners should be informed when their energy consumption exceeds predetermined thresholds.
+
+# Data security and privacy: Privacy and compliance with the relevant laws should be prioritized when storing and protecting homeowners' data.
