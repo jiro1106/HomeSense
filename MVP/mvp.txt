@@ -1,0 +1,29 @@
+What’s the Minimum Viable Product (MVP) of HomeSense?
+Here’s the simplest version of your thesis system that proves your idea:
+
+✅ 1. Smart Plug Integration
+Fetch real-time power usage from at least one device
+
+Display its current consumption (e.g., watts)
+
+✅ 2. Usage Logging
+Save timestamped usage to a database (e.g., MongoDB or local file)
+
+✅ 3. Bill Prediction
+Simple linear regression that estimates monthly bill based on usage trends
+
+✅ 4. Basic Web UI or Console Output
+Display:
+
+Appliance name
+
+Daily/weekly usage
+
+Estimated cost
+
+Simple graph or list
+
+Optional but nice:
+Button to turn the device on/off
+
+Notification if the device exceeds a daily budget
