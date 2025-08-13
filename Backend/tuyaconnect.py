@@ -1,47 +1,50 @@
-import time
-from pymongo import MongoClient
-from tuya_connector import TuyaOpenAPI
-import datetime
+import os # to access the OS for env
+import time # to get time data 
+from dotenv import load_dotenv # hiding secrets
+from pymongo import MongoClient 
+from tuya_connector import TuyaOpenAPI # access API from Tuya
+import datetime # to get time data 
 import json  # for pretty-printing Tuya response
 
-# --- Tuya setup ---
-ACCESS_ID = 'c5veqysat4pryryctytu'
-ACCESS_KEY = '63f813fc4d114c85a578581063c7da1c'
-API_ENDPOINT = 'https://openapi-sg.iotbing.com'
+#Load file secrets
+load_dotenv("secrets.env")
+
+#Tuya Details
+ACCESS_ID = os.getenv("ACCESS_ID")
+ACCESS_KEY = os.getenv("ACCESS_KEY")
+API_ENDPOINT = os.getenv("API_ENDPOINT")
+DEVICE_ID = os.getenv("DEVICE_ID")
+
+#MongoDB setup
+mongo_client = MongoClient(os.getenv("MONGO_URI"))
 
 # Connect to Tuya
 openapi = TuyaOpenAPI(API_ENDPOINT, ACCESS_ID, ACCESS_KEY)
 openapi.connect()
 
-DEVICE_ID = 'a3c1d90f6cdce1dc2duc8a'
-
-# --- MongoDB setup ---
-mongo_client = MongoClient(
-    "mongodb+srv://HomeSense:nTcrAvbDAoNEsQdr@homesensecluster1.1iotoya.mongodb.net/"
-    "?retryWrites=true&w=majority&appName=HomeSenseCluster1"
-)
+# MongoDB database
 db = mongo_client["homesense_db"]
 
 # Collections
-energy_collection = db["energy_data"]         # every 5-min reading (same as your current 'collection')
+energy_collection = db["energy_data"]         # every 5-min reading
 daily_totals_collection = db["daily_totals"] # one doc per day
-current_totals_collection = db["current_totals"]  # single upsert doc to resume after restart
+current_totals_collection = db["current_totals"]  # totals for each day smart plug is reading
 
-# --- Energy tracker ---
+
 # Load today's saved total_kwh if it exists (resume)
 today_str = datetime.date.today().isoformat()
 saved = current_totals_collection.find_one({"device_id": DEVICE_ID, "date": today_str})
 if saved:
     total_kwh = float(saved.get("total_kwh", 0.0))
-    print(f"🔄 Resuming from saved total for {today_str}: {total_kwh:.6f} kWh")
+    print(f"Resuming from saved total for {today_str}: {total_kwh:.6f} kWh")
 else:
     total_kwh = 0.0
-    print(f"ℹ️ No saved total for {today_str} — starting at 0.0 kWh")
+    print(f"No saved total for {today_str} — starting at 0.0 kWh")
 
-# Keep the current day string so we can detect midnight roll-over
+# Keep the current day string to detect date change at midnight
 tracking_day = today_str
 
-# --- Keys you care about ---
+# Data needed from the API
 required_keys = ["add_ele", "cur_power", "cur_voltage", "cur_current", "switch_1"]
 
 def save_current_total(device_id: str, date_str: str, total: float):
@@ -53,7 +56,7 @@ def save_current_total(device_id: str, date_str: str, total: float):
             upsert=True
         )
     except Exception as e:
-        print("❌ Failed to save current total:", e)
+        print("Failed to save current total:", e)
 
 def save_daily_total(device_id: str, date_str: str, total: float):
     """Save finished day's total into daily_totals."""
@@ -64,9 +67,9 @@ def save_daily_total(device_id: str, date_str: str, total: float):
             "total_kwh": round(total, 6),
             "saved_at": datetime.datetime.now()
         })
-        print(f"✅ Saved daily total for {date_str}: {total:.6f} kWh")
+        print(f"Saved daily total for {date_str}: {total:.6f} kWh")
     except Exception as e:
-        print("❌ Failed to save daily total:", e)
+        print("Failed to save daily total:", e)
 
 def try_reconnect_if_invalid(response):
     """Handle Tuya 'token invalid' responses by reconnecting once."""
@@ -74,20 +77,20 @@ def try_reconnect_if_invalid(response):
     if not isinstance(response, dict):
         return response
     if (not response.get("success", True)) and response.get("code") == 1010:
-        print("⚠️ Tuya token invalid — reconnecting and retrying once...")
+        print("Tuya token invalid — reconnecting and retrying once...")
         try:
             openapi.connect()
-            time.sleep(1)  # tiny pause
+            time.sleep(1)  # 1s pause
             return openapi.get(f"/v1.0/devices/{DEVICE_ID}/status")
         except Exception as e:
-            print("❌ Reconnect failed:", e)
+            print("Reconnect failed:", e)
             return response
     return response
 
-# --- Main loop (5-minute logging) ---
+# Main loop (5-minute logging)
 while True:
     try:
-        # --- Detect midnight / day change ---
+        # Detect midnight / day change
         now_date_str = datetime.date.today().isoformat()
         if now_date_str != tracking_day:
             # Save the old day's total and reset
@@ -100,21 +103,21 @@ while True:
             # update current_totals for new day (0.0)
             save_current_total(DEVICE_ID, tracking_day, total_kwh)
 
-        # --- Fetch device status from Tuya ---
+        # Main API Call to fetch device status from Tuya
         response = openapi.get(f"/v1.0/devices/{DEVICE_ID}/status")
         response = try_reconnect_if_invalid(response)
 
-        # --- Print Full Raw Response (Optional Debugging) ---
+        #Print Full Raw Response (Optional Debugging)
         print("\n=== Full Raw Tuya Device Response ===\n")
         print(json.dumps(response, indent=4))
 
         # If token is invalid (still), skip this iteration
         if isinstance(response, dict) and (not response.get("success", True)) and response.get("code") == 1010:
-            print("❌ Tuya still returning token invalid. Will retry on next loop.")
+            print("Tuya still returning token invalid. Will retry on next loop.")
             time.sleep(300)
             continue
 
-        # --- Extract timestamp and make it readable ---
+        #Extract timestamp and make it readable for humans
         timestamp_ms = response.get("t")
         timestamp_s = int(timestamp_ms) / 1000 if timestamp_ms else None
         readable_time = (
@@ -122,7 +125,7 @@ while True:
             if timestamp_s else "N/A"
         )
 
-        # --- Filtered clean data ---
+        #Filtered clean data
         raw_status = response.get("result", []) or []
         clean_data = {
             "device_id": DEVICE_ID,
@@ -144,7 +147,7 @@ while True:
                     except Exception:
                         power_watts = 0.0
 
-        # --- Print Filtered Cleaned Data ---
+        #Print Filtered Cleaned Data
         print("\n=== Filtered Cleaned Data ===")
         for key, value in clean_data.items():
             print(f"{key}: {value}")
@@ -166,18 +169,18 @@ while True:
         try:
             energy_collection.insert_one(record)
         except Exception as e:
-            print("❌ Failed to insert energy record:", e)
+            print("Failed to insert energy record:", e)
 
-        # --- Update current_totals for resume ---
+        #Update current_totals for resume
         save_current_total(DEVICE_ID, tracking_day, total_kwh)
 
-        # --- Print Energy Log ---
+        #Print Energy Log
         print("\n=== Energy Tracker ===")
         print(f"[{record['timestamp']}] Power: {power_watts:.2f} W | "
               f"Interval kWh: {energy_kwh:.6f} | Total: {total_kwh:.6f} kWh")
 
     except Exception as e:
-        print("❌ Error occurred:", e)
+        print("Error occurred:", e)
 
     # Wait 5 minutes
     time.sleep(300)
