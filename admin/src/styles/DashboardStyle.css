@@ -1,0 +1,111 @@
+/* General layout */
+.dashboard-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+/* Topbar */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: black;
+  color: white;
+  height: 60px; 
+  padding: 0 20px;
+  position: relative;
+  overflow: hidden;
+}
+
+.menu-icon {
+  position: absolute;
+  left: 20px;
+  font-size: 1.8rem;
+  cursor: pointer;
+  color: white;
+}
+
+.logo-center img {
+  height: 250px;    
+  object-fit: contain;
+}
+
+
+/* Sidebar */
+.sidebar {
+  position: fixed;
+  top: 0;
+  left: -240px;
+  width: 240px;
+  height: 100%;
+  background-color: #111;
+  color: white;
+  transition: left 0.3s ease;
+  padding-top: 60px;
+  z-index: 1000;
+}
+
+.sidebar.open {
+  left: 0;
+}
+
+.sidebar ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.sidebar ul li {
+  padding: 15px 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: background 0.2s;
+}
+
+.sidebar ul li:hover {
+  background: #333;
+}
+
+.sidebar .icon {
+  font-size: 1.2rem;
+}
+
+/* Close icon inside sidebar */
+.close-icon {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: white;
+}
+
+/* Content */
+.content {
+  margin-top: 20px;
+  padding: 20px;
+  transition: margin-left 0.3s ease;
+}
+
+.content.shift {
+  margin-left: 240px;
+}
+
+.logout-topbar {
+  position: absolute;
+  right: 20px;
+  font-size: 1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: white;
+  transition: color 0.2s;
+}
+
+.logout-topbar:hover {
+  color: #ff6666; 
+}
