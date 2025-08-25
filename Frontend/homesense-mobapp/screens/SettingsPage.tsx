@@ -1,0 +1,145 @@
+import React, { useCallback, useMemo, useState } from 'react';
+import { 
+  View, 
+  Text, 
+  TouchableOpacity, 
+  StyleSheet, 
+  ScrollView, 
+  StatusBar,
+  Switch,
+  Image 
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import Icon from 'react-native-vector-icons/MaterialIcons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useNavigation } from '@react-navigation/native';
+import { RootStackParamList } from '../App';
+import styles from './styles/SettingsPageStyles';
+
+type SettingsItemProps = {
+  id?: string;
+  icon: string;
+  title?: string;
+  showArrow?: boolean;
+  showToggle?: boolean;
+  toggleValue?: boolean;
+  onToggle?: (value: boolean) => void;
+  onPress?: () => void;
+};
+
+const SettingsItem = React.memo(({ 
+  id,
+  icon,
+  title,
+  showArrow = true,
+  showToggle = false,
+  toggleValue = false,
+  onToggle = () => {},
+  onPress = () => {}
+}: SettingsItemProps) => {
+  const trackColor = useMemo(() => ({ false: '#D3D3D3', true: '#FFD700' }), []);
+
+  return (
+    <View style={styles.settingsItem}>
+      <View style={styles.settingsItemLeft}>
+        <Icon name={icon} size={24} color="#666" style={styles.settingsIcon} />
+        {title && <Text style={styles.settingsText}>{title}</Text>}
+      </View>
+      <View style={styles.settingsItemRight}>
+        {showToggle ? (
+          <View collapsable={false} style={styles.switchContainer}>
+            <Switch
+              key={id}
+              nativeID={id}
+              testID={id}
+              accessibilityLabel={id}
+              value={!!toggleValue}
+              onValueChange={onToggle}
+              trackColor={trackColor}
+              thumbColor="#fff"
+              ios_backgroundColor="#D3D3D3"
+            />
+          </View>
+        ) : showArrow ? (
+          <TouchableOpacity onPress={onPress}>
+            <Icon name="chevron-right" size={24} color="#666" />
+          </TouchableOpacity>
+        ) : null}
+      </View>
+    </View>
+  );
+});
+
+type SettingsPageNavProp = NativeStackNavigationProp<RootStackParamList, 'SettingsPage'>;
+
+const SettingsPage = () => {
+  const navigation = useNavigation<SettingsPageNavProp>();
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [darkModeEnabled, setDarkModeEnabled] = useState(false);
+
+  const handleLogout = async () => {
+    await AsyncStorage.removeItem('userData');
+    navigation.replace('Login');
+  };
+
+  
+
+  const handleNotificationsToggle = useCallback((value: boolean) => {
+    setNotificationsEnabled(value);
+  }, []);
+
+  const handleDarkModeToggle = useCallback((value: boolean) => {
+    setDarkModeEnabled(value);
+  }, []);
+
+  return (
+    <View style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+        <View style={styles.topBar}>
+          <TouchableOpacity onPress={() => navigation.replace('MainMenu')} style={styles.backButton}>
+            <Icon name="arrow-back" size={24} color="#000" />
+          </TouchableOpacity>
+        </View>
+        {/* Settings Content */}
+        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+          {/* Account Section */}
+          <Text style={styles.sectionTitle}>Account</Text>
+          
+          <SettingsItem icon="person" title="Edit Profile" />
+          <SettingsItem icon="security" title="Security" />
+          <SettingsItem 
+            id="notifications-switch"
+            icon="notifications" 
+            title="Notifications"
+            showToggle={true} 
+            toggleValue={notificationsEnabled}
+            onToggle={handleNotificationsToggle}
+          />
+          <SettingsItem icon="lock" title="Privacy" />
+          <SettingsItem icon="flash-on" title="Electricity Provider" />
+          <SettingsItem icon="eco" title="Saving Mode" />
+          <SettingsItem 
+            id="darkmode-switch"
+            icon="brightness-2" 
+            title="Dark mode" 
+            showToggle={true} 
+            toggleValue={darkModeEnabled}
+            onToggle={handleDarkModeToggle}
+          />
+        </ScrollView>
+
+        {/* Bottom Logout Button */}
+        <View style={styles.bottomContainer}>
+          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+            <Text style={styles.logoutButtonText}>Logout</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    </View>
+  );
+};
+
+export default SettingsPage;
+
