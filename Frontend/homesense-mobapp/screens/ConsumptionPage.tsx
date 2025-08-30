@@ -4,159 +4,245 @@ import {
   Text, 
   TouchableOpacity, 
   ScrollView, 
-  StatusBar 
+  Modal, 
+  FlatList 
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
 import { RootStackParamList } from '../App';
 import { styles } from './styles/ConsumptionPageStyles';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 type ConsumptionPageNavProp = NativeStackNavigationProp<RootStackParamList, 'ConsumptionPage'>;
 
+const timeRanges = ['Daily', 'Weekly', 'Monthly'];
+
+// sample appliance data
+const appliances = [
+  { id: '1', name: 'Aircon 1', location: 'Bedroom', time: 'May 21, 07:34', status: 'ON', usage: '17 kWh' },
+  { id: '2', name: 'Refrigerator', location: 'Kitchen', time: 'May 21, 09:23', status: 'ON', usage: '14.5 kWh' },
+  { id: '3', name: 'Electric Fan 1', location: 'Living Room', time: 'May 21, 12:44', status: 'OFF', usage: '9 kWh' },
+  { id: '4', name: 'Aircon 2', location: 'Living Room', time: 'May 21, 15:48', status: 'ON', usage: '8.5 kWh' },
+];
+
 const ConsumptionPage = () => {
   const navigation = useNavigation<ConsumptionPageNavProp>();
-  const [timeRange] = useState('Daily');
-  const [viewMode, setViewMode] = useState<'Table' | 'Chart'>('Chart');
-  const [applianceFilter] = useState('All Appliances');
+  const [selectedRange, setSelectedRange] = useState('Daily');
+  const [viewType, setViewType] = useState<'table' | 'chart'>('table');
+  const [dropdownVisible, setDropdownVisible] = useState(false);
+
+  // filter state
+  const [filterVisible, setFilterVisible] = useState(false);
+  const [filterType, setFilterType] = useState<'all' | 'individual'>('all');
+  const [applianceDropdownVisible, setApplianceDropdownVisible] = useState(false);
+  const [selectedAppliance, setSelectedAppliance] = useState<string | null>(null);
+
+  // filtered data
+  const filteredAppliances = filterType === 'all' 
+    ? appliances 
+    : appliances.filter(a => a.name === selectedAppliance);
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#000" />
-      
-      {/* Header */}
-      <SafeAreaView style={styles.headerSafeArea} edges={['top']}>
-        <View style={styles.header}>
-          <View style={{ width: 24 }} />
-          <Text style={styles.headerTitle}>Appliance Records</Text>
-          <TouchableOpacity onPress={() => navigation.replace('SettingsPage')}>
-            <Icon name="settings" size={24} color="#fff" />
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
+      {/* ✅ Page Title */}
+      <Text style={styles.pageTitle}>Appliance Records</Text>
 
-      {/* Main Content */}
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Filters Row */}
-        <View style={styles.filtersRow}>
-          <TouchableOpacity style={styles.filterButton}>
-            <Text style={styles.filterButtonText}>{timeRange}</Text>
-            <Icon name="keyboard-arrow-down" size={20} color="#666" />
-          </TouchableOpacity>
-
-          <View style={styles.viewToggle}>
-            <TouchableOpacity 
-              style={[styles.toggleButton, viewMode === 'Table' && styles.toggleButtonActive]}
-              onPress={() => setViewMode('Table')}
-            >
-              <Text style={[styles.toggleButtonText, viewMode === 'Table' && styles.toggleButtonTextActive]}>
-                Table
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.toggleButton, viewMode === 'Chart' && styles.toggleButtonActive]}
-              onPress={() => setViewMode('Chart')}
-            >
-              <Text style={[styles.toggleButtonText, viewMode === 'Chart' && styles.toggleButtonTextActive]}>
-                Chart
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          <TouchableOpacity style={styles.menuButton}>
-            <Icon name="menu" size={20} color="#000" />
+      {/* Top Controls */}
+      <View style={styles.topControls}>
+        {/* Time Range Dropdown */}
+        <View style={styles.dropdownContainer}>
+          <TouchableOpacity style={styles.dropdownButton} onPress={() => setDropdownVisible(true)}>
+            <Text style={styles.dropdownText}>{selectedRange}</Text>
+            <Icon name="arrow-drop-down" size={22} color="#000" />
           </TouchableOpacity>
         </View>
 
-        {/* Appliance Filter */}
-        <TouchableOpacity style={styles.applianceFilter}>
-          <Text style={styles.applianceFilterText}>{applianceFilter}</Text>
-          <Icon name="keyboard-arrow-down" size={20} color="#666" />
+        {/* Table button */}
+        <TouchableOpacity 
+          style={[styles.toggleButton, { backgroundColor: viewType === 'table' ? '#000' : '#f1f1f1' }]}
+          onPress={() => setViewType('table')}
+        >
+          <Icon name="table-chart" size={22} color={viewType === 'table' ? '#fff' : '#000'} />
+          <Text style={[styles.toggleText, { color: viewType === 'table' ? '#fff' : '#000' }]}>Table</Text>
         </TouchableOpacity>
 
-        {/* Chart Container */}
-        <View style={styles.chartContainer}>
-          {/* Y-axis labels */}
-          <View style={styles.yAxis}>
-            {[25, 20, 15, 10, 5, 0].map((value) => (
-              <Text key={value} style={styles.yAxisLabel}>
-                {value}
+        {/* Chart button */}
+        <TouchableOpacity 
+          style={[styles.toggleButton, { backgroundColor: viewType === 'chart' ? '#000' : '#f1f1f1' }]}
+          onPress={() => setViewType('chart')}
+        >
+          <Icon name="bar-chart" size={22} color={viewType === 'chart' ? '#fff' : '#000'} />
+          <Text style={[styles.toggleText, { color: viewType === 'chart' ? '#fff' : '#000' }]}>Chart</Text>
+        </TouchableOpacity>
+
+        {/* Filter Button */}
+        <TouchableOpacity style={styles.filterButton} onPress={() => setFilterVisible(true)}>
+          <Icon name="filter-list" size={17} color="#000" />
+        </TouchableOpacity>
+      </View>
+
+      {/* Time Range Dropdown Modal */}
+      <Modal visible={dropdownVisible} transparent animationType="fade">
+        <TouchableOpacity 
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.3)' }}
+          onPress={() => setDropdownVisible(false)}
+          activeOpacity={1}
+        >
+          <View style={{
+            marginHorizontal: 30,
+            marginTop: 150,
+            backgroundColor: '#fff',
+            borderRadius: 10,
+            paddingVertical: 10,
+            elevation: 5
+          }}>
+            <FlatList
+              data={timeRanges}
+              keyExtractor={(item) => item}
+              renderItem={({ item }) => (
+                <TouchableOpacity 
+                  style={{ padding: 12 }}
+                  onPress={() => {
+                    setSelectedRange(item);
+                    setDropdownVisible(false);
+                  }}
+                >
+                  <Text style={{ fontSize: 16, color: '#000' }}>{item}</Text>
+                </TouchableOpacity>
+              )}
+            />
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Filter Modal */}
+      <Modal visible={filterVisible} transparent animationType="fade">
+        <TouchableOpacity 
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.3)' }}
+          onPress={() => setFilterVisible(false)}
+          activeOpacity={1}
+        >
+          <View style={{
+            marginHorizontal: 30,
+            marginTop: 200,
+            backgroundColor: '#fff',
+            borderRadius: 10,
+            paddingVertical: 10,
+            elevation: 5
+          }}>
+            <TouchableOpacity 
+              style={{ padding: 12 }}
+              onPress={() => {
+                setFilterType('all');
+                setFilterVisible(false);
+              }}
+            >
+              <Text style={{ fontSize: 16, color: '#000' }}>Show All Appliances</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={{ padding: 12 }}
+              onPress={() => {
+                setFilterType('individual');
+                setSelectedAppliance(null);
+                setFilterVisible(false);
+              }}
+            >
+              <Text style={{ fontSize: 16, color: '#000' }}>Show Individual Appliance</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Content */}
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Show label or appliance dropdown depending on filter */}
+        {filterType === 'all' ? (
+          <Text style={{ fontSize: 16, fontWeight: 'bold', marginBottom: 8, color: '#000' }}>
+            All Appliances
+          </Text>
+        ) : (
+          <View style={{ marginBottom: 8 }}>
+            <TouchableOpacity 
+              style={[styles.dropdownButton, { minWidth: 160 }]} 
+              onPress={() => setApplianceDropdownVisible(true)}
+            >
+              <Text style={styles.dropdownText}>
+                {selectedAppliance || 'Select Appliance'}
               </Text>
-            ))}
-          </View>
+              <Icon name="arrow-drop-down" size={22} color="#000" />
+            </TouchableOpacity>
 
-          {/* Chart area */}
-          <View style={styles.chartArea}>
-            {/* Grid lines */}
-            {[0, 1, 2, 3, 4, 5].map((index) => (
-              <View 
-                key={index} 
-                style={[
-                  styles.gridLine, 
-                  { top: (index / 5) * 200 }
-                ]} 
-              />
-            ))}
-
-            {/* Chart line and data points */}
-            <View style={styles.chartLine}>
-              {[
-                { name: 'Aircon 1', consumption: 17.5, x: 50 },
-                { name: 'Refrigerator', consumption: 14.5, x: 150 },
-                { name: 'Electric Fan 1', consumption: 9, x: 250 },
-                { name: 'Aircon 2', consumption: 8.5, x: 350 },
-              ].map((data, index, arr) => {
-                const maxConsumption = 25;
-                const chartHeight = 200;
-                const getY = (c: number) => chartHeight - (c / maxConsumption) * chartHeight;
-                return (
-                  <View key={data.name}>
-                    <View style={[styles.dataPoint, { left: data.x - 5, top: getY(data.consumption) - 5 }]} />
-                    {index < arr.length - 1 && (
-                      <View
-                        style={[
-                          styles.lineSegment,
-                          {
-                            left: data.x,
-                            top: getY(data.consumption),
-                            width: arr[index + 1].x - data.x,
-                            height: 2,
-                            transform: [{
-                              rotate: `${
-                                (Math.atan2(
-                                  getY(arr[index + 1].consumption) - getY(data.consumption),
-                                  arr[index + 1].x - data.x
-                                ) * 180) / Math.PI
-                              }deg`,
-                            }],
-                          },
-                        ]}
-                      />
+            {/* Appliance Dropdown Modal */}
+            <Modal visible={applianceDropdownVisible} transparent animationType="fade">
+              <TouchableOpacity 
+                style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.3)' }}
+                onPress={() => setApplianceDropdownVisible(false)}
+                activeOpacity={1}
+              >
+                <View style={{
+                  marginHorizontal: 30,
+                  marginTop: 200,
+                  backgroundColor: '#fff',
+                  borderRadius: 10,
+                  paddingVertical: 10,
+                  elevation: 5
+                }}>
+                  <FlatList
+                    data={appliances}
+                    keyExtractor={(item) => item.id}
+                    renderItem={({ item }) => (
+                      <TouchableOpacity 
+                        style={{ padding: 12 }}
+                        onPress={() => {
+                          setSelectedAppliance(item.name);
+                          setApplianceDropdownVisible(false);
+                        }}
+                      >
+                        <Text style={{ fontSize: 16, color: '#000' }}>{item.name}</Text>
+                      </TouchableOpacity>
                     )}
-                  </View>
-                );
-              })}
-            </View>
-
-            {/* X-axis labels */}
-            <View style={styles.xAxis}>
-              {[
-                { name: 'Aircon 1', x: 50 },
-                { name: 'Refrigerator', x: 150 },
-                { name: 'Electric Fan 1', x: 250 },
-                { name: 'Aircon 2', x: 350 },
-              ].map((data) => (
-                <Text key={data.name} style={[styles.xAxisLabel, { left: data.x - 30 }]}>
-                  {data.name}
-                </Text>
-              ))}
-            </View>
+                  />
+                </View>
+              </TouchableOpacity>
+            </Modal>
           </View>
+        )}
 
-          {/* Y-axis title */}
-          <Text style={styles.yAxisTitle}>kWh</Text>
-        </View>
+        {viewType === 'table' ? (
+          <>
+            {/* ✅ Table Header */}
+            <View style={styles.tableHeader}>
+              <Text style={[styles.tableCell, styles.tableHeaderText, styles.tableCellBorder]}>Appliance</Text>
+              <Text style={[styles.tableCell, styles.tableHeaderText, styles.tableCellBorder]}>Location</Text>
+              <Text style={[styles.tableCell, styles.tableHeaderText, styles.tableCellBorder]}>Time</Text>
+              <Text style={[styles.tableCell, styles.tableHeaderText, styles.tableCellBorder]}>Status</Text>
+              <Text style={[styles.tableCell, styles.tableHeaderText]}>Usage</Text>
+            </View>
+
+            {/* ✅ Table Rows */}
+            {filteredAppliances.map((item) => (
+              <View key={item.id} style={styles.tableRow}>
+                <Text style={[styles.tableCell, styles.tableCellBorder]}>{item.name}</Text>
+                <Text style={[styles.tableCell, styles.tableCellBorder]}>{item.location}</Text>
+                <Text style={[styles.tableCell, styles.tableCellBorder]}>{item.time}</Text>
+                <Text style={[
+                  styles.tableCell, 
+                  styles.tableCellBorder, 
+                  { color: item.status === 'ON' ? 'green' : 'red' }
+                ]}>
+                  {item.status}
+                </Text>
+                <Text style={styles.tableCell}>{item.usage}</Text>
+              </View>
+            ))}
+          </>
+        ) : (
+          <View style={styles.chartPlaceholder}>
+            <Icon name="insert-chart" size={60} color="#aaa" />
+            <Text style={{ color: '#aaa' }}>Chart View Placeholder</Text>
+          </View>
+        )}
       </ScrollView>
 
       {/* Bottom Navigation */}

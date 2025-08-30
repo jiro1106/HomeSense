@@ -3,11 +3,10 @@ import {
   View, 
   Text, 
   TouchableOpacity, 
-  StyleSheet, 
   ScrollView, 
   StatusBar,
   Switch,
-  Image 
+  Alert
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -76,39 +75,60 @@ type SettingsPageNavProp = NativeStackNavigationProp<RootStackParamList, 'Settin
 const SettingsPage = () => {
   const navigation = useNavigation<SettingsPageNavProp>();
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-  const [darkModeEnabled, setDarkModeEnabled] = useState(false);
 
   const handleLogout = async () => {
     await AsyncStorage.removeItem('userData');
     navigation.replace('Login');
   };
 
-  
-
   const handleNotificationsToggle = useCallback((value: boolean) => {
     setNotificationsEnabled(value);
-  }, []);
-
-  const handleDarkModeToggle = useCallback((value: boolean) => {
-    setDarkModeEnabled(value);
+    if (value) {
+      Alert.alert("Notifications Enabled", "You will now receive notifications.");
+    } else {
+      Alert.alert("Notifications Disabled", "You will no longer receive notifications.");
+    }
   }, []);
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+
+        {/* Top Bar */}
         <View style={styles.topBar}>
-          <TouchableOpacity onPress={() => navigation.replace('MainMenu')} style={styles.backButton}>
+          <TouchableOpacity 
+            onPress={() => navigation.replace('MainMenu')} 
+            style={styles.backButton}
+          >
             <Icon name="arrow-back" size={24} color="#000" />
           </TouchableOpacity>
+          <Text style={styles.headerTitle}>Settings</Text>
+          {/* placeholder for right side to balance flex */}
+          <View style={{ width: 24 }} />
         </View>
+
         {/* Settings Content */}
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-          {/* Account Section */}
           <Text style={styles.sectionTitle}>Account</Text>
           
-          <SettingsItem icon="person" title="Edit Profile" />
-          <SettingsItem icon="security" title="Security" />
+          <SettingsItem 
+            icon="security" 
+            title="Account & Security" 
+            onPress={() => navigation.navigate('AccountSecurityPage')} 
+          />
+          <SettingsItem 
+            icon="flash-on" 
+            title="Electricity Provider"
+            onPress={() => navigation.navigate('ElectricityProvider')}
+          />
+          <SettingsItem 
+            icon="eco" 
+            title="Saving Mode" 
+            onPress={() => navigation.navigate('SavingMode')}
+          />
+
+          {/* Notifications */}
           <SettingsItem 
             id="notifications-switch"
             icon="notifications" 
@@ -117,22 +137,14 @@ const SettingsPage = () => {
             toggleValue={notificationsEnabled}
             onToggle={handleNotificationsToggle}
           />
-          <SettingsItem icon="lock" title="Privacy" />
-          <SettingsItem icon="flash-on" title="Electricity Provider" />
-          <SettingsItem icon="eco" title="Saving Mode" />
-          <SettingsItem 
-            id="darkmode-switch"
-            icon="brightness-2" 
-            title="Dark mode" 
-            showToggle={true} 
-            toggleValue={darkModeEnabled}
-            onToggle={handleDarkModeToggle}
-          />
         </ScrollView>
 
         {/* Bottom Logout Button */}
         <View style={styles.bottomContainer}>
-          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+          <TouchableOpacity 
+            style={styles.logoutButton} 
+            onPress={handleLogout}
+          >
             <Text style={styles.logoutButtonText}>Logout</Text>
           </TouchableOpacity>
         </View>
@@ -142,4 +154,3 @@ const SettingsPage = () => {
 };
 
 export default SettingsPage;
-

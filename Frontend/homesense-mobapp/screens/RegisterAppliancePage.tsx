@@ -1,14 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
-  Image,
   ScrollView,
   Alert,
 } from 'react-native';
 import { styles } from './styles/RegisterAppliancePageStyles';
+import Icon from 'react-native-vector-icons/MaterialIcons';
 
 interface RegisterAppliancePageProps {
   navigation: any;
@@ -16,10 +16,10 @@ interface RegisterAppliancePageProps {
 }
 
 const RegisterAppliancePage: React.FC<RegisterAppliancePageProps> = ({ navigation, onSuccess }) => {
-  const [applianceName, setApplianceName] = useState('Jiro Electric Fan');
-  const [applianceType, setApplianceType] = useState('Electric Fan');
-  const [location, setLocation] = useState('Bedroom');
-  const [applianceId] = useState('39820jwjkj10237df27382379h');
+  const [applianceName, setApplianceName] = useState('');
+  const [applianceType, setApplianceType] = useState('');
+  const [location, setLocation] = useState('');
+  const [applianceId, setApplianceId] = useState('');
 
   const applianceTypes = [
     'Electric Fan',
@@ -47,18 +47,28 @@ const RegisterAppliancePage: React.FC<RegisterAppliancePageProps> = ({ navigatio
     'Other'
   ];
 
+  // Generate ID once all inputs are filled
+  useEffect(() => {
+    if (applianceName.trim() && applianceType && location) {
+      // Random simple ID generator
+      const newId = Math.random().toString(36).substring(2, 12);
+      setApplianceId(newId);
+    } else {
+      setApplianceId('');
+    }
+  }, [applianceName, applianceType, location]);
+
   const handleRegisterAppliance = () => {
-    if (!applianceName.trim()) {
-      Alert.alert('Error', 'Please enter an appliance name');
+    if (!applianceName.trim() || !applianceType || !location) {
+      Alert.alert('Error', 'Please fill out all fields before registering.');
       return;
     }
 
-    // Here you would typically send the data to your backend
     console.log('Registering appliance:', {
       name: applianceName,
       type: applianceType,
       location: location,
-      id: applianceId
+      id: applianceId,
     });
 
     Alert.alert(
@@ -68,14 +78,13 @@ const RegisterAppliancePage: React.FC<RegisterAppliancePageProps> = ({ navigatio
         {
           text: 'OK',
           onPress: () => {
-            // Reset form and go back to home
             setApplianceName('');
-            setApplianceType('Electric Fan');
-            setLocation('Bedroom');
-            // Call the success callback to go back to home
+            setApplianceType('');
+            setLocation('');
+            setApplianceId('');
             onSuccess?.();
-          }
-        }
+          },
+        },
       ]
     );
   };
@@ -86,7 +95,7 @@ const RegisterAppliancePage: React.FC<RegisterAppliancePageProps> = ({ navigatio
       '',
       applianceTypes.map(type => ({
         text: type,
-        onPress: () => setApplianceType(type)
+        onPress: () => setApplianceType(type),
       }))
     );
   };
@@ -97,14 +106,13 @@ const RegisterAppliancePage: React.FC<RegisterAppliancePageProps> = ({ navigatio
       '',
       locations.map(loc => ({
         text: loc,
-        onPress: () => setLocation(loc)
+        onPress: () => setLocation(loc),
       }))
     );
   };
 
   return (
     <View style={styles.container}>
-      {/* Main Content */}
       <ScrollView style={styles.contentContainer} showsVerticalScrollIndicator={false}>
         <Text style={styles.title}>Appliance Registration</Text>
 
@@ -124,11 +132,10 @@ const RegisterAppliancePage: React.FC<RegisterAppliancePageProps> = ({ navigatio
         <View style={styles.formField}>
           <Text style={styles.label}>Appliance Type</Text>
           <TouchableOpacity style={styles.dropdownContainer} onPress={showTypePicker}>
-            <Text style={styles.dropdownText}>{applianceType}</Text>
-            <Image
-              source={require('../assets/icon.png')}
-              style={styles.dropdownIcon}
-            />
+            <Text style={styles.dropdownText}>
+              {applianceType || 'Select appliance type'}
+            </Text>
+            <Icon name="arrow-drop-down" size={24} color="#666" />
           </TouchableOpacity>
         </View>
 
@@ -136,24 +143,25 @@ const RegisterAppliancePage: React.FC<RegisterAppliancePageProps> = ({ navigatio
         <View style={styles.formField}>
           <Text style={styles.label}>Location</Text>
           <TouchableOpacity style={styles.dropdownContainer} onPress={showLocationPicker}>
-            <Text style={styles.dropdownText}>{location}</Text>
-            <Image
-              source={require('../assets/icon.png')}
-              style={styles.dropdownIcon}
-            />
+            <Text style={styles.dropdownText}>
+              {location || 'Select location'}
+            </Text>
+            <Icon name="arrow-drop-down" size={24} color="#666" />
           </TouchableOpacity>
         </View>
 
-        {/* ID */}
-        <View style={styles.formField}>
-          <Text style={styles.label}>ID</Text>
-          <TextInput
-            style={styles.readOnlyInput}
-            value={applianceId}
-            editable={false}
-            selectTextOnFocus={false}
-          />
-        </View>
+        {/* ID (only show if available) */}
+        {applianceId ? (
+          <View style={styles.formField}>
+            <Text style={styles.label}>ID</Text>
+            <TextInput
+              style={styles.readOnlyInput}
+              value={applianceId}
+              editable={false}
+              selectTextOnFocus={false}
+            />
+          </View>
+        ) : null}
 
         {/* Register Button */}
         <TouchableOpacity style={styles.registerButton} onPress={handleRegisterAppliance}>
