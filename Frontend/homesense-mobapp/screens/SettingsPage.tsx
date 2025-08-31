@@ -1,20 +1,20 @@
-import React, { useCallback, useMemo, useState } from 'react';
-import { 
-  View, 
-  Text, 
-  TouchableOpacity, 
-  ScrollView, 
+import React, { useCallback, useMemo, useState } from "react";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  ScrollView,
   StatusBar,
   Switch,
-  Alert
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import Icon from 'react-native-vector-icons/MaterialIcons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useNavigation } from '@react-navigation/native';
-import { RootStackParamList } from '../App';
-import styles from './styles/SettingsPageStyles';
+  Alert,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import Icon from "react-native-vector-icons/MaterialIcons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { useNavigation } from "@react-navigation/native";
+import { RootStackParamList } from "../App";
+import styles from "./styles/SettingsPageStyles";
 
 type SettingsItemProps = {
   id?: string;
@@ -27,78 +27,96 @@ type SettingsItemProps = {
   onPress?: () => void;
 };
 
-const SettingsItem = React.memo(({ 
-  id,
-  icon,
-  title,
-  showArrow = true,
-  showToggle = false,
-  toggleValue = false,
-  onToggle = () => {},
-  onPress = () => {}
-}: SettingsItemProps) => {
-  const trackColor = useMemo(() => ({ false: '#D3D3D3', true: '#FFD700' }), []);
+const SettingsItem = React.memo(
+  ({
+    id,
+    icon,
+    title,
+    showArrow = true,
+    showToggle = false,
+    toggleValue = false,
+    onToggle = () => {},
+    onPress = () => {},
+  }: SettingsItemProps) => {
+    const trackColor = useMemo(
+      () => ({ false: "#D3D3D3", true: "#FFD700" }),
+      []
+    );
 
-  return (
-    <View style={styles.settingsItem}>
-      <View style={styles.settingsItemLeft}>
-        <Icon name={icon} size={24} color="#666" style={styles.settingsIcon} />
-        {title && <Text style={styles.settingsText}>{title}</Text>}
+    return (
+      <View style={styles.settingsItem}>
+        <View style={styles.settingsItemLeft}>
+          <Icon
+            name={icon}
+            size={24}
+            color="#666"
+            style={styles.settingsIcon}
+          />
+          {title && <Text style={styles.settingsText}>{title}</Text>}
+        </View>
+        <View style={styles.settingsItemRight}>
+          {showToggle ? (
+            <View collapsable={false} style={styles.switchContainer}>
+              <Switch
+                key={id}
+                nativeID={id}
+                testID={id}
+                accessibilityLabel={id}
+                value={!!toggleValue}
+                onValueChange={onToggle}
+                trackColor={trackColor}
+                thumbColor="#fff"
+                ios_backgroundColor="#D3D3D3"
+              />
+            </View>
+          ) : showArrow ? (
+            <TouchableOpacity onPress={onPress}>
+              <Icon name="chevron-right" size={24} color="#666" />
+            </TouchableOpacity>
+          ) : null}
+        </View>
       </View>
-      <View style={styles.settingsItemRight}>
-        {showToggle ? (
-          <View collapsable={false} style={styles.switchContainer}>
-            <Switch
-              key={id}
-              nativeID={id}
-              testID={id}
-              accessibilityLabel={id}
-              value={!!toggleValue}
-              onValueChange={onToggle}
-              trackColor={trackColor}
-              thumbColor="#fff"
-              ios_backgroundColor="#D3D3D3"
-            />
-          </View>
-        ) : showArrow ? (
-          <TouchableOpacity onPress={onPress}>
-            <Icon name="chevron-right" size={24} color="#666" />
-          </TouchableOpacity>
-        ) : null}
-      </View>
-    </View>
-  );
-});
+    );
+  }
+);
 
-type SettingsPageNavProp = NativeStackNavigationProp<RootStackParamList, 'SettingsPage'>;
+type SettingsPageNavProp = NativeStackNavigationProp<
+  RootStackParamList,
+  "SettingsPage"
+>;
 
 const SettingsPage = () => {
   const navigation = useNavigation<SettingsPageNavProp>();
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
 
   const handleLogout = async () => {
-    await AsyncStorage.removeItem('userData');
-    navigation.replace('Login');
+    await AsyncStorage.removeItem("isLoggedIn"); // just clear session flag
+    navigation.replace("Login");
   };
 
   const handleNotificationsToggle = useCallback((value: boolean) => {
     setNotificationsEnabled(value);
     if (value) {
-      Alert.alert("Notifications Enabled", "You will now receive notifications.");
+      Alert.alert(
+        "Notifications Enabled",
+        "You will now receive notifications."
+      );
     } else {
-      Alert.alert("Notifications Disabled", "You will no longer receive notifications.");
+      Alert.alert(
+        "Notifications Disabled",
+        "You will no longer receive notifications."
+      );
     }
   }, []);
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-
+      <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
         {/* Top Bar */}
         <View style={styles.topBar}>
-          <TouchableOpacity 
-            onPress={() => navigation.replace('MainMenu')} 
+          <TouchableOpacity
+            onPress={() => navigation.replace("MainMenu")}
             style={styles.backButton}
           >
             <Icon name="arrow-back" size={24} color="#000" />
@@ -111,29 +129,29 @@ const SettingsPage = () => {
         {/* Settings Content */}
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
           <Text style={styles.sectionTitle}>Account</Text>
-          
-          <SettingsItem 
-            icon="security" 
-            title="Account & Security" 
-            onPress={() => navigation.navigate('AccountSecurityPage')} 
+
+          <SettingsItem
+            icon="security"
+            title="Account & Security"
+            onPress={() => navigation.navigate("AccountSecurityPage")}
           />
-          <SettingsItem 
-            icon="flash-on" 
+          <SettingsItem
+            icon="flash-on"
             title="Electricity Provider"
-            onPress={() => navigation.navigate('ElectricityProvider')}
+            onPress={() => navigation.navigate("ElectricityProvider")}
           />
-          <SettingsItem 
-            icon="eco" 
-            title="Saving Mode" 
-            onPress={() => navigation.navigate('SavingMode')}
+          <SettingsItem
+            icon="eco"
+            title="Saving Mode"
+            onPress={() => navigation.navigate("SavingMode")}
           />
 
           {/* Notifications */}
-          <SettingsItem 
+          <SettingsItem
             id="notifications-switch"
-            icon="notifications" 
+            icon="notifications"
             title="Notifications"
-            showToggle={true} 
+            showToggle={true}
             toggleValue={notificationsEnabled}
             onToggle={handleNotificationsToggle}
           />
@@ -141,10 +159,7 @@ const SettingsPage = () => {
 
         {/* Bottom Logout Button */}
         <View style={styles.bottomContainer}>
-          <TouchableOpacity 
-            style={styles.logoutButton} 
-            onPress={handleLogout}
-          >
+          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
             <Text style={styles.logoutButtonText}>Logout</Text>
           </TouchableOpacity>
         </View>

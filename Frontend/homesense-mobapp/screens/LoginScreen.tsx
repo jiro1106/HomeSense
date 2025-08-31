@@ -1,21 +1,32 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
-  View, Text, TextInput, TouchableOpacity, Image, StatusBar,
-  ScrollView, KeyboardAvoidingView, Platform, Alert
-} from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Ionicons } from '@expo/vector-icons';
-import { styles } from './styles/LoginStyles';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import type { RootStackParamList } from '../App';
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  Image,
+  StatusBar,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+  Alert,
+} from "react-native";
+import { useNavigation } from "@react-navigation/native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Ionicons } from "@expo/vector-icons";
+import { styles } from "./styles/LoginStyles";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import type { RootStackParamList } from "../App";
 
-type LoginScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Login'>;
+type LoginScreenNavigationProp = NativeStackNavigationProp<
+  RootStackParamList,
+  "Login"
+>;
 
 const LoginScreen = () => {
   const navigation = useNavigation<LoginScreenNavigationProp>();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [secureText, setSecureText] = useState(true);
 
   const validateEmail = (email: string) => {
@@ -25,40 +36,43 @@ const LoginScreen = () => {
 
   const handleLogin = async () => {
     if (!email || !password) {
-      Alert.alert('Error', 'Please fill in both fields.');
+      Alert.alert("Error", "Please fill in both fields.");
       return;
     }
 
     if (!validateEmail(email)) {
-      Alert.alert('Error', 'Please enter a valid email address.');
+      Alert.alert("Error", "Please enter a valid email address.");
       return;
     }
 
     try {
-      const storedUser = await AsyncStorage.getItem('userData');
+      const storedUser = await AsyncStorage.getItem("userData");
       if (!storedUser) {
-        Alert.alert('Error', 'No account found. Please sign up first.');
+        Alert.alert("Error", "No account found. Please sign up first.");
         return;
       }
 
       const user = JSON.parse(storedUser);
       if (user.email === email && user.password === password) {
-        await AsyncStorage.setItem('userData', JSON.stringify(user)); // refresh session
-        Alert.alert('Success', 'Login successful!', [
-          { text: 'OK', onPress: () => navigation.replace('MainMenu') } // 👈 Redirect
+        await AsyncStorage.setItem("isLoggedIn", "true");
+
+        await AsyncStorage.setItem("userData", JSON.stringify(user)); // refresh session
+
+        Alert.alert("Success", "Login successful!", [
+          { text: "OK", onPress: () => navigation.replace("MainMenu") }, // 👈 Redirect
         ]);
       } else {
-        Alert.alert('Error', 'Incorrect email or password.');
+        Alert.alert("Error", "Incorrect email or password.");
       }
     } catch (error) {
-      Alert.alert('Error', 'Something went wrong. Please try again.');
+      Alert.alert("Error", "Something went wrong. Please try again.");
     }
   };
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: '#000' }}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={{ flex: 1, backgroundColor: "#000" }}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
       <StatusBar barStyle="light-content" backgroundColor="#000" />
 
@@ -71,7 +85,10 @@ const LoginScreen = () => {
         <View style={styles.logoContainer}>
           <View style={styles.logoTextRow}>
             <Text style={styles.logoTextH}>H</Text>
-            <Image source={require('../assets/homesenseLogo.png')} style={styles.logoIcon} />
+            <Image
+              source={require("../assets/homesenseLogo.png")}
+              style={styles.logoIcon}
+            />
             <Text style={styles.logoText}>meSense</Text>
           </View>
         </View>
@@ -81,7 +98,7 @@ const LoginScreen = () => {
           <Text style={styles.title}>Login</Text>
           <View style={styles.subtitleContainer}>
             <Text style={styles.subtitle}>Don't have an account?</Text>
-            <TouchableOpacity onPress={() => navigation.navigate('Signup')}>
+            <TouchableOpacity onPress={() => navigation.navigate("Signup")}>
               <Text style={styles.signUpLink}> Sign Up</Text>
             </TouchableOpacity>
           </View>
@@ -109,7 +126,7 @@ const LoginScreen = () => {
             />
             <TouchableOpacity onPress={() => setSecureText(!secureText)}>
               <Ionicons
-                name={secureText ? 'eye-off' : 'eye'}
+                name={secureText ? "eye-off" : "eye"}
                 size={20}
                 color="#999"
               />
@@ -119,9 +136,15 @@ const LoginScreen = () => {
           {/* Remember me & Forgot password */}
           <View style={styles.row}>
             <View style={styles.rememberMeContainer}>
-              <View style={{
-                width: 18, height: 18, borderWidth: 1, borderColor: '#ccc', borderRadius: 3
-              }} />
+              <View
+                style={{
+                  width: 18,
+                  height: 18,
+                  borderWidth: 1,
+                  borderColor: "#ccc",
+                  borderRadius: 3,
+                }}
+              />
               <Text style={styles.rememberMeText}>Remember me</Text>
             </View>
             <TouchableOpacity>
