@@ -18,6 +18,10 @@ import type { RootStackParamList } from "../App";
 import { signupStyles as styles } from "./styles/SignupStyles";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import {
+  getPasswordRules,
+  PasswordValidation,
+} from "../utils/PasswordValidation";
 
 type SignupScreenNavigationProp = NativeStackNavigationProp<
   RootStackParamList,
@@ -34,38 +38,12 @@ const SignupScreen = () => {
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  type PasswordValidation = {
-    label: string;
-    valid: boolean;
-  };
 
   const [passwordRules, setPasswordRules] = useState<PasswordValidation[]>([]);
 
   const validateEmail = (email: string) => {
     const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return re.test(email.toLowerCase());
-  };
-
-  const validatePasswordRules = (password: string, confirmPassword: string) => {
-    const emojiRegex =
-      /[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/u;
-
-    const rules: PasswordValidation[] = [
-      {
-        label: "8–20 characters",
-        valid: password.length >= 8 && password.length <= 20,
-      },
-      { label: "At least one uppercase letter", valid: /[A-Z]/.test(password) },
-      { label: "At least one lowercase letter", valid: /[a-z]/.test(password) },
-      { label: "At least one number", valid: /[0-9]/.test(password) },
-      {
-        label: "Passwords match",
-        valid: password === confirmPassword && confirmPassword.length > 0,
-      },
-    ];
-
-    setPasswordRules(rules);
-    return rules.every((rule) => rule.valid); // true only if all rules pass
   };
 
   const handleSignup = async () => {
@@ -88,7 +66,10 @@ const SignupScreen = () => {
       return;
     }
 
-    if (!validatePasswordRules(password, confirmPassword)) {
+    const rules = getPasswordRules(password, confirmPassword);
+    const isValid = rules.every((rule) => rule.valid);
+
+    if (!isValid) {
       Alert.alert("Error", "Please fix the password requirements.");
       return;
     }
@@ -179,7 +160,7 @@ const SignupScreen = () => {
                   value={password}
                   onChangeText={(text) => {
                     setPassword(text);
-                    validatePasswordRules(text, confirmPassword);
+                    setPasswordRules(getPasswordRules(text, confirmPassword));
                   }}
                 />
                 <TouchableOpacity
@@ -205,7 +186,7 @@ const SignupScreen = () => {
                   value={confirmPassword}
                   onChangeText={(text) => {
                     setConfirmPassword(text);
-                    validatePasswordRules(password, text);
+                    setPasswordRules(getPasswordRules(password, text));
                   }}
                 />
                 <TouchableOpacity

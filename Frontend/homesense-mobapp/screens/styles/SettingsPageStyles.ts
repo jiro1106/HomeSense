@@ -1,18 +1,18 @@
-import { StyleSheet } from 'react-native';
+import { StyleSheet } from "react-native";
 
 export const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
   },
   safeArea: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
   },
   topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between', // keeps text centered
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between", // keeps text centered
     paddingHorizontal: 12,
     paddingVertical: 10,
   },
@@ -21,9 +21,9 @@ export const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#000',
-    textAlign: 'center',
+    fontWeight: "bold",
+    color: "#000",
+    textAlign: "center",
     flex: 1,
   },
   content: {
@@ -32,22 +32,22 @@ export const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#000',
+    fontWeight: "600",
+    color: "#000",
     marginTop: 20,
     marginBottom: 10,
   },
   settingsItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingVertical: 15,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: "#f0f0f0",
   },
   settingsItemLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     flex: 1,
   },
   settingsIcon: {
@@ -55,31 +55,31 @@ export const styles = StyleSheet.create({
   },
   settingsText: {
     fontSize: 16,
-    color: '#000',
+    color: "#000",
     flex: 1,
   },
   settingsItemRight: {
-    alignItems: 'center',
+    alignItems: "center",
   },
   switchContainer: {
     width: 52,
-    alignItems: 'flex-end',
+    alignItems: "flex-end",
   },
   bottomContainer: {
     padding: 20,
     paddingBottom: 40,
   },
   logoutButton: {
-    backgroundColor: '#ff0000',
+    backgroundColor: "#ff0000",
     paddingVertical: 15,
     borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   logoutButtonText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
 });
 
