@@ -51,7 +51,7 @@ function Dashboard() {
       <div className={`content ${isOpen ? "shift" : ""}`}>
         {activePage === "dashboard" && (
           <>
-            <h1>Welcome to the Dashboard 🎉</h1>
+            <h1>Welcome to the Admin Dashboard 🎉</h1>
           </>
         )}
 
