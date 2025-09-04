@@ -6,10 +6,11 @@ from tuya_connector import TuyaOpenAPI
 import datetime
 from tabulate import tabulate
 import signal
-
+import socket
 
 # Load file secrets
 load_dotenv("secrets.env")
+
 
 # Tuya Details
 ACCESS_ID = os.getenv("ACCESS_ID")
@@ -27,9 +28,21 @@ for pair in raw_map.split(","):
 # MongoDB setup
 mongo_client = MongoClient(os.getenv("MONGO_URI"))
 
+# --- Check MongoDB connection ---
+try:
+    mongo_client.admin.command("ping")
+    print("✅ Connected to MongoDB successfully.\n")
+except errors.ServerSelectionTimeoutError:
+    print("❌ Cannot connect to MongoDB. Check Wi-Fi or firewall restrictions.")
+
 # Connect to Tuya
-openapi = TuyaOpenAPI(API_ENDPOINT, ACCESS_ID, ACCESS_KEY)
-openapi.connect()
+try:
+    openapi = TuyaOpenAPI(API_ENDPOINT, ACCESS_ID, ACCESS_KEY)
+    openapi.connect()
+    print("✅ Connected to Tuya Cloud successfully.\n")
+except Exception as e:
+    print("❌ Cannot connect to Tuya Cloud. This may be due to blocked Wi-Fi or firewall rules.")
+    print("Error details:", e)
 
 # MongoDB database
 db = mongo_client["homesense_db"]
@@ -60,6 +73,19 @@ is_active = {name: True for name in DEVICE_MAP.keys()}
 
 # Flag to control stopping
 stop_flag = False
+
+def check_internet_connection(host="8.8.8.8", port=53, timeout=3):
+    """Quick check if the device has internet (Google DNS)."""
+    try:
+        socket.setdefaulttimeout(timeout)
+        socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect((host, port))
+        return True
+    except socket.error:
+        return False
+    
+wait_time = 5  # start at 5 seconds
+max_wait = 300  # cap at 5 minutes
+
 
 def handle_shutdown(signum, frame):
     global stop_flag
@@ -164,7 +190,7 @@ first_run = True
 # Track last printed totals to suppress duplicates
 last_printed_totals = {device_id: None for device_id in DEVICE_MAP.values()}
 
-def print_plug_reading(device_name, device_id, power_watts, energy_kwh, total_kwh, status, timestamp):
+def print_plug_reading(device_name,power_watts, energy_kwh, total_kwh, status, timestamp):
     """Pretty-print a single plug reading."""
     print(f"\n💡 [{device_name}] Total: {total_kwh:.6f} kWh")
     print(f"   ├─ Power:       {power_watts:.2f} W")
@@ -190,7 +216,14 @@ def print_cycle_summary(date_str, timestamp, device_summaries, overall_total):
 
 # Main loop (5-minute logging)
 while not stop_flag:
+    
     try:
+        if not check_internet_connection():
+            print(f"🌐 No internet connection detected. Retrying in {wait_time} seconds...")
+            time.sleep(wait_time)
+            wait_time = min(wait_time * 2, max_wait) #exponential backoff
+            continue  # skip this cycle
+
         now_date_str = datetime.date.today().isoformat()
 
         # If new day → reset per device
@@ -236,7 +269,7 @@ while not stop_flag:
                 continue
 
             # kWh calculation (5 min)
-            energy_kwh = (power_watts / 1000.0) * (3.0 / 60.0) #3.0 / 60.0 if 3 minutes
+            energy_kwh = (power_watts / 1000.0) * (1.0 / 60.0) #3.0 / 60.0 if 3 minutes
 
             # Active/inactive handling
             if power_watts == 0:
@@ -260,7 +293,7 @@ while not stop_flag:
             # Only print if total changed (avoid duplicates)
             if last_printed_totals[device_id] != round(device_totals[device_id], 6):
                 print_plug_reading(
-                    name, device_id,
+                    name,
                     power_watts,
                     energy_kwh,
                     device_totals[device_id],
@@ -284,11 +317,12 @@ while not stop_flag:
             print_cycle_summary(tracking_day, datetime.datetime.now().strftime("%H:%M:%S"),
                                 device_summaries, overall_total)
 
+    except errors.ServerSelectionTimeoutError:
+        print("❌ Lost connection to MongoDB. Check Wi-Fi or VPN.")
     except Exception as e:
-        print("Error occurred:", e)
-
+        print("⚠️ Unexpected error:", e)
     # Sleep loop
-    for _ in range(180): #change to 180 if 3 minutes, 300 if 5 minutes
+    for _ in range(60): #change to 180 if 3 minutes, 300 if 5 minutes
         if stop_flag:
             break
         time.sleep(1)
