@@ -1,11 +1,12 @@
 import os
 import time
-import threading
 from dotenv import load_dotenv
 from pymongo import MongoClient, errors
 from tuya_connector import TuyaOpenAPI
 import datetime
 from tabulate import tabulate
+import signal
+
 
 # Load file secrets
 load_dotenv("secrets.env")
@@ -60,19 +61,14 @@ is_active = {name: True for name in DEVICE_MAP.keys()}
 # Flag to control stopping
 stop_flag = False
 
-def stop_listener():
-    """Background thread to listen for 'shutdown' command."""
+def handle_shutdown(signum, frame):
     global stop_flag
-    while True:
-        user_input = input().strip().lower()
-        if user_input == "shutdown":
-            print("\n🛑 Stop command received. Exiting program...")
-            stop_flag = True
-            break
+    print("\n🛑 Ctrl+C received. Shutting down gracefully...")
+    stop_flag = True
 
-# Start the stop listener in a separate thread
-listener_thread = threading.Thread(target=stop_listener, daemon=True)
-listener_thread.start()
+# Register signal handlers for Ctrl+C (SIGINT) and termination (SIGTERM)
+signal.signal(signal.SIGINT, handle_shutdown)   # Ctrl+C
+signal.signal(signal.SIGTERM, handle_shutdown)  # kill or system stop
 
 # Resume from MongoDB if totals exist
 for name, device_id in DEVICE_MAP.items():
@@ -240,7 +236,7 @@ while not stop_flag:
                 continue
 
             # kWh calculation (5 min)
-            energy_kwh = (power_watts / 1000.0) * (1.0 / 60.0) #3.0 / 60.0 if 3 minutes
+            energy_kwh = (power_watts / 1000.0) * (3.0 / 60.0) #3.0 / 60.0 if 3 minutes
 
             # Active/inactive handling
             if power_watts == 0:
@@ -292,7 +288,7 @@ while not stop_flag:
         print("Error occurred:", e)
 
     # Sleep loop
-    for _ in range(60): #change to 180 if 3 minutes, 300 if 5 minutes
+    for _ in range(180): #change to 180 if 3 minutes, 300 if 5 minutes
         if stop_flag:
             break
         time.sleep(1)
