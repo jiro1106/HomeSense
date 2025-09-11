@@ -44,7 +44,11 @@ const SettingsItem = React.memo(
     );
 
     return (
-      <View style={styles.settingsItem}>
+      <TouchableOpacity
+        style={styles.settingsItem}
+        onPress={!showToggle ? onPress : undefined} // only clickable if not a switch
+        activeOpacity={0.7}
+      >
         <View style={styles.settingsItemLeft}>
           <Icon
             name={icon}
@@ -70,12 +74,10 @@ const SettingsItem = React.memo(
               />
             </View>
           ) : showArrow ? (
-            <TouchableOpacity onPress={onPress}>
-              <Icon name="chevron-right" size={24} color="#666" />
-            </TouchableOpacity>
+            <Icon name="chevron-right" size={24} color="#666" />
           ) : null}
         </View>
-      </View>
+      </TouchableOpacity>
     );
   }
 );

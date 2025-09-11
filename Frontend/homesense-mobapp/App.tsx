@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import { BackHandler, Platform } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
@@ -33,11 +34,30 @@ export type RootStackParamList = {
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function App() {
+  // Disable Android back button
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      const backHandler = BackHandler.addEventListener(
+        'hardwareBackPress',
+        () => {
+          // returning true means we have handled it
+          // so it will not exit or navigate back
+          return true;
+        }
+      );
+      return () => backHandler.remove();
+    }
+  }, []);
+
   return (
     <NavigationContainer>
       <Stack.Navigator
         initialRouteName="Landing"
-        screenOptions={{ headerShown: false, animation: 'none' }}
+        screenOptions={{
+          headerShown: false,
+          animation: 'none',
+          gestureEnabled: false, // disables swipe-back on iOS
+        }}
       >
         <Stack.Screen name="Landing" component={LandingPage} />
         <Stack.Screen name="Login" component={LoginScreen} />

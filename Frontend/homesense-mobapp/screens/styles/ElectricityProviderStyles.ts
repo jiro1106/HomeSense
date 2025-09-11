@@ -1,52 +1,58 @@
-import { StyleSheet } from 'react-native';
+import { StyleSheet } from "react-native";
 
 export default StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
   },
   safeArea: {
     flex: 1,
   },
   topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     padding: 15,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderBottomColor: "#eee",
   },
   backButton: {
     marginRight: 10,
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#000',
+    fontWeight: "600",
+    color: "#000",
   },
   content: {
     padding: 20,
   },
   instructions: {
     fontSize: 14,
-    color: '#555',
+    color: "#555",
     marginBottom: 20,
     lineHeight: 20,
-  },
-  optionsContainer: {
-    marginTop: 20,
   },
   optionButton: {
     padding: 15,
     marginVertical: 10,
     borderRadius: 10,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: "#f5f5f5",
+  },
+  optionContent: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  logo: {
+    width: 40,
+    height: 40,
+    marginRight: 12,
   },
   optionText: {
     fontSize: 16,
-    fontWeight: '500',
-    color: '#333',
+    fontWeight: "500",
+    color: "#333",
   },
   selectedOption: {
-    backgroundColor: '#FFD700',
+    backgroundColor: "#FFD700",
   },
 });

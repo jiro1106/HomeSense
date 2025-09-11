@@ -6,7 +6,6 @@ export const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
 
-  // Main Content
   contentContainer: {
     flex: 1,
     backgroundColor: '#fff',
@@ -22,7 +21,6 @@ export const styles = StyleSheet.create({
     color: '#000',
   },
 
-  // Form Fields
   formField: {
     marginBottom: 20,
   },
@@ -56,11 +54,6 @@ export const styles = StyleSheet.create({
     fontSize: 16,
     color: '#000',
   },
-  dropdownIcon: {
-    width: 16,
-    height: 16,
-    tintColor: '#666',
-  },
   readOnlyInput: {
     borderWidth: 1,
     borderColor: '#ccc',
@@ -72,7 +65,6 @@ export const styles = StyleSheet.create({
     color: '#666',
   },
 
-  // Register Button
   registerButton: {
     backgroundColor: '#FFD600',
     paddingVertical: 15,
@@ -81,6 +73,47 @@ export const styles = StyleSheet.create({
     marginTop: 20,
   },
   registerButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#000',
+  },
+
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    padding: 20,
+    maxHeight: '70%',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 15,
+    textAlign: 'center',
+  },
+  optionItem: {
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  optionText: {
+    fontSize: 16,
+    color: '#000',
+  },
+  closeButton: {
+    marginTop: 15,
+    paddingVertical: 12,
+    backgroundColor: '#FFD600',
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  closeButtonText: {
     fontSize: 16,
     fontWeight: 'bold',
     color: '#000',

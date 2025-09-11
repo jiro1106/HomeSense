@@ -6,6 +6,8 @@ import {
   TouchableOpacity,
   ScrollView,
   Alert,
+  Modal,
+  FlatList,
 } from 'react-native';
 import { styles } from './styles/RegisterAppliancePageStyles';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -21,6 +23,10 @@ const RegisterAppliancePage: React.FC<RegisterAppliancePageProps> = ({ navigatio
   const [location, setLocation] = useState('');
   const [applianceId, setApplianceId] = useState('');
 
+  // modal state
+  const [showTypeModal, setShowTypeModal] = useState(false);
+  const [showLocationModal, setShowLocationModal] = useState(false);
+
   const applianceTypes = [
     'Electric Fan',
     'Air Conditioner',
@@ -31,7 +37,7 @@ const RegisterAppliancePage: React.FC<RegisterAppliancePageProps> = ({ navigatio
     'Toaster',
     'Coffee Maker',
     'Blender',
-    'Other'
+    'Other',
   ];
 
   const locations = [
@@ -44,13 +50,12 @@ const RegisterAppliancePage: React.FC<RegisterAppliancePageProps> = ({ navigatio
     'Garage',
     'Basement',
     'Attic',
-    'Other'
+    'Other',
   ];
 
   // Generate ID once all inputs are filled
   useEffect(() => {
     if (applianceName.trim() && applianceType && location) {
-      // Random simple ID generator
       const newId = Math.random().toString(36).substring(2, 12);
       setApplianceId(newId);
     } else {
@@ -71,45 +76,31 @@ const RegisterAppliancePage: React.FC<RegisterAppliancePageProps> = ({ navigatio
       id: applianceId,
     });
 
-    Alert.alert(
-      'Success',
-      'Appliance registered successfully!',
-      [
-        {
-          text: 'OK',
-          onPress: () => {
-            setApplianceName('');
-            setApplianceType('');
-            setLocation('');
-            setApplianceId('');
-            onSuccess?.();
-          },
+    Alert.alert('Success', 'Appliance registered successfully!', [
+      {
+        text: 'OK',
+        onPress: () => {
+          setApplianceName('');
+          setApplianceType('');
+          setLocation('');
+          setApplianceId('');
+          onSuccess?.();
         },
-      ]
-    );
+      },
+    ]);
   };
 
-  const showTypePicker = () => {
-    Alert.alert(
-      'Select Appliance Type',
-      '',
-      applianceTypes.map(type => ({
-        text: type,
-        onPress: () => setApplianceType(type),
-      }))
-    );
-  };
-
-  const showLocationPicker = () => {
-    Alert.alert(
-      'Select Location',
-      '',
-      locations.map(loc => ({
-        text: loc,
-        onPress: () => setLocation(loc),
-      }))
-    );
-  };
+  const renderOption = (item: string, onSelect: (val: string) => void, close: () => void) => (
+    <TouchableOpacity
+      style={styles.optionItem}
+      onPress={() => {
+        onSelect(item);
+        close();
+      }}
+    >
+      <Text style={styles.optionText}>{item}</Text>
+    </TouchableOpacity>
+  );
 
   return (
     <View style={styles.container}>
@@ -131,10 +122,8 @@ const RegisterAppliancePage: React.FC<RegisterAppliancePageProps> = ({ navigatio
         {/* Appliance Type */}
         <View style={styles.formField}>
           <Text style={styles.label}>Appliance Type</Text>
-          <TouchableOpacity style={styles.dropdownContainer} onPress={showTypePicker}>
-            <Text style={styles.dropdownText}>
-              {applianceType || 'Select appliance type'}
-            </Text>
+          <TouchableOpacity style={styles.dropdownContainer} onPress={() => setShowTypeModal(true)}>
+            <Text style={styles.dropdownText}>{applianceType || 'Select appliance type'}</Text>
             <Icon name="arrow-drop-down" size={24} color="#666" />
           </TouchableOpacity>
         </View>
@@ -142,10 +131,11 @@ const RegisterAppliancePage: React.FC<RegisterAppliancePageProps> = ({ navigatio
         {/* Location */}
         <View style={styles.formField}>
           <Text style={styles.label}>Location</Text>
-          <TouchableOpacity style={styles.dropdownContainer} onPress={showLocationPicker}>
-            <Text style={styles.dropdownText}>
-              {location || 'Select location'}
-            </Text>
+          <TouchableOpacity
+            style={styles.dropdownContainer}
+            onPress={() => setShowLocationModal(true)}
+          >
+            <Text style={styles.dropdownText}>{location || 'Select location'}</Text>
             <Icon name="arrow-drop-down" size={24} color="#666" />
           </TouchableOpacity>
         </View>
@@ -168,6 +158,40 @@ const RegisterAppliancePage: React.FC<RegisterAppliancePageProps> = ({ navigatio
           <Text style={styles.registerButtonText}>Register Appliance</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Appliance Type Modal */}
+      <Modal visible={showTypeModal} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Select Appliance Type</Text>
+            <FlatList
+              data={applianceTypes}
+              keyExtractor={(item) => item}
+              renderItem={({ item }) => renderOption(item, setApplianceType, () => setShowTypeModal(false))}
+            />
+            <TouchableOpacity style={styles.closeButton} onPress={() => setShowTypeModal(false)}>
+              <Text style={styles.closeButtonText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Location Modal */}
+      <Modal visible={showLocationModal} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Select Location</Text>
+            <FlatList
+              data={locations}
+              keyExtractor={(item) => item}
+              renderItem={({ item }) => renderOption(item, setLocation, () => setShowLocationModal(false))}
+            />
+            <TouchableOpacity style={styles.closeButton} onPress={() => setShowLocationModal(false)}>
+              <Text style={styles.closeButtonText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };

@@ -6,6 +6,7 @@ import {
   StatusBar,
   Alert,
   ScrollView,
+  Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Icon from "react-native-vector-icons/MaterialIcons";
@@ -65,17 +66,25 @@ const ElectricityProvider = () => {
             and recommendations.
           </Text>
 
-          {/* Options */}
+          {/* BATELec Option */}
           <TouchableOpacity
             style={[
               styles.optionButton,
-              selectedProvider === "BATLEC" && styles.selectedOption,
+              selectedProvider === "BATELEC" && styles.selectedOption,
             ]}
-            onPress={() => handleSelectProvider("BATLEC")}
+            onPress={() => handleSelectProvider("BATELEC")}
           >
-            <Text style={styles.optionText}>BATELEC</Text>
+            <View style={styles.optionContent}>
+              <Image
+                source={require("../assets/batelec-logo.png")}
+                style={styles.logo}
+                resizeMode="contain"
+              />
+              <Text style={styles.optionText}>BATELEC</Text>
+            </View>
           </TouchableOpacity>
 
+          {/* MERALCO Option */}
           <TouchableOpacity
             style={[
               styles.optionButton,
@@ -83,7 +92,14 @@ const ElectricityProvider = () => {
             ]}
             onPress={() => handleSelectProvider("MERALCO")}
           >
-            <Text style={styles.optionText}>MERALCO</Text>
+            <View style={styles.optionContent}>
+              <Image
+                source={require("../assets/meralco-logo.png")}
+                style={styles.logo}
+                resizeMode="contain"
+              />
+              <Text style={styles.optionText}>MERALCO</Text>
+            </View>
           </TouchableOpacity>
         </ScrollView>
       </SafeAreaView>
