@@ -65,7 +65,8 @@ except errors.OperationFailure as e:
 
 # Track totals per device_id
 device_totals = {}
-tracking_day = datetime.date.today().isoformat()
+tracking_day = datetime.datetime.now(datetime.timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+
 
 # Track inactivity states
 inactive_counts = {name: 0 for name in DEVICE_MAP.keys()}
@@ -109,54 +110,55 @@ for name, device_id in DEVICE_MAP.items():
 # Data needed from the API
 required_keys = ["add_ele", "cur_power", "cur_voltage", "cur_current", "switch_1"]
 
-def save_current_total(device_name: str, device_id: str, date_str: str, total: float):
+def save_current_total(device_name: str, device_id: str, date: datetime.datetime, total: float, status: str):
     """Upsert total_kwh per device_id per day (unique)."""
     current_totals_collection.update_one(
     {"device_id": device_id},   # 👈 only track by device_id
     {"$set": {
         "device_name": device_name,
-        "date": date_str,  # still store today's date
+        "date": date,
         "total_kwh": round(total, 6),
-        "updated_at": datetime.datetime.now()
+        "status": status,
+        "updated_at": datetime.datetime.now(datetime.timezone.utc)
     }},
     upsert=True   # 👈 still needed so every plug gets at least one doc
 )
 
 
-def save_daily_total_per_plug(device_name: str, device_id: str, date_str: str, total: float):
+def save_daily_total_per_plug(device_name: str, device_id: str, date: datetime.datetime, total: float):
     try:
         daily_totals_per_plug_collection.update_one(
-            {"device_id": device_id, "date": date_str},
+            {"device_id": device_id, "date": date,},
             {"$set": {
                 "device_name": device_name,
                 "total_kwh": round(total, 6),
-                "updated_at": datetime.datetime.now()
+                "updated_at": datetime.datetime.now(datetime.timezone.utc)
             }},
             upsert=True
         )
     except Exception as e:
         print(f"Failed to save daily total for {device_name} ({device_id}):", e)
 
-def save_overall_daily_total(date_str: str):
+def save_overall_daily_total(date: datetime.datetime):
     try:
         pipeline = [
-            {"$match": {"date": date_str}},
+            {"$match": {"date": date}},
             {"$group": {"_id": None, "total_kwh": {"$sum": "$total_kwh"}}}
         ]
         result = list(daily_totals_per_plug_collection.aggregate(pipeline))
         overall_total = result[0]["total_kwh"] if result else 0.0
 
         daily_totals_collection.update_one(
-            {"date": date_str},
+            {"date": date,},
             {"$set": {
                 "total_kwh": round(overall_total, 6),
-                "updated_at": datetime.datetime.now()
+                "updated_at": datetime.datetime.now(datetime.timezone.utc)
             }},
             upsert=True
         )
-        print(f"\n🚨 Updated overall daily total for {date_str}: {overall_total:.6f} kWh")
+        print(f"\n🚨 Updated overall daily total for {date}: {overall_total:.6f} kWh")
     except Exception as e:
-        print(f"Failed to save overall daily total for {date_str}:", e)
+        print(f"Failed to save overall daily total for {date}:", e)
 
 # Track consecutive failures
 failure_counts = {name: 0 for name in DEVICE_MAP.keys()}
@@ -190,13 +192,30 @@ first_run = True
 # Track last printed totals to suppress duplicates
 last_printed_totals = {device_id: None for device_id in DEVICE_MAP.values()}
 
-def print_plug_reading(device_name,power_watts, energy_kwh, total_kwh, status, timestamp):
-    """Pretty-print a single plug reading."""
+def print_plug_reading(device_name, power_watts, energy_kwh, total_kwh, status, timestamp, device_id, date):
+    """Pretty-print a single plug reading and save to MongoDB energy_data."""
+    
+    # Print to console
     print(f"\n💡 [{device_name}] Total: {total_kwh:.6f} kWh")
     print(f"   ├─ Power:       {power_watts:.2f} W")
     print(f"   ├─ Interval:    {energy_kwh:.6f} kWh")
     print(f"   ├─ Status:      {'🟢 active' if status == 'active' else '🔴 inactive'}")
     print(f"   └─ Timestamp:   {timestamp}")
+    
+    # Save to MongoDB
+    try:
+        energy_collection.insert_one({
+            "device_id": device_id,
+            "device_name": device_name,
+            "date": date,  # ISODate (midnight)
+            "timestamp": datetime.datetime.now(datetime.timezone.utc),  # exact log time
+            "power_watts": round(power_watts, 2),
+            "interval_kwh": round(energy_kwh, 6),
+            "total_kwh": round(total_kwh, 6),
+            "status": status
+        })
+    except Exception as e:
+        print(f"⚠️ Failed to insert energy_data for {device_name}: {e}")
 
 def print_cycle_summary(date_str, timestamp, device_summaries, overall_total):
     """Print a summary table at the end of a cycle using tabulate."""
@@ -224,14 +243,14 @@ while not stop_flag:
             wait_time = min(wait_time * 2, max_wait) #exponential backoff
             continue  # skip this cycle
 
-        now_date_str = datetime.date.today().isoformat()
+        now_date = datetime.datetime.now(datetime.timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
 
         # If new day → reset per device
-        if now_date_str != tracking_day:
-            tracking_day = now_date_str
+        if now_date != tracking_day:
+            tracking_day = now_date 
             for name, device_id in DEVICE_MAP.items():
                 device_totals[device_id] = 0.0
-                save_current_total(name, device_id, tracking_day, 0.0)
+                save_current_total(name, device_id, tracking_day, 0.0, "inactive")
                 save_daily_total_per_plug(name, device_id, tracking_day, 0.0)
             save_overall_daily_total(tracking_day)
 
@@ -287,18 +306,20 @@ while not stop_flag:
             device_totals[device_id] += energy_kwh
 
             # Save to Mongo
-            save_current_total(name, device_id, tracking_day, device_totals[device_id])
+            save_current_total(name, device_id, tracking_day, device_totals[device_id],"active" if is_active[name] else "inactive")
             save_daily_total_per_plug(name, device_id, tracking_day, device_totals[device_id])
 
             # Only print if total changed (avoid duplicates)
             if last_printed_totals[device_id] != round(device_totals[device_id], 6):
                 print_plug_reading(
-                    name,
-                    power_watts,
-                    energy_kwh,
-                    device_totals[device_id],
-                    "active" if is_active[name] else "inactive",
-                    readable_time
+                    name,                          # device_name
+                    power_watts,                   # power_watts
+                    energy_kwh,                    # energy_kwh
+                    device_totals[device_id],      # total_kwh
+                    "active" if is_active[name] else "inactive",  # status
+                    readable_time,                 # timestamp
+                    device_id,                     # device_id
+                    tracking_day                   # date
                 )
                 last_printed_totals[device_id] = round(device_totals[device_id], 6)
 
@@ -314,7 +335,7 @@ while not stop_flag:
 
             # Compute summary total
             overall_total = sum(d["total_kwh"] for d in device_summaries.values())
-            print_cycle_summary(tracking_day, datetime.datetime.now().strftime("%H:%M:%S"),
+            print_cycle_summary(tracking_day, datetime.datetime.now(datetime.timezone.utc).strftime("%H:%M:%S"),
                                 device_summaries, overall_total)
 
     except errors.ServerSelectionTimeoutError:
