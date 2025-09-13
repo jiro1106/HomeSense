@@ -233,7 +233,6 @@ def get_energy_summary():
             "device_name": name,
             "device_id": device_id,
             "status": current.get("status", "inactive") if current else "inactive",
-            "current_total_kwh": current.get("total_kwh", 0.0) if current else 0.0,
             "daily_total_kwh": daily.get("total_kwh", 0.0) if daily else 0.0,
             "last_updated": format_datetime(current["updated_at"]) if current and current.get("updated_at") else None
         })
