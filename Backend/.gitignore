@@ -1,1 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv/
+
+# Environment variables
+*.env
 secrets.env
+
+# IDE / Editor stuff
+.vscode/
+.idea/
+*.swp
+
+# Logs / Cache
+*.log
+*.sqlite3
+.DS_Store
+Thumbs.db
