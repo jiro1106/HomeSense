@@ -1,13 +1,13 @@
 # api/api_server.py
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Depends
 from pydantic import BaseModel
 from pymongo import MongoClient
 from dotenv import load_dotenv
 from passlib.hash import bcrypt
 import os
-import uuid
 import datetime
+from typing import List, Dict
 
 # ========================
 # ENV + DB SETUP
@@ -16,12 +16,20 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 load_dotenv(os.path.join(BASE_DIR, "secrets.env"))
 
 MONGO_URI = os.getenv("MONGO_URI")
+if not MONGO_URI:
+    raise RuntimeError("MONGO_URI not set in secrets.env")
+
 client = MongoClient(MONGO_URI)
 db = client["homesense_db"]
 
+# Load household from env
+HOUSEHOLD_ID = os.getenv("HOUSEHOLD_ID")
+if not HOUSEHOLD_ID:
+    raise RuntimeError("HOUSEHOLD_ID not set in secrets.env")
+
 # Parse DEVICE_MAP (format: plug1:deviceid1,plug2:deviceid2)
 raw_device_map = os.getenv("DEVICE_MAP", "")
-DEVICE_MAP = {}
+DEVICE_MAP: Dict[str, str] = {}
 if raw_device_map:
     for pair in raw_device_map.split(","):
         if ":" in pair:
@@ -50,7 +58,7 @@ def clean_doc(doc):
         doc["updated_at"] = format_datetime(doc["updated_at"])
     return doc
 
-def clean_docs(docs):
+def clean_docs(docs: List[dict]) -> List[dict]:
     """Remove _id and format for a list of documents"""
     return [clean_doc(d) for d in docs]
 
@@ -97,6 +105,9 @@ def validate_device(device_name: str) -> str:
         raise HTTPException(status_code=404, detail=f"Device '{device_name}' not found")
     return DEVICE_MAP[device_name]
 
+def get_household_id() -> str:
+    return HOUSEHOLD_ID
+
 # ========================
 # MODELS
 # ========================
@@ -117,14 +128,14 @@ def register_user(req: RegisterRequest):
     if users.find_one({"email": req.email}):
         raise HTTPException(status_code=400, detail="Email already registered")
 
-    household_id = str(uuid.uuid4())
     hashed_pw = bcrypt.hash(req.password)
     users.insert_one({
         "email": req.email,
         "password": hashed_pw,
-        "household_id": household_id,
+        "household_id": HOUSEHOLD_ID,   # ← always use env household_id
     })
-    return {"message": "User registered successfully", "household_id": household_id}
+    return {"message": "User registered successfully", "household_id": HOUSEHOLD_ID}
+
 
 @app.post("/auth/login")
 def login_user(req: LoginRequest):
@@ -132,8 +143,7 @@ def login_user(req: LoginRequest):
     user = users.find_one({"email": req.email})
     if not user or not bcrypt.verify(req.password, user["password"]):
         raise HTTPException(status_code=401, detail="Invalid email or password")
-    return {"message": "Login successful", "household_id": user["household_id"]}
-
+    return {"message": "Login successful", "household_id": HOUSEHOLD_ID}
 # ========================
 # ROOT
 # ========================
@@ -145,17 +155,24 @@ def root():
 # DEVICES ENDPOINT
 # ========================
 @app.get("/devices")
-def list_devices():
+def list_devices(household_id: str = Depends(get_household_id)):
+    
+   #not used now, but can be used to verify device map from env
+    
     return {"devices": DEVICE_MAP}
 
 # ========================
-# 1️⃣ Current plug status
+# 1️⃣ Current plug status (scoped by household)
 # ========================
 @app.get("/devices/status/{device_name}")
-def get_device_status(device_name: str):
-    """Return current total kWh and active/inactive status of a single device."""
+def get_device_status(device_name: str, household_id: str = Depends(get_household_id)):
+    """Return current total kWh and active/inactive status of a single device for the household."""
     device_id = validate_device(device_name)
-    current = db["current_totals"].find_one({"device_id": device_id})
+    try:
+        current = db["current_totals"].find_one({"household_id": household_id, "device_id": device_id})
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"DB error: {str(e)}")   
 
     if not current:
         return {
@@ -175,13 +192,19 @@ def get_device_status(device_name: str):
     }
 
 # ========================
-# 2️⃣ Daily household total
+# 2️⃣ Daily household total (scoped by household)
 # ========================
 @app.get("/energy/daily/total")
-def get_household_daily_total(date: str = None):
+def get_household_daily_total(date: str = None, household_id: str = Depends(get_household_id)):
     start, end = get_utc_range_for_date(date)
-    doc = db["daily_totals"].find_one({"date": {"$gte": start, "$lt": end}})
-
+    try:
+        doc = db["daily_totals"].find_one({
+            "household_id": household_id,
+            "date": {"$gte": start, "$lt": end}
+        })
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"DB error: {str(e)}")
+    
     if not doc:
         return {
             "date": date or start.astimezone(PH_TZ).strftime("%Y-%m-%d"),
@@ -192,17 +215,21 @@ def get_household_daily_total(date: str = None):
     return clean_doc(doc)
 
 # ========================
-# 3️⃣ Daily total per plug
+# 3️⃣ Daily total per plug (scoped by household)
 # ========================
 @app.get("/energy/daily/{device_name}")
-def get_daily_total(device_name: str, date: str = None):
+def get_daily_total(device_name: str, date: str = None, household_id: str = Depends(get_household_id)):
     device_id = validate_device(device_name)
     start, end = get_utc_range_for_date(date)
-    doc = db["daily_totals_per_plug"].find_one({
-        "device_id": device_id,
-        "date": {"$gte": start, "$lt": end}
-    })
-
+    try:
+        doc = db["daily_totals_per_plug"].find_one({
+            "household_id": household_id,
+            "device_id": device_id,
+            "date": {"$gte": start, "$lt": end}
+        })
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"DB error: {str(e)}")
+    
     return clean_doc(doc) if doc else {
         "device_name": device_name,
         "device_id": device_id,
@@ -212,21 +239,28 @@ def get_daily_total(device_name: str, date: str = None):
     }
 
 # ========================
-# 4️⃣ Dashboard summary (all plugs)
+# 4️⃣ Dashboard summary (scoped by household)
 # ========================
 @app.get("/energy/summary")
-def get_energy_summary():
-    """Return current totals, status, and daily totals for all devices."""
+def get_energy_summary(household_id: str = Depends(get_household_id)):
+    """Return current totals, status, and daily totals for all devices in the household."""
     summary = []
     start, end = get_utc_range_for_date()  # today PH -> UTC
 
     for name, device_id in DEVICE_MAP.items():
-        current = db["current_totals"].find_one({"device_id": device_id})
-        daily = db["daily_totals_per_plug"].find_one({
-            "device_id": device_id,
-            "date": {"$gte": start, "$lt": end}
-        })
-
+        try:
+            current = db["current_totals"].find_one({
+                "household_id": household_id,
+                "device_id": device_id
+            })
+            daily = db["daily_totals_per_plug"].find_one({
+                "household_id": household_id,
+                "device_id": device_id,
+                "date": {"$gte": start, "$lt": end}
+            })
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"DB error: {str(e)}")
+        
         summary.append({
             "device_name": name,
             "device_id": device_id,
@@ -235,30 +269,52 @@ def get_energy_summary():
             "last_updated": format_datetime(current["updated_at"]) if current and current.get("updated_at") else None
         })
 
-    return {"summary": summary}
+    return {"household_id": household_id, "summary": summary}
+
 
 # ========================
-# 5️⃣ Historical daily totals per plug
+# 5️⃣ Historical daily totals per plug (scoped by household)
 # ========================
 @app.get("/energy/history/range/{device_name}")
-def get_daily_history(device_name: str, start: str = Query(...), end: str = Query(...)):
+def get_daily_history(
+    device_name: str,
+    start: str = Query(...),
+    end: str = Query(...),
+    household_id: str = Depends(get_household_id)
+):
     device_id = validate_device(device_name)
     start_date = parse_date(start)
     end_date = parse_date(end)
-    cursor = db["daily_totals_per_plug"].find({
-        "device_id": device_id,
-        "date": {"$gte": start_date, "$lte": end_date}
-    }).sort("date", 1)
-    return {"device_id": device_id, "history": clean_docs(list(cursor))}
+
+    try:
+        cursor = db["daily_totals_per_plug"].find({
+            "household_id": household_id,
+            "device_id": device_id,
+            "date": {"$gte": start_date, "$lte": end_date}
+        }).sort("date", 1)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"DB error: {str(e)}")
+    
+    return {"device_name": device_name, "history": clean_docs(list(cursor))}
 
 # ========================
-# 6️⃣ Historical household totals
+# 6️⃣ Historical household totals (scoped by household)
 # ========================
 @app.get("/energy/history/total_range")
-def get_household_history(start: str = Query(...), end: str = Query(...)):
+def get_household_history(
+    start: str = Query(...),
+    end: str = Query(...),
+    household_id: str = Depends(get_household_id)
+):
     start_date = parse_date(start)
     end_date = parse_date(end)
-    cursor = db["daily_totals"].find({
-        "date": {"$gte": start_date, "$lte": end_date}
-    }).sort("date", 1)
+    try:
+        cursor = db["daily_totals"].find({
+            "household_id": household_id,
+            "date": {"$gte": start_date, "$lte": end_date}
+        }).sort("date", 1)
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"DB error: {str(e)}")
+    
     return {"history": clean_docs(list(cursor))}
