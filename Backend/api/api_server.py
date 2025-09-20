@@ -2,7 +2,7 @@
 
 from fastapi import FastAPI, HTTPException, Query, Depends
 from pydantic import BaseModel
-from pymongo import MongoClient
+from pymongo import MongoClient, errors
 from dotenv import load_dotenv
 from passlib.hash import bcrypt
 import os
@@ -124,26 +124,59 @@ class LoginRequest(BaseModel):
 # ========================
 @app.post("/auth/register")
 def register_user(req: RegisterRequest):
-    users = db["users"]
-    if users.find_one({"email": req.email}):
-        raise HTTPException(status_code=400, detail="Email already registered")
+    try:
+        users = db["users"]
 
-    hashed_pw = bcrypt.hash(req.password)
-    users.insert_one({
-        "email": req.email,
-        "password": hashed_pw,
-        "household_id": HOUSEHOLD_ID,   # ← always use env household_id
-    })
-    return {"message": "User registered successfully", "household_id": HOUSEHOLD_ID}
+        # Normalize email
+        email = req.email.strip().lower()
+
+        # Check duplicate
+        if users.find_one({"email": email}):
+            raise HTTPException(status_code=400, detail="Email already registered")
+
+        # Hash password
+        hashed_pw = bcrypt.hash(req.password)
+
+        users.insert_one({
+            "email": email,
+            "password": hashed_pw,
+            "household_id": HOUSEHOLD_ID,  # always use env household_id
+        })
+
+        return {
+            "message": "User registered successfully",
+            "household_id": HOUSEHOLD_ID,
+        }
+
+    except errors.PyMongoError as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
 
 
 @app.post("/auth/login")
 def login_user(req: LoginRequest):
-    users = db["users"]
-    user = users.find_one({"email": req.email})
-    if not user or not bcrypt.verify(req.password, user["password"]):
-        raise HTTPException(status_code=401, detail="Invalid email or password")
-    return {"message": "Login successful", "household_id": HOUSEHOLD_ID}
+    try:
+        users = db["users"]
+
+        # Normalize email
+        email = req.email.strip().lower()
+
+        # Lookup user
+        user = users.find_one({"email": email})
+        if not user or not bcrypt.verify(req.password, user["password"]):
+            raise HTTPException(status_code=401, detail="Invalid email or password")
+
+        return {
+            "message": "Login successful",
+            "household_id": HOUSEHOLD_ID,
+        }
+
+    except errors.PyMongoError as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
+
 # ========================
 # ROOT
 # ========================
