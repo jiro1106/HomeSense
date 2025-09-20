@@ -11,6 +11,16 @@ import socket
 # Load file secrets
 load_dotenv("secrets.env")
 
+# === NEW: Household support (MVP: household1|household2|household3) ===
+HOUSEHOLD_ID = os.getenv("HOUSEHOLD_ID")
+ALLOWED_HOUSEHOLDS = {"household1", "household2", "household3"}
+
+if not HOUSEHOLD_ID:
+    raise RuntimeError("HOUSEHOLD_ID not set in secrets.env (set to household1/household2/household3 for MVP).")
+if HOUSEHOLD_ID not in ALLOWED_HOUSEHOLDS:
+    raise RuntimeError(f"HOUSEHOLD_ID '{HOUSEHOLD_ID}' not allowed. Use one of {sorted(ALLOWED_HOUSEHOLDS)}")
+
+print(f"🔖 Collector running for household: {HOUSEHOLD_ID}")
 
 # Tuya Details
 ACCESS_ID = os.getenv("ACCESS_ID")
@@ -53,15 +63,25 @@ daily_totals_per_plug_collection = db["daily_totals_per_plug"]
 daily_totals_collection = db["daily_totals"]
 current_totals_collection = db["current_totals"]
 
-# --- Ensure unique index on (device_id, date) ---
+# --- Ensure unique index on (household_id, device_id) for current_totals_collection ---
 try:
     current_totals_collection.create_index(
-        [("device_id", 1)],
+        [("household_id", 1), ("device_id", 1)],
         unique=True
     )
-    print("✅ Unique index on device_id ensured for current_totals_collection.")
+    print("✅ Unique index on (household_id, device_id) ensured for current_totals_collection.")
 except errors.OperationFailure as e:
     print(f"⚠️ Index creation error: {e}")
+
+# Ensure unique index for daily_totals_per_plug on (household_id, device_id, date)
+try:
+    daily_totals_per_plug_collection.create_index(
+        [("household_id", 1), ("device_id", 1), ("date", 1)],
+        unique=True
+    )
+    print("✅ Unique index on (household_id, device_id, date) ensured for daily_totals_per_plug_collection.")
+except errors.OperationFailure as e:
+    print(f"⚠️ Index creation error (daily_totals_per_plug): {e}")
 
 # Track totals per device_id
 device_totals = {}
@@ -99,7 +119,11 @@ signal.signal(signal.SIGTERM, handle_shutdown)  # kill or system stop
 
 # Resume from MongoDB if totals exist
 for name, device_id in DEVICE_MAP.items():
-    saved = current_totals_collection.find_one({"device_id": device_id, "date": tracking_day})
+    saved = current_totals_collection.find_one({
+        "household_id": HOUSEHOLD_ID,
+        "device_id": device_id,
+        "date": tracking_day
+    })
     if saved:
         device_totals[device_id] = float(saved.get("total_kwh", 0.0))
         print(f"✅ Resuming {name} ({device_id}) total for {tracking_day}: {device_totals[device_id]:.6f} kWh")
@@ -111,25 +135,27 @@ for name, device_id in DEVICE_MAP.items():
 required_keys = ["add_ele", "cur_power", "cur_voltage", "cur_current", "switch_1"]
 
 def save_current_total(device_name: str, device_id: str, date: datetime.datetime, total: float, status: str):
-    """Upsert total_kwh per device_id per day (unique)."""
+    """Upsert total_kwh per household_id + device_id (unique per household)."""
     current_totals_collection.update_one(
-    {"device_id": device_id},   # 👈 only track by device_id
-    {"$set": {
-        "device_name": device_name,
-        "date": date,
-        "total_kwh": round(total, 6),
-        "status": status,
-        "updated_at": datetime.datetime.now(datetime.timezone.utc)
-    }},
-    upsert=True   # 👈 still needed so every plug gets at least one doc
-)
+        {"household_id": HOUSEHOLD_ID, "device_id": device_id},
+        {"$set": {
+            "household_id": HOUSEHOLD_ID,
+            "device_name": device_name,
+            "date": date,
+            "total_kwh": round(total, 6),
+            "status": status,
+            "updated_at": datetime.datetime.now(datetime.timezone.utc)
+        }},
+        upsert=True
+    )
 
 
 def save_daily_total_per_plug(device_name: str, device_id: str, date: datetime.datetime, total: float):
     try:
         daily_totals_per_plug_collection.update_one(
-            {"device_id": device_id, "date": date,},
+            {"household_id": HOUSEHOLD_ID, "device_id": device_id, "date": date},
             {"$set": {
+                "household_id": HOUSEHOLD_ID,
                 "device_name": device_name,
                 "total_kwh": round(total, 6),
                 "updated_at": datetime.datetime.now(datetime.timezone.utc)
@@ -142,23 +168,25 @@ def save_daily_total_per_plug(device_name: str, device_id: str, date: datetime.d
 def save_overall_daily_total(date: datetime.datetime):
     try:
         pipeline = [
-            {"$match": {"date": date}},
+            {"$match": {"household_id": HOUSEHOLD_ID, "date": date}},
             {"$group": {"_id": None, "total_kwh": {"$sum": "$total_kwh"}}}
         ]
         result = list(daily_totals_per_plug_collection.aggregate(pipeline))
         overall_total = result[0]["total_kwh"] if result else 0.0
 
         daily_totals_collection.update_one(
-            {"date": date,},
+            {"household_id": HOUSEHOLD_ID, "date": date},
             {"$set": {
+                "household_id": HOUSEHOLD_ID,
                 "total_kwh": round(overall_total, 6),
                 "updated_at": datetime.datetime.now(datetime.timezone.utc)
             }},
             upsert=True
         )
-        print(f"\n🚨 Updated overall daily total for {date}: {overall_total:.6f} kWh")
+        print(f"\n🚨 Updated overall daily total for {HOUSEHOLD_ID} {date}: {overall_total:.6f} kWh")
     except Exception as e:
         print(f"Failed to save overall daily total for {date}:", e)
+
 
 # Track consecutive failures
 failure_counts = {name: 0 for name in DEVICE_MAP.keys()}
@@ -193,7 +221,7 @@ first_run = True
 last_printed_totals = {device_id: None for device_id in DEVICE_MAP.values()}
 
 def print_plug_reading(device_name, power_watts, energy_kwh, total_kwh, status, timestamp, device_id, date):
-    """Pretty-print a single plug reading and save to MongoDB energy_data."""
+    """Pretty-print a single plug reading and save to MongoDB energy_data (scoped to household)."""
     
     # Print to console
     print(f"\n💡 [{device_name}] Total: {total_kwh:.6f} kWh")
@@ -202,9 +230,10 @@ def print_plug_reading(device_name, power_watts, energy_kwh, total_kwh, status, 
     print(f"   ├─ Status:      {'🟢 active' if status == 'active' else '🔴 inactive'}")
     print(f"   └─ Timestamp:   {timestamp}")
     
-    # Save to MongoDB
+    # Save to MongoDB (include household_id)
     try:
         energy_collection.insert_one({
+            "household_id": HOUSEHOLD_ID,
             "device_id": device_id,
             "device_name": device_name,
             "date": date,  # ISODate (midnight)
@@ -288,7 +317,7 @@ while not stop_flag:
                 continue
 
             # kWh calculation (5 min)
-            energy_kwh = (power_watts / 1000.0) * (5.0 / 60.0) #3.0 / 60.0 if 3 minutes
+            energy_kwh = (power_watts / 1000.0) * (2.0 / 60.0) #3.0 / 60.0 if 3 minutes
 
             # Active/inactive handling
             if power_watts == 0:
@@ -343,7 +372,7 @@ while not stop_flag:
     except Exception as e:
         print("⚠️ Unexpected error:", e)
     # Sleep loop
-    for _ in range(300): #change to 180 if 3 minutes, 300 if 5 minutes
+    for _ in range(120): #change to 180 if 3 minutes, 300 if 5 minutes
         if stop_flag:
             break
         time.sleep(1)
