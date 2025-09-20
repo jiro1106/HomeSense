@@ -318,3 +318,234 @@ def get_household_history(
         raise HTTPException(status_code=500, detail=f"DB error: {str(e)}")
     
     return {"history": clean_docs(list(cursor))}
+
+# ========================
+# 7. Weekly household total (Mon–Sun) with optional limit
+# ========================
+@app.get("/energy/weekly/total")
+def get_weekly_total_household(
+    limit: int = Query(None, ge=1),
+    household_id: str = Depends(get_household_id)
+):
+    pipeline = [
+        {"$match": {"household_id": household_id}},
+        {"$group": {
+            "_id": {"year": {"$isoWeekYear": "$date"}, "week": {"$isoWeek": "$date"}},
+            "kwh": {"$sum": "$total_kwh"}
+        }},
+        {"$sort": {"_id.year": -1, "_id.week": -1}},
+    ]
+
+    if limit:
+        pipeline.append({"$limit": limit})
+
+    cursor = db["daily_totals"].aggregate(pipeline)
+    results = list(cursor)
+
+    data = []
+    for r in reversed(results):
+        year, week = r["_id"]["year"], r["_id"]["week"]
+        week_start = datetime.datetime.strptime(f"{year}-{week}-1", "%G-%V-%u").date()
+        week_end = week_start + datetime.timedelta(days=6)
+        data.append({"week_start": str(week_start), "week_end": str(week_end), "kwh": r["kwh"]})
+
+    return {"data": data}
+
+
+
+# ========================
+# 8.  Weekly total per plug (Mon–Sun) with optional limit
+# ========================
+@app.get("/energy/weekly/{device_name}")
+def get_weekly_total(
+    device_name: str,
+    limit: int = Query(None, ge=1),
+    household_id: str = Depends(get_household_id)
+):
+    device_id = validate_device(device_name)
+
+    pipeline = [
+        {"$match": {"household_id": household_id, "device_id": device_id}},
+        {"$group": {
+            "_id": {"year": {"$isoWeekYear": "$date"}, "week": {"$isoWeek": "$date"}},
+            "kwh": {"$sum": "$total_kwh"}
+        }},
+        {"$sort": {"_id.year": -1, "_id.week": -1}},
+    ]
+
+    if limit:
+        pipeline.append({"$limit": limit})
+
+    cursor = db["daily_totals_per_plug"].aggregate(pipeline)
+    results = list(cursor)
+
+    data = []
+    for r in reversed(results):  # oldest first
+        year, week = r["_id"]["year"], r["_id"]["week"]
+        week_start = datetime.datetime.strptime(f"{year}-{week}-1", "%G-%V-%u").date()
+        week_end = week_start + datetime.timedelta(days=6)
+        data.append({"week_start": str(week_start), "week_end": str(week_end), "kwh": r["kwh"]})
+
+    return {"data": data}
+
+# ========================
+# 9. Monthly household total (calendar month) with optional limit
+# ========================
+@app.get("/energy/monthly/total")
+def get_monthly_total_household(
+    limit: int = Query(None, ge=1),
+    household_id: str = Depends(get_household_id)
+):
+    pipeline = [
+        {"$match": {"household_id": household_id}},
+        {"$group": {
+            "_id": {"year": {"$year": "$date"}, "month": {"$month": "$date"}},
+            "kwh": {"$sum": "$total_kwh"}
+        }},
+        {"$sort": {"_id.year": -1, "_id.month": -1}},
+    ]
+
+    if limit:
+        pipeline.append({"$limit": limit})
+
+    cursor = db["daily_totals"].aggregate(pipeline)
+    results = list(cursor)
+
+    data = [{"month": f"{r['_id']['year']}-{r['_id']['month']:02}", "kwh": r["kwh"]} for r in reversed(results)]
+
+    return {"data": data}
+
+
+
+# ========================
+# 10. Monthly total per plug (calendar month) with optional limit
+# ========================
+@app.get("/energy/monthly/{device_name}")
+def get_monthly_total(
+    device_name: str,
+    limit: int = Query(None, ge=1),
+    household_id: str = Depends(get_household_id)
+):
+    device_id = validate_device(device_name)
+
+    pipeline = [
+        {"$match": {"household_id": household_id, "device_id": device_id}},
+        {"$group": {
+            "_id": {"year": {"$year": "$date"}, "month": {"$month": "$date"}},
+            "kwh": {"$sum": "$total_kwh"}
+        }},
+        {"$sort": {"_id.year": -1, "_id.month": -1}},
+    ]
+
+    if limit:
+        pipeline.append({"$limit": limit})
+
+    cursor = db["daily_totals_per_plug"].aggregate(pipeline)
+    results = list(cursor)
+
+    data = [{"month": f"{r['_id']['year']}-{r['_id']['month']:02}", "kwh": r["kwh"]} for r in reversed(results)]
+
+    return {"data": data}
+
+
+# ========================
+# 11. Last 7 days for household total
+# ========================
+@app.get("/energy/weekly/recent/total")
+def get_recent_weekly_household(household_id: str = Depends(get_household_id)):
+    end_date = today_utc_midnight()
+    start_date = end_date - datetime.timedelta(days=6)  # last 7 days
+
+    try:
+        pipeline = [
+            {"$match": {"household_id": household_id, "date": {"$gte": start_date, "$lte": end_date}}},
+            {"$group": {"_id": None, "total_kwh": {"$sum": "$total_kwh"}}}
+        ]
+        result = list(db["daily_totals"].aggregate(pipeline))
+        total = result[0]["total_kwh"] if result else 0.0
+    except Exception:
+        total = 0.0
+
+    return {
+        "start_date": format_date(start_date),
+        "end_date": format_date(end_date),
+        "total_kwh": total
+    }
+
+
+# ========================
+# 12 .Last 7 days per device
+# ========================
+@app.get("/energy/weekly/recent/{device_name}")
+def get_recent_weekly(device_name: str, household_id: str = Depends(get_household_id)):
+    device_id = validate_device(device_name)
+    end_date = today_utc_midnight()
+    start_date = end_date - datetime.timedelta(days=6)  # last 7 days
+
+    try:
+        pipeline = [
+            {"$match": {"household_id": household_id, "device_id": device_id, "date": {"$gte": start_date, "$lte": end_date}}},
+            {"$group": {"_id": None, "total_kwh": {"$sum": "$total_kwh"}}}
+        ]
+        result = list(db["daily_totals_per_plug"].aggregate(pipeline))
+        total = result[0]["total_kwh"] if result else 0.0
+    except Exception:
+        total = 0.0
+
+    return {
+        "device_name": device_name,
+        "start_date": format_date(start_date),
+        "end_date": format_date(end_date),
+        "total_kwh": total
+    }
+# ========================
+# 13. Last 30 days per device
+# ========================
+@app.get("/energy/monthly/recent/{device_name}")
+def get_recent_monthly(device_name: str, household_id: str = Depends(get_household_id)):
+    device_id = validate_device(device_name)
+    end_date = today_utc_midnight()
+    start_date = end_date - datetime.timedelta(days=29)  # last 30 days
+
+    try:
+        pipeline = [
+            {"$match": {"household_id": household_id, "device_id": device_id, "date": {"$gte": start_date, "$lte": end_date}}},
+            {"$group": {"_id": None, "total_kwh": {"$sum": "$total_kwh"}}}
+        ]
+        result = list(db["daily_totals_per_plug"].aggregate(pipeline))
+        total = result[0]["total_kwh"] if result else 0.0
+    except Exception:
+        total = 0.0
+
+    return {
+        "device_name": device_name,
+        "start_date": format_date(start_date),
+        "end_date": format_date(end_date),
+        "total_kwh": total
+    }
+
+
+
+# ========================
+# 14. Last 30 days for household total
+# ========================
+@app.get("/energy/monthly/recent/total")
+def get_recent_monthly_household(household_id: str = Depends(get_household_id)):
+    end_date = today_utc_midnight()
+    start_date = end_date - datetime.timedelta(days=29)  # last 30 days
+
+    try:
+        pipeline = [
+            {"$match": {"household_id": household_id, "date": {"$gte": start_date, "$lte": end_date}}},
+            {"$group": {"_id": None, "total_kwh": {"$sum": "$total_kwh"}}}
+        ]
+        result = list(db["daily_totals"].aggregate(pipeline))
+        total = result[0]["total_kwh"] if result else 0.0
+    except Exception:
+        total = 0.0
+
+    return {
+        "start_date": format_date(start_date),
+        "end_date": format_date(end_date),
+        "total_kwh": total
+    }
