@@ -194,6 +194,8 @@ def login_user(req: LoginRequest):
             "household_id": HOUSEHOLD_ID,
         }
 
+    except HTTPException as e: 
+        raise e
     except errors.PyMongoError as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
     except Exception as e:
