@@ -132,7 +132,7 @@ def register_user(req: RegisterRequest):
 
         # Check duplicate
         if users.find_one({"email": email}):
-            raise HTTPException(status_code=400, detail="Email already registered")
+            raise HTTPException(status_code=400, detail="Email already registered!")
 
         # Hash password
         hashed_pw = bcrypt.hash(req.password)
@@ -148,10 +148,12 @@ def register_user(req: RegisterRequest):
             "household_id": HOUSEHOLD_ID,
         }
 
+    except HTTPException as e:
+        raise e
     except errors.PyMongoError as e:
-        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Database error")
+    except Exception:
+        raise HTTPException(status_code=500, detail="Unexpected server error")
 
 
 @app.post("/auth/login")
