@@ -130,6 +130,25 @@ def register_user(req: RegisterRequest):
         # Normalize email
         email = req.email.strip().lower()
 
+        # Reject emails containing uppercase (before lowering) or emojis
+        import re
+        emoji_regex = re.compile(
+            r"[\U0001F600-\U0001F64F]|"  # emoticons
+            r"[\U0001F300-\U0001F5FF]|"  # symbols & pictographs
+            r"[\U0001F680-\U0001F6FF]|"  # transport & map
+            r"[\U0001F1E0-\U0001F1FF]|"  # flags
+            r"[\U0001F900-\U0001F9FF]|"  # supplemental symbols & pictographs
+            r"[\U0001FA70-\U0001FAFF]|"  # symbols & pictographs extended-A
+            r"[\U00002702-\U000027B0]|"  # dingbats
+            r"[\U000024C2-\U0001F251]",  # enclosed characters
+            flags=re.UNICODE
+        )
+
+        if any(c.isupper() for c in req.email):
+            raise HTTPException(status_code=400, detail="Email must not contain uppercase letters.")
+        if emoji_regex.search(req.email):
+            raise HTTPException(status_code=400, detail="Email must not contain emojis.")
+
         # Check duplicate
         if users.find_one({"email": email}):
             raise HTTPException(status_code=400, detail="Email already registered!")
@@ -150,10 +169,11 @@ def register_user(req: RegisterRequest):
 
     except HTTPException as e:
         raise e
-    except errors.PyMongoError as e:
+    except errors.PyMongoError:
         raise HTTPException(status_code=500, detail="Database error")
     except Exception:
         raise HTTPException(status_code=500, detail="Unexpected server error")
+
 
 
 @app.post("/auth/login")
