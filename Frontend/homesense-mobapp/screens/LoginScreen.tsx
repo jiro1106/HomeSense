@@ -14,6 +14,7 @@ import {
 import { useNavigation } from "@react-navigation/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
+import axios from "axios"; // 👈 Add axios
 import { styles } from "./styles/LoginStyles";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../App";
@@ -28,6 +29,9 @@ const LoginScreen = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [secureText, setSecureText] = useState(true);
+
+  // 👇 Replace with IP address
+  const API_BASE_URL = "http://192.168.100.98:8000";
 
   const validateEmail = (email: string) => {
     const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -46,26 +50,26 @@ const LoginScreen = () => {
     }
 
     try {
-      const storedUser = await AsyncStorage.getItem("userData");
-      if (!storedUser) {
-        Alert.alert("Error", "No account found. Please sign up first.");
-        return;
-      }
+      const response = await axios.post(`${API_BASE_URL}/auth/login`, {
+        email,
+        password,
+      });
 
-      const user = JSON.parse(storedUser);
-      if (user.email === email && user.password === password) {
-        await AsyncStorage.setItem("isLoggedIn", "true");
+      const userData = response.data; // 👈 API returns user object
 
-        await AsyncStorage.setItem("userData", JSON.stringify(user)); // refresh session
+      // Save session to AsyncStorage
+      await AsyncStorage.setItem("isLoggedIn", "true");
+      await AsyncStorage.setItem("userData", JSON.stringify(userData));
 
-        Alert.alert("Success", "Login successful!", [
-          { text: "OK", onPress: () => navigation.replace("MainMenu") }, // 👈 Redirect
-        ]);
-      } else {
+      Alert.alert("Success", "Login successful!", [
+        { text: "OK", onPress: () => navigation.replace("MainMenu") },
+      ]);
+    } catch (error: any) {
+      if (error.response?.status === 401) {
         Alert.alert("Error", "Incorrect email or password.");
+      } else {
+        Alert.alert("Error", "Unable to login. Please try again.");
       }
-    } catch (error) {
-      Alert.alert("Error", "Something went wrong. Please try again.");
     }
   };
 
@@ -75,7 +79,6 @@ const LoginScreen = () => {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
       <StatusBar barStyle="light-content" backgroundColor="#000" />
-
       <ScrollView
         contentContainerStyle={{ flexGrow: 1 }}
         keyboardShouldPersistTaps="handled"
@@ -130,25 +133,6 @@ const LoginScreen = () => {
                 size={20}
                 color="#999"
               />
-            </TouchableOpacity>
-          </View>
-
-          {/* Remember me & Forgot password */}
-          <View style={styles.row}>
-            <View style={styles.rememberMeContainer}>
-              <View
-                style={{
-                  width: 18,
-                  height: 18,
-                  borderWidth: 1,
-                  borderColor: "#ccc",
-                  borderRadius: 3,
-                }}
-              />
-              <Text style={styles.rememberMeText}>Remember me</Text>
-            </View>
-            <TouchableOpacity>
-              <Text style={styles.forgotPassword}>Forgot Password ?</Text>
             </TouchableOpacity>
           </View>
 

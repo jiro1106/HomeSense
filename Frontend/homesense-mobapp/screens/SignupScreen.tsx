@@ -12,7 +12,6 @@ import {
   Alert,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../App";
 import { signupStyles as styles } from "./styles/SignupStyles";
@@ -22,6 +21,7 @@ import {
   getPasswordRules,
   PasswordValidation,
 } from "../utils/PasswordValidation";
+import axios from "axios";
 
 type SignupScreenNavigationProp = NativeStackNavigationProp<
   RootStackParamList,
@@ -53,11 +53,29 @@ const SignupScreen = () => {
     }
 
     // Matches Unicode emoji range
-    const emojiRegex =
-      /[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/u;
+    const emojiRegex = /[\p{Emoji_Presentation}\p{Extended_Pictographic}]/u;
 
+    // 🚫 Check for uppercase letters
+    if (/[A-Z]/.test(email)) {
+      Alert.alert("Error", "Email must not contain uppercase letters.");
+      return;
+    }
+
+    // 🚫 Check for emojis
     if (emojiRegex.test(email)) {
       Alert.alert("Error", "Email must not contain emojis.");
+      return;
+    }
+
+    // 🚫 Check for emojis in username
+    if (emojiRegex.test(username)) {
+      Alert.alert("Error", "Username must not contain emojis.");
+      return;
+    }
+
+    // 🚫 Check for emojis in password
+    if (emojiRegex.test(password) || emojiRegex.test(confirmPassword)) {
+      Alert.alert("Error", "Password must not contain emojis.");
       return;
     }
 
@@ -73,23 +91,28 @@ const SignupScreen = () => {
       Alert.alert("Error", "Please fix the password requirements.");
       return;
     }
-    try {
-      const existingUser = await AsyncStorage.getItem("userData");
-      if (existingUser) {
-        const user = JSON.parse(existingUser);
-        if (user.email === email) {
-          Alert.alert("Error", "An account with this email already exists.");
-          return;
-        }
-      }
 
-      const userData = { email, username, password };
-      await AsyncStorage.setItem("userData", JSON.stringify(userData));
-      Alert.alert("Success", "Account created successfully!", [
-        { text: "OK", onPress: () => navigation.navigate("Login") },
-      ]);
-    } catch (error) {
-      Alert.alert("Error", "Something went wrong. Please try again.");
+    try {
+      const res = await axios.post("http://192.168.100.98:8000/auth/register", {
+        email,
+        username,
+        password,
+      });
+
+      if (res.status === 200) {
+        Alert.alert("Success", "Account created successfully!", [
+          { text: "OK", onPress: () => navigation.navigate("Login") },
+        ]);
+      }
+    } catch (error: any) {
+      if (axios.isAxiosError(error) && error.response) {
+        Alert.alert(
+          "Error",
+          error.response.data.detail || "Something went wrong"
+        );
+      } else {
+        Alert.alert("Error", "Cannot connect to server. Please try again.");
+      }
     }
   };
 
@@ -208,7 +231,7 @@ const SignupScreen = () => {
                   style={{
                     color: rule.valid ? "green" : "black",
                     fontSize: 15,
-                    fontWeight: rule.valid ? "500" : "500",
+                    fontWeight: "500",
                     marginBottom: 8,
                   }}
                 >
@@ -217,7 +240,7 @@ const SignupScreen = () => {
                     size={15}
                     color={rule.valid ? "green" : "grey"}
                   />
-                  {rule.valid ? "" : ""} {rule.label}
+                  {rule.label}
                 </Text>
               ))}
             </View>
