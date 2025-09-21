@@ -1,30 +1,50 @@
 // MainMenu.tsx
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StatusBar, Image } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import Icon from 'react-native-vector-icons/MaterialIcons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useNavigation } from '@react-navigation/native';
-import { RootStackParamList } from '../App';
-import { styles } from './styles/MainMenuStyles';
-import RegisterAppliancePage from './RegisterAppliancePage';
-import Recommendations from './Recommendations';
-import Bills from './Bills';
-import ConsumptionPage from './ConsumptionPage'; // ✅ import ConsumptionPage
+import React, { useState } from "react";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  ScrollView,
+  StatusBar,
+  Image,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import Icon from "react-native-vector-icons/MaterialIcons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { useNavigation } from "@react-navigation/native";
+import { RootStackParamList } from "../App";
+import { styles } from "./styles/MainMenuStyles";
+import RegisterAppliancePage from "./RegisterAppliancePage";
+import Recommendations from "./Recommendations";
+import Bills from "./Bills";
+import ConsumptionPage from "./ConsumptionPage"; // ✅ import ConsumptionPage
 
-type MainMenuNavProp = NativeStackNavigationProp<RootStackParamList, 'MainMenu'>;
+type MainMenuNavProp = NativeStackNavigationProp<
+  RootStackParamList,
+  "MainMenu"
+>;
 
 const MainMenu = () => {
   const navigation = useNavigation<MainMenuNavProp>();
-  const [activeTab, setActiveTab] = useState<'home' | 'consumption' | 'register' | 'recommendations' | 'bills'>('home');
+  const [activeTab, setActiveTab] = useState<
+    "home" | "consumption" | "register" | "recommendations" | "bills"
+  >("home");
 
   const handleLogout = async () => {
-    await AsyncStorage.removeItem('userData');
-    navigation.replace('Login');
+    await AsyncStorage.removeItem("userData");
+    navigation.replace("Login");
   };
 
-  const UsageCard = ({ icon, value, label }: { icon: string; value: string; label: string }) => (
+  const UsageCard = ({
+    icon,
+    value,
+    label,
+  }: {
+    icon: string;
+    value: string;
+    label: string;
+  }) => (
     <View style={styles.usageCard}>
       <Icon name={icon} size={24} color="#000" style={styles.cardIcon} />
       <Text style={styles.usageValue}>{value}</Text>
@@ -32,7 +52,17 @@ const MainMenu = () => {
     </View>
   );
 
-  const DeviceItem = ({ icon, name, consumption, color }: { icon: string; name: string; consumption: string; color: string }) => (
+  const DeviceItem = ({
+    icon,
+    name,
+    consumption,
+    color,
+  }: {
+    icon: string;
+    name: string;
+    consumption: string;
+    color: string;
+  }) => (
     <View style={styles.deviceItem}>
       <View style={[styles.deviceIcon, { backgroundColor: color }]}>
         <Icon name={icon} size={20} color="#fff" />
@@ -61,16 +91,32 @@ const MainMenu = () => {
 
       <Text style={styles.sectionLabel}>Top Energy Consuming Devices</Text>
       <View style={styles.devicesContainer}>
-        <DeviceItem icon="ac-unit" name="Air Conditioner" consumption="20.3 kWh" color="#87CEEB" />
-        <DeviceItem icon="kitchen" name="Refrigerator" consumption="10.5 kWh" color="#FFA500" />
-        <DeviceItem icon="tv" name="Television" consumption="7.1 kWh" color="#FFD700" />
+        <DeviceItem
+          icon="ac-unit"
+          name="Air Conditioner"
+          consumption="20.3 kWh"
+          color="#87CEEB"
+        />
+        <DeviceItem
+          icon="kitchen"
+          name="Refrigerator"
+          consumption="10.5 kWh"
+          color="#FFA500"
+        />
+        <DeviceItem
+          icon="tv"
+          name="Television"
+          consumption="7.1 kWh"
+          color="#FFD700"
+        />
       </View>
 
       <Text style={styles.sectionLabel}>Energy Saving Recommendation</Text>
       <View style={styles.recommendationCard}>
         <Icon name="eco" size={32} color="#4CAF50" />
         <Text style={styles.recommendationText}>
-          Consider using energy-efficient appliances to reduce your electricity consumption
+          Consider using energy-efficient appliances to reduce your electricity
+          consumption
         </Text>
       </View>
     </ScrollView>
@@ -78,15 +124,20 @@ const MainMenu = () => {
 
   const renderContent = () => {
     switch (activeTab) {
-      case 'home':
+      case "home":
         return renderHomeContent();
-      case 'consumption':
+      case "consumption":
         return <ConsumptionPage />; // ✅ consumption page
-      case 'register':
-        return <RegisterAppliancePage navigation={navigation} onSuccess={() => setActiveTab('home')} />;
-      case 'recommendations':
+      case "register":
+        return (
+          <RegisterAppliancePage
+            navigation={navigation}
+            onSuccess={() => setActiveTab("home")}
+          />
+        );
+      case "recommendations":
         return <Recommendations />;
-      case 'bills':
+      case "bills":
         return <Bills />;
       default:
         return renderHomeContent();
@@ -98,17 +149,22 @@ const MainMenu = () => {
       <StatusBar barStyle="light-content" backgroundColor="#000" />
 
       {/* Global Header */}
-      <SafeAreaView style={styles.headerSafeArea} edges={['top']}>
+      <SafeAreaView style={styles.headerSafeArea} edges={["top"]}>
         <View style={styles.header}>
           <View style={styles.logoContainer}>
             <View style={styles.logoTextRow}>
               <Text style={styles.logoTextH}>H</Text>
-              <Image source={require('../assets/homesenseLogo.png')} style={styles.logoIcon} />
+              <Image
+                source={require("../assets/homesenseLogo.png")}
+                style={styles.logoIcon}
+              />
               <Text style={styles.logoText}>meSense</Text>
             </View>
 
             <View style={styles.headerButtons}>
-              <TouchableOpacity onPress={() => navigation.replace('SettingsPage')}>
+              <TouchableOpacity
+                onPress={() => navigation.replace("SettingsPage")}
+              >
                 <Icon name="settings" size={24} color="#fff" />
               </TouchableOpacity>
             </View>
@@ -120,31 +176,62 @@ const MainMenu = () => {
       {renderContent()}
 
       {/* Bottom Navigation */}
-      <SafeAreaView style={styles.bottomNavContainer} edges={['bottom']}>
+      <SafeAreaView style={styles.bottomNavContainer} edges={["bottom"]}>
         <View style={styles.bottomNav}>
           {/* Home */}
-          <TouchableOpacity style={styles.navItem} onPress={() => setActiveTab('home')}>
-            <Icon name="home" size={24} color={activeTab === 'home' ? '#FFD600' : '#fff'} />
+          <TouchableOpacity
+            style={styles.navItem}
+            onPress={() => setActiveTab("home")}
+          >
+            <Icon
+              name="home"
+              size={24}
+              color={activeTab === "home" ? "#FFD600" : "#fff"}
+            />
           </TouchableOpacity>
 
           {/* Consumption */}
-          <TouchableOpacity style={styles.navItem} onPress={() => setActiveTab('consumption')}>
-            <Icon name="description" size={24} color={activeTab === 'consumption' ? '#FFD600' : '#fff'} />
+          <TouchableOpacity
+            style={styles.navItem}
+            onPress={() => setActiveTab("consumption")}
+          >
+            <Icon
+              name="description"
+              size={24}
+              color={activeTab === "consumption" ? "#FFD600" : "#fff"}
+            />
           </TouchableOpacity>
 
           {/* Register (FAB) */}
-          <TouchableOpacity style={styles.fab} onPress={() => setActiveTab('register')}>
+          <TouchableOpacity
+            style={styles.fab}
+            onPress={() => setActiveTab("register")}
+          >
             <Icon name="add" size={30} color="#000" />
           </TouchableOpacity>
 
           {/* Bills */}
-          <TouchableOpacity style={styles.navItem} onPress={() => setActiveTab('bills')}>
-            <Icon name="attach-money" size={24} color={activeTab === 'bills' ? '#FFD600' : '#fff'} />
+          <TouchableOpacity
+            style={styles.navItem}
+            onPress={() => setActiveTab("bills")}
+          >
+            <Icon
+              name="attach-money"
+              size={24}
+              color={activeTab === "bills" ? "#FFD600" : "#fff"}
+            />
           </TouchableOpacity>
 
           {/* Recommendations */}
-          <TouchableOpacity style={styles.navItem} onPress={() => setActiveTab('recommendations')}>
-            <Icon name="flash-on" size={24} color={activeTab === 'recommendations' ? '#FFD600' : '#fff'} />
+          <TouchableOpacity
+            style={styles.navItem}
+            onPress={() => setActiveTab("recommendations")}
+          >
+            <Icon
+              name="flash-on"
+              size={24}
+              color={activeTab === "recommendations" ? "#FFD600" : "#fff"}
+            />
           </TouchableOpacity>
         </View>
       </SafeAreaView>
