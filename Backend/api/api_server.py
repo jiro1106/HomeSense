@@ -406,7 +406,7 @@ def get_weekly_total_household(limit: int = Query(None, ge=1), household_id: str
             data.append({
                 "week_start": format_date(week_start),
                 "week_end": format_date(week_end),
-                "total_kwh": r["total_kwh"]
+                "weekly_total_kwh": r["total_kwh"]
             })
 
         return {"data": data}
@@ -475,7 +475,7 @@ def get_monthly_total_household(limit: int = Query(None, ge=1), household_id: st
         cursor = db["daily_totals"].aggregate(pipeline)
         results = list(cursor)
 
-        data = [{"month": f"{r['_id']['year']}-{r['_id']['month']:02}", "total_kwh": r["total_kwh"]} for r in reversed(results)]
+        data = [{"month": f"{r['_id']['year']}-{r['_id']['month']:02}", "monthly_total_kwh": r["total_kwh"]} for r in reversed(results)]
         return {"data": data}
 
     except Exception as e:
