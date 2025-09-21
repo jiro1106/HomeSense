@@ -14,7 +14,7 @@ import {
 import { useNavigation } from "@react-navigation/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
-import axios from "axios"; // 👈 Add axios
+import axios from "axios";
 import { styles } from "./styles/LoginStyles";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../App";
@@ -30,7 +30,6 @@ const LoginScreen = () => {
   const [password, setPassword] = useState("");
   const [secureText, setSecureText] = useState(true);
 
-  // 👇 Replace with IP address
   const API_BASE_URL = "http://192.168.100.98:8000";
 
   const validateEmail = (email: string) => {
@@ -38,9 +37,18 @@ const LoginScreen = () => {
     return re.test(email.toLowerCase());
   };
 
+  // Matches most common emoji ranges
+  const emojiRegex =
+    /[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/u;
+
   const handleLogin = async () => {
     if (!email || !password) {
       Alert.alert("Error", "Please fill in both fields.");
+      return;
+    }
+
+    if (emojiRegex.test(email) || emojiRegex.test(password)) {
+      Alert.alert("Error", "Emojis are not allowed in email or password.");
       return;
     }
 
@@ -55,11 +63,13 @@ const LoginScreen = () => {
         password,
       });
 
-      const userData = response.data; // 👈 API returns user object
+      const userData = response.data;
 
-      // Save session to AsyncStorage
-      await AsyncStorage.setItem("isLoggedIn", "true");
-      await AsyncStorage.setItem("userData", JSON.stringify(userData));
+      // Persist login session
+      await AsyncStorage.multiSet([
+        ["isLoggedIn", "true"],
+        ["userData", JSON.stringify(userData)],
+      ]);
 
       Alert.alert("Success", "Login successful!", [
         { text: "OK", onPress: () => navigation.replace("MainMenu") },
