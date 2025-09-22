@@ -1,6 +1,6 @@
 # api/api_server.py
 
-from fastapi import FastAPI, HTTPException, Query, Depends
+from fastapi import FastAPI, HTTPException, Query, Depends, Path
 from pydantic import BaseModel
 from pymongo import MongoClient, errors
 from dotenv import load_dotenv
@@ -8,6 +8,7 @@ from passlib.hash import bcrypt
 import os
 import datetime
 from typing import List, Dict
+from fastapi.middleware.cors import CORSMiddleware
 
 # ========================
 # ENV + DB SETUP
@@ -38,6 +39,15 @@ if raw_device_map:
 
 app = FastAPI(title="HomeSense API", version="1.0")
 
+# Allow frontend to talk to backend
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],  # adjust if your frontend uses a different port
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # ========================
 # TIMEZONE
 # ========================
@@ -56,6 +66,8 @@ def clean_doc(doc):
         doc["date"] = format_date(doc["date"])
     if "updated_at" in doc and isinstance(doc["updated_at"], datetime.datetime):
         doc["updated_at"] = format_datetime(doc["updated_at"])
+    if "last_logged_in" in doc and isinstance(doc["last_logged_in"], datetime.datetime):
+        doc["last_logged_in"] = format_datetime(doc["last_logged_in"])
     return doc
 
 def clean_docs(docs: List[dict]) -> List[dict]:
@@ -81,8 +93,34 @@ def format_date(d: datetime.datetime) -> str:
     return str(d)
 
 def format_datetime(dt: datetime.datetime) -> str:
-    """Format datetime as ISO8601 Z (UTC)."""
-    return dt.astimezone(UTC).isoformat().replace("+00:00", "Z")
+    """
+    Format a datetime into Philippine Time (ISO with offset).
+    Accepts tz-aware or tz-naive datetimes. If tz-naive, treat it as UTC.
+    Returns ISO string with +08:00 offset (e.g. 2025-09-22T15:00:00+08:00).
+    """
+    if dt is None:
+        return None
+
+    # If it's not a datetime for any reason, return None
+    if not isinstance(dt, datetime.datetime):
+        return None
+
+    # If dt is naive (no tzinfo), assume it is stored as UTC in DB and set tzinfo accordingly.
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=UTC)
+
+    # Convert to PH timezone and return ISO string (includes +08:00)
+    try:
+        ph_dt = dt.astimezone(PH_TZ)
+        return ph_dt.isoformat()
+    except Exception:
+        # fallback: try to force-convert by interpreting as UTC then convert
+        try:
+            dt2 = dt.replace(tzinfo=UTC)
+            ph_dt = dt2.astimezone(PH_TZ)
+            return ph_dt.isoformat()
+        except Exception:
+            return None
 
 def get_utc_range_for_date(date: str = None):
     """Return (start, end) UTC datetimes for a given PH date string or today if None."""
@@ -114,6 +152,7 @@ def get_household_id() -> str:
 class RegisterRequest(BaseModel):
     email: str
     password: str  # plain (will be hashed)
+    username: str 
 
 class LoginRequest(BaseModel):
     email: str
@@ -156,10 +195,14 @@ def register_user(req: RegisterRequest):
         # Hash password
         hashed_pw = bcrypt.hash(req.password)
 
+        username = req.username.strip()
+
         users.insert_one({
             "email": email,
+            "username": username,
             "password": hashed_pw,
             "household_id": HOUSEHOLD_ID,  # always use env household_id
+            "last_logged_in": None,        # initially none
         })
 
         return {
@@ -175,7 +218,6 @@ def register_user(req: RegisterRequest):
         raise HTTPException(status_code=500, detail="Unexpected server error")
 
 
-
 @app.post("/auth/login")
 def login_user(req: LoginRequest):
     try:
@@ -189,9 +231,14 @@ def login_user(req: LoginRequest):
         if not user or not bcrypt.verify(req.password, user["password"]):
             raise HTTPException(status_code=401, detail="Invalid email or password")
 
+        # Update last login (store tz-aware UTC in DB)
+        now = datetime.datetime.now(UTC)
+        users.update_one({"email": email}, {"$set": {"last_logged_in": now}})
+
         return {
             "message": "Login successful",
             "household_id": HOUSEHOLD_ID,
+            "last_logged_in": format_datetime(now),
         }
 
     except HTTPException as e: 
@@ -200,6 +247,67 @@ def login_user(req: LoginRequest):
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
+
+
+# ========================
+# ADMIN ENDPOINTS
+# ========================
+@app.get("/admin/users")
+def get_users():
+    try:
+        users = db["users"]
+        data = list(users.find({}, {"_id": 0, "email": 1, "username": 1, "household_id": 1, "last_logged_in": 1}))
+
+        # Format last_logged_in: if datetime -> convert to PH time string, else "Never"
+        for d in data:
+            raw = d.get("last_logged_in", None)
+
+            # If pymongo returned a datetime, handle tz-aware/naive
+            if isinstance(raw, datetime.datetime):
+                formatted = format_datetime(raw)
+                d["last_logged_in"] = formatted if formatted else "Never"
+                continue
+
+            # If the stored value is a string (ISO), try parsing it
+            if isinstance(raw, str) and raw:
+                try:
+                    # fromisoformat accepts offset-aware strings; if no tz, assume UTC
+                    parsed = datetime.datetime.fromisoformat(raw)
+                    if parsed.tzinfo is None:
+                        parsed = parsed.replace(tzinfo=UTC)
+                    formatted = format_datetime(parsed)
+                    d["last_logged_in"] = formatted if formatted else "Never"
+                except Exception:
+                    d["last_logged_in"] = "Never"
+                continue
+
+            # otherwise, null / missing
+            d["last_logged_in"] = "Never"
+
+        return {"users": data}
+    except errors.PyMongoError:
+        raise HTTPException(status_code=500, detail="Database error")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
+    
+# ========================
+# DELETING USERS
+# ========================
+
+@app.delete("/admin/users/{email}")
+def delete_user(email: str = Path(..., description="Email of the user to delete")):
+    try:
+        users = db["users"]
+        result = users.delete_one({"email": email.lower().strip()})
+        if result.deleted_count == 0:
+            raise HTTPException(status_code=404, detail="User not found")
+        return {"message": f"User {email} deleted successfully"}
+    except errors.PyMongoError as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
+
+
 
 # ========================
 # ROOT
