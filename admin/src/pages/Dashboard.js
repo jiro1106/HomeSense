@@ -5,13 +5,13 @@ import "../styles/DashboardStyle.css";
 
 function Dashboard() {
   const [isOpen, setIsOpen] = useState(false);
-  const [activePage, setActivePage] = useState("dashboard"); 
+  const [activePage, setActivePage] = useState("dashboard");
 
   const handleLogout = () => {
     const confirmLogout = window.confirm("Are you sure you want to logout?");
     if (confirmLogout) {
-      localStorage.removeItem("authToken"); 
-      window.location.href = "/"; 
+      localStorage.removeItem("authToken");
+      window.location.href = "/";
     }
   };
 
@@ -58,6 +58,20 @@ function Dashboard() {
         {activePage === "users" && (
           <>
             <h1>USERS</h1>
+            <div className="table-container">
+              <table className="users-table">
+                <thead>
+                  <tr>
+                    <th>Username</th>
+                    <th>Email</th>
+                    <th>Last Logged In</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {/* No data yet, empty table */}
+                </tbody>
+              </table>
+            </div>
           </>
         )}
       </div>
