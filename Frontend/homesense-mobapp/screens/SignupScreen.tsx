@@ -21,8 +21,8 @@ import {
   getPasswordRules,
   PasswordValidation,
 } from "../utils/PasswordValidation";
+import api from "../utils/api";
 import axios from "axios";
-
 type SignupScreenNavigationProp = NativeStackNavigationProp<
   RootStackParamList,
   "Signup"
@@ -94,7 +94,7 @@ const SignupScreen = () => {
     }
 
     try {
-      const res = await axios.post("http://192.168.100.98:8000/auth/register", {
+      const res = await api.post(`/auth/register`, {
         email,
         username,
         password,
