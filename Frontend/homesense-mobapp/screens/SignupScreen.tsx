@@ -94,7 +94,7 @@ const SignupScreen = () => {
     }
 
     try {
-      const res = await axios.post("http://172.20.10.4:8000/auth/register", {
+      const res = await axios.post("http://192.168.100.98:8000/auth/register", {
         email,
         username,
         password,

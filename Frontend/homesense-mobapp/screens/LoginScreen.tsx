@@ -30,7 +30,7 @@ const LoginScreen = () => {
   const [password, setPassword] = useState("");
   const [secureText, setSecureText] = useState(true);
 
-  const API_BASE_URL = "http://172.20.10.4:8000";
+  const API_BASE_URL = "http://192.168.100.98:8000";
 
   const validateEmail = (email: string) => {
     const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
