@@ -100,6 +100,32 @@ if DEVICE_MAP:
         except Exception as e:
             print(f"⚠️ Failed to seed appliances for {env_name} ({dev_id}): {e}")
 
+# --------------------------------------------------------------------
+# Timezone helpers — use PH midnight as the day boundary but store dates
+# as UTC datetimes (this keeps DB UTC-normalized while making "days"
+# align with Asia/Manila).
+# --------------------------------------------------------------------
+PH_TZ = datetime.timezone(datetime.timedelta(hours=8))
+UTC = datetime.timezone.utc
+
+def ph_midnight_as_utc_for_date(ph_date: datetime.date) -> datetime.datetime:
+    """
+    Given a PH date (datetime.date), return a tz-aware UTC datetime that
+    corresponds to PH midnight of that date (i.e., PH 00:00 -> UTC equivalent).
+    """
+    ph_midnight = datetime.datetime.combine(ph_date, datetime.time.min).replace(tzinfo=PH_TZ)
+    return ph_midnight.astimezone(UTC)
+
+def get_current_tracking_day_utc() -> datetime.datetime:
+    """
+    Return the current day's PH midnight converted to UTC (tz-aware).
+    This is the value to use for 'date' fields so database queries using
+    UTC ranges will match PH-day boundaries.
+    """
+    now_ph = datetime.datetime.now(PH_TZ)
+    ph_date = now_ph.date()
+    return ph_midnight_as_utc_for_date(ph_date)
+
 # Build the list of devices to poll from appliances collection (for this household)
 def load_device_list():
     devices = []
@@ -124,7 +150,7 @@ else:
 
 # Track totals per device_id (use device_id as canonical key)
 device_totals = {}
-tracking_day = datetime.datetime.now(datetime.timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+tracking_day = get_current_tracking_day_utc()  # <-- PH-based day boundary (stored as UTC datetime)
 
 # Initialize device_totals and other trackers using device_list
 inactive_counts = {d["device_id"]: 0 for d in device_list}
@@ -144,11 +170,14 @@ for d in device_list:
         if saved:
             device_totals[device_id] = float(saved.get("total_kwh", 0.0))
             name_label = d.get("appliance_name") or device_id
-            print(f"✅ Resuming {name_label} ({device_id}) total for {tracking_day}: {device_totals[device_id]:.6f} kWh")
+            # show PH date for readability
+            ph_date_str = tracking_day.astimezone(PH_TZ).strftime("%Y-%m-%d")
+            print(f"✅ Resuming {name_label} ({device_id}) total for {ph_date_str}: {device_totals[device_id]:.6f} kWh")
         else:
             device_totals[device_id] = 0.0
             name_label = d.get("appliance_name") or device_id
-            print(f"⚪ No saved total for {name_label} ({device_id}) on {tracking_day} — starting at 0.0 kWh")
+            ph_date_str = tracking_day.astimezone(PH_TZ).strftime("%Y-%m-%d")
+            print(f"⚪ No saved total for {name_label} ({device_id}) on {ph_date_str} — starting at 0.0 kWh")
     except Exception as e:
         print(f"⚠️ Error while resuming totals for {device_id}: {e}")
         device_totals[device_id] = 0.0
@@ -210,7 +239,7 @@ def save_current_total(device_id: str, date: datetime.datetime, total: float, st
             "device_id": device_id,
             "appliance_name": device_label if device_label else None,
             "appliance_type": appliance_type,
-            "date": date,
+            "date": date,  # date is expected to be a tz-aware UTC datetime representing PH midnight
             "total_kwh": round(total, 6),
             "status": status,
             "updated_at": datetime.datetime.now(datetime.timezone.utc)
@@ -253,7 +282,8 @@ def save_overall_daily_total(date: datetime.datetime):
             }},
             upsert=True
         )
-        print(f"\n🚨 Updated overall daily total for {HOUSEHOLD_ID} {date}: {overall_total:.6f} kWh")
+        ph_date_str = date.astimezone(PH_TZ).strftime("%Y-%m-%d")
+        print(f"\n🚨 Updated overall daily total for {HOUSEHOLD_ID} {ph_date_str}: {overall_total:.6f} kWh")
     except Exception as e:
         print(f"Failed to save overall daily total for {date}:", e)
 
@@ -271,7 +301,7 @@ def print_plug_reading(device_label, power_watts, energy_kwh, total_kwh, status,
             "device_id": device_id,
             "appliance_name": device_label if device_label else None,
             "appliance_type": appliance_type,
-            "date": date,
+            "date": date,  # keep date marker consistent (UTC datetime representing PH midnight)
             "timestamp": datetime.datetime.now(datetime.timezone.utc),
             "power_watts": round(power_watts, 2),
             "interval_kwh": round(energy_kwh, 6),
@@ -311,11 +341,14 @@ while not stop_flag:
             wait_time = min(wait_time * 2, max_wait)
             continue
 
-        now_date = datetime.datetime.now(datetime.timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+        # Use PH midnight as the day boundary, converted to UTC for storage/queries
+        now_date = get_current_tracking_day_utc()
 
-        # new day handling
+        # new day handling (PH-based)
         if now_date != tracking_day:
             tracking_day = now_date
+            ph_date_str = tracking_day.astimezone(PH_TZ).strftime("%Y-%m-%d")
+            print(f"\n🔁 PH day changed — starting new day: {ph_date_str}")
             # reset totals for all devices
             for d in device_list:
                 device_id = d["device_id"]
@@ -379,7 +412,7 @@ while not stop_flag:
             # Update running total
             device_totals[device_id] = device_totals.get(device_id, 0.0) + energy_kwh
 
-            # Persist totals
+            # Persist totals (date param is tracking_day which is UTC datetime representing PH midnight)
             save_current_total(device_id, tracking_day, device_totals[device_id], "active" if is_active[device_id] else "inactive", device_label)
             save_daily_total_per_plug(device_id, tracking_day, device_totals[device_id], device_label)
 
@@ -398,7 +431,8 @@ while not stop_flag:
         if not first_run:
             save_overall_daily_total(tracking_day)
             overall_total = sum(d["total_kwh"] for d in device_summaries.values())
-            print_cycle_summary(tracking_day, datetime.datetime.now(datetime.timezone.utc).strftime("%H:%M:%S"),
+            ph_date_str = tracking_day.astimezone(PH_TZ).strftime("%Y-%m-%d")
+            print_cycle_summary(ph_date_str, datetime.datetime.now(datetime.timezone.utc).astimezone(PH_TZ).strftime("%H:%M:%S"),
                                 device_summaries, overall_total)
 
     except errors.ServerSelectionTimeoutError:

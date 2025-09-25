@@ -87,10 +87,18 @@ def today_utc_midnight() -> datetime.datetime:
     return datetime.datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
 
 def format_date(d: datetime.datetime) -> str:
-    """Format a stored datetime as YYYY-MM-DD without timezone shifting."""
-    if isinstance(d, datetime.datetime):
-        return d.strftime("%Y-%m-%d")
-    return str(d)
+    """Format a stored datetime as YYYY-MM-DD in PH timezone."""
+    if not isinstance(d, datetime.datetime):
+        return str(d)
+
+    # If tz-naive, assume UTC
+    if d.tzinfo is None:
+        d = d.replace(tzinfo=UTC)
+
+    # Convert to PH time
+    ph_date = d.astimezone(PH_TZ)
+    return ph_date.strftime("%Y-%m-%d")
+
 
 def format_datetime(dt: datetime.datetime) -> str:
     """
