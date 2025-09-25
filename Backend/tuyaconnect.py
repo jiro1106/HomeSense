@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import os
 import time
 from dotenv import load_dotenv
@@ -28,6 +29,7 @@ ACCESS_KEY = os.getenv("ACCESS_KEY")
 API_ENDPOINT = os.getenv("API_ENDPOINT")
 
 # Parse DEVICE_MAP from .env → {"plug_1": "id1", "plug_2": "id2"}
+# We keep parsing DEVICE_MAP only to seed the appliances collection if needed.
 DEVICE_MAP = {}
 raw_map = os.getenv("DEVICE_MAP", "")
 for pair in raw_map.split(","):
@@ -54,93 +56,160 @@ except Exception as e:
     print("❌ Cannot connect to Tuya Cloud. This may be due to blocked Wi-Fi or firewall rules.")
     print("Error details:", e)
 
-# MongoDB database
+# MongoDB database & collections
 db = mongo_client["homesense_db"]
 
-# Collections
 energy_collection = db["energy_data"]
 daily_totals_per_plug_collection = db["daily_totals_per_plug"]
 daily_totals_collection = db["daily_totals"]
 current_totals_collection = db["current_totals"]
+appliances_collection = db["appliances"]  # NEW collection
 
-# --- Ensure unique index on (household_id, device_id) for current_totals_collection ---
+# Ensure indexes
 try:
     current_totals_collection.create_index(
         [("household_id", 1), ("device_id", 1)],
         unique=True
     )
-    print("✅ Unique index on (household_id, device_id) ensured for current_totals_collection.")
-except errors.OperationFailure as e:
-    print(f"⚠️ Index creation error: {e}")
-
-# Ensure unique index for daily_totals_per_plug on (household_id, device_id, date)
-try:
     daily_totals_per_plug_collection.create_index(
         [("household_id", 1), ("device_id", 1), ("date", 1)],
         unique=True
     )
-    print("✅ Unique index on (household_id, device_id, date) ensured for daily_totals_per_plug_collection.")
+    appliances_collection.create_index(
+        [("household_id", 1), ("device_id", 1)],
+        unique=True
+    )
+    print("✅ Indexes ensured for current_totals, daily_totals_per_plug, appliances.")
 except errors.OperationFailure as e:
-    print(f"⚠️ Index creation error (daily_totals_per_plug): {e}")
+    print(f"⚠️ Index creation error: {e}")
 
-# Track totals per device_id
+# --- If appliances collection lacks entries, seed placeholders from DEVICE_MAP ---
+# This allows the app to show available device_ids in a dropdown even before user registers names.
+if DEVICE_MAP:
+    for env_name, dev_id in DEVICE_MAP.items():
+        try:
+            appliances_collection.update_one(
+                {"household_id": HOUSEHOLD_ID, "device_id": dev_id},
+                {"$setOnInsert": {
+                    "appliance_name": None,       # user will register this later
+                    "appliance_type": None,
+                    "created_at": datetime.datetime.now(datetime.timezone.utc)
+                }},
+                upsert=True
+            )
+        except Exception as e:
+            print(f"⚠️ Failed to seed appliances for {env_name} ({dev_id}): {e}")
+
+# Build the list of devices to poll from appliances collection (for this household)
+def load_device_list():
+    devices = []
+    try:
+        cursor = appliances_collection.find({"household_id": HOUSEHOLD_ID})
+        for doc in cursor:
+            devices.append({
+                "device_id": doc.get("device_id"),
+                "appliance_name": doc.get("appliance_name"), # user assigned name (Air Conditioner)
+                "appliance_type": doc.get("appliance_type")  # optional (e.g., cooling, kitchen)
+            })
+    except Exception as e:
+        print("❌ Error loading appliances from MongoDB:", e)
+    return devices
+
+device_list = load_device_list()
+if not device_list:
+    print("⚠️ No devices found in appliances collection for this household. Make sure the collector seeded them or register from the app.")
+else:
+    ids = ", ".join([d["device_id"] for d in device_list])
+    print(f"🔌 Devices to monitor (count={len(device_list)}): {ids}")
+
+# Track totals per device_id (use device_id as canonical key)
 device_totals = {}
 tracking_day = datetime.datetime.now(datetime.timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
 
+# Initialize device_totals and other trackers using device_list
+inactive_counts = {d["device_id"]: 0 for d in device_list}
+is_active = {d["device_id"]: True for d in device_list}
+failure_counts = {d["device_id"]: 0 for d in device_list}
+last_printed_totals = {d["device_id"]: None for d in device_list}
 
-# Track inactivity states
-inactive_counts = {name: 0 for name in DEVICE_MAP.keys()}
-is_active = {name: True for name in DEVICE_MAP.keys()}
+# Resume from MongoDB if totals exist (current_totals uses household_id + device_id)
+for d in device_list:
+    device_id = d["device_id"]
+    try:
+        saved = current_totals_collection.find_one({
+            "household_id": HOUSEHOLD_ID,
+            "device_id": device_id,
+            "date": tracking_day
+        })
+        if saved:
+            device_totals[device_id] = float(saved.get("total_kwh", 0.0))
+            name_label = d.get("appliance_name") or device_id
+            print(f"✅ Resuming {name_label} ({device_id}) total for {tracking_day}: {device_totals[device_id]:.6f} kWh")
+        else:
+            device_totals[device_id] = 0.0
+            name_label = d.get("appliance_name") or device_id
+            print(f"⚪ No saved total for {name_label} ({device_id}) on {tracking_day} — starting at 0.0 kWh")
+    except Exception as e:
+        print(f"⚠️ Error while resuming totals for {device_id}: {e}")
+        device_totals[device_id] = 0.0
 
-# Flag to control stopping
-stop_flag = False
-
+# Helper: internet check
 def check_internet_connection(host="8.8.8.8", port=53, timeout=3):
-    """Quick check if the device has internet (Google DNS)."""
     try:
         socket.setdefaulttimeout(timeout)
         socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect((host, port))
         return True
     except socket.error:
         return False
-    
+
 wait_time = 5  # start at 5 seconds
 max_wait = 300  # cap at 5 minutes
 
-
+# Graceful shutdown
+stop_flag = False
 def handle_shutdown(signum, frame):
     global stop_flag
     print("\n🛑 Ctrl+C received. Shutting down gracefully...")
     stop_flag = True
 
-# Register signal handlers for Ctrl+C (SIGINT) and termination (SIGTERM)
-signal.signal(signal.SIGINT, handle_shutdown)   # Ctrl+C
-signal.signal(signal.SIGTERM, handle_shutdown)  # kill or system stop
+signal.signal(signal.SIGINT, handle_shutdown)
+signal.signal(signal.SIGTERM, handle_shutdown)
 
-# Resume from MongoDB if totals exist
-for name, device_id in DEVICE_MAP.items():
-    saved = current_totals_collection.find_one({
-        "household_id": HOUSEHOLD_ID,
-        "device_id": device_id,
-        "date": tracking_day
-    })
-    if saved:
-        device_totals[device_id] = float(saved.get("total_kwh", 0.0))
-        print(f"✅ Resuming {name} ({device_id}) total for {tracking_day}: {device_totals[device_id]:.6f} kWh")
-    else:
-        device_totals[device_id] = 0.0
-        print(f"⚪ No saved total for {name} ({device_id}) on {tracking_day} — starting at 0.0 kWh")
-
-# Data needed from the API
+# Data keys expected in Tuya response
 required_keys = ["add_ele", "cur_power", "cur_voltage", "cur_current", "switch_1"]
 
-def save_current_total(device_name: str, device_id: str, date: datetime.datetime, total: float, status: str):
-    """Upsert total_kwh per household_id + device_id (unique per household)."""
+def try_reconnect_if_invalid(response, device_id):
+    """If Tuya token expired, reconnect and retry once."""
+    global failure_counts
+    if not isinstance(response, dict):
+        return response
+
+    if (not response.get("success", True)) and response.get("code") == 1010:
+        print(f"⚠️ Tuya token invalid for device {device_id} — reconnecting...")
+        try:
+            openapi.connect()
+            time.sleep(1)
+            # reset specific device failure count
+            failure_counts[device_id] = 0
+            return openapi.get(f"/v1.0/devices/{device_id}/status")
+        except Exception as e:
+            failure_counts[device_id] += 1
+            backoff = min(60, 2 ** failure_counts[device_id])
+            print(f"❌ Reconnect failed for {device_id}. Sleeping {backoff}s before retry...")
+            time.sleep(backoff)
+            return response
+    return response
+
+first_run = True
+
+def save_current_total(device_id: str, date: datetime.datetime, total: float, status: str, device_label, appliance_type: str = None):
     current_totals_collection.update_one(
         {"household_id": HOUSEHOLD_ID, "device_id": device_id},
         {"$set": {
             "household_id": HOUSEHOLD_ID,
-            "device_name": device_name,
+            "device_id": device_id,
+            "appliance_name": device_label if device_label else None,
+            "appliance_type": appliance_type,
             "date": date,
             "total_kwh": round(total, 6),
             "status": status,
@@ -149,21 +218,22 @@ def save_current_total(device_name: str, device_id: str, date: datetime.datetime
         upsert=True
     )
 
-
-def save_daily_total_per_plug(device_name: str, device_id: str, date: datetime.datetime, total: float):
+def save_daily_total_per_plug(device_id: str, date: datetime.datetime, total: float, device_label,appliance_type=None):
     try:
         daily_totals_per_plug_collection.update_one(
             {"household_id": HOUSEHOLD_ID, "device_id": device_id, "date": date},
             {"$set": {
                 "household_id": HOUSEHOLD_ID,
-                "device_name": device_name,
+                "device_id": device_id,
+                "appliance_name": device_label if device_label else None,
+                "appliance_type": appliance_type,
                 "total_kwh": round(total, 6),
                 "updated_at": datetime.datetime.now(datetime.timezone.utc)
             }},
             upsert=True
         )
     except Exception as e:
-        print(f"Failed to save daily total for {device_name} ({device_id}):", e)
+        print(f"Failed to save daily total for {device_id}: {e}")
 
 def save_overall_daily_total(date: datetime.datetime):
     try:
@@ -187,113 +257,88 @@ def save_overall_daily_total(date: datetime.datetime):
     except Exception as e:
         print(f"Failed to save overall daily total for {date}:", e)
 
-
-# Track consecutive failures
-failure_counts = {name: 0 for name in DEVICE_MAP.keys()}
-
-def try_reconnect_if_invalid(response, device_name, device_id):
-    global failure_counts
-
-    if not isinstance(response, dict):
-        return response
-
-    if (not response.get("success", True)) and response.get("code") == 1010:
-        print(f"⚠️ Tuya token invalid for {device_name} ({device_id}) — reconnecting...")
-
-        try:
-            openapi.connect()
-            time.sleep(1)
-            failure_counts[device_name] = 0  # ✅ reset on success
-            return openapi.get(f"/v1.0/devices/{device_id}/status")
-        except Exception as e:
-            failure_counts[device_name] += 1
-            wait_time = min(60, 2 ** failure_counts[device_name])  # exponential backoff, max 60s
-            print(f"❌ Reconnect failed for {device_name} ({device_id}). Sleeping {wait_time}s before retry...")
-            time.sleep(wait_time)
-            return response
-
-    return response
-
-# --- NEW FLAG ---
-first_run = True
-
-# Track last printed totals to suppress duplicates
-last_printed_totals = {device_id: None for device_id in DEVICE_MAP.values()}
-
-def print_plug_reading(device_name, power_watts, energy_kwh, total_kwh, status, timestamp, device_id, date):
+def print_plug_reading(device_label, power_watts, energy_kwh, total_kwh, status, timestamp, device_id, date, appliance_type=None):
     """Pretty-print a single plug reading and save to MongoDB energy_data (scoped to household)."""
-    
-    # Print to console
-    print(f"\n💡 [{device_name}] Total: {total_kwh:.6f} kWh")
+    print(f"\n💡 [{device_label}] Total: {total_kwh:.6f} kWh")
     print(f"   ├─ Power:       {power_watts:.2f} W")
     print(f"   ├─ Interval:    {energy_kwh:.6f} kWh")
     print(f"   ├─ Status:      {'🟢 active' if status == 'active' else '🔴 inactive'}")
     print(f"   └─ Timestamp:   {timestamp}")
-    
-    # Save to MongoDB (include household_id)
+
     try:
         energy_collection.insert_one({
             "household_id": HOUSEHOLD_ID,
             "device_id": device_id,
-            "device_name": device_name,
-            "date": date,  # ISODate (midnight)
-            "timestamp": datetime.datetime.now(datetime.timezone.utc),  # exact log time
+            "appliance_name": device_label if device_label else None,
+            "appliance_type": appliance_type,
+            "date": date,
+            "timestamp": datetime.datetime.now(datetime.timezone.utc),
             "power_watts": round(power_watts, 2),
             "interval_kwh": round(energy_kwh, 6),
             "total_kwh": round(total_kwh, 6),
             "status": status
         })
     except Exception as e:
-        print(f"⚠️ Failed to insert energy_data for {device_name}: {e}")
+        print(f"⚠️ Failed to insert energy_data for {device_id}: {e}")
 
 def print_cycle_summary(date_str, timestamp, device_summaries, overall_total):
-    """Print a summary table at the end of a cycle using tabulate."""
     print(f"\n📊 Daily Summary ({date_str} @ {timestamp})")
-
-    # Prepare rows for each device
     table = []
-    for name, data in device_summaries.items():
+    for label, data in device_summaries.items():
         status_icon = "ON " if data["status"] == "active" else "OFF "
-        table.append([name, f"{data['total_kwh']:.6f}", status_icon])
-
-    # Add the total row
+        table.append([label, f"{data['total_kwh']:.6f}", status_icon])
     table.append(["TOTAL", f"{overall_total:.6f}", ""])
-
-    # Print table with 'fancy_grid' format
     print(tabulate(table, headers=["Plug", "kWh", "Status"], tablefmt="fancy_grid"))
 
 # Main loop (5-minute logging)
 while not stop_flag:
-    
     try:
+        # refresh device_list each cycle in case user registered new appliances
+        device_list = load_device_list()
+        # if device_list changed, re-init tracking maps for new devices
+        for d in device_list:
+            device_id = d["device_id"]
+            if device_id not in device_totals:
+                device_totals[device_id] = 0.0
+                inactive_counts.setdefault(device_id, 0)
+                is_active.setdefault(device_id, True)
+                failure_counts.setdefault(device_id, 0)
+                last_printed_totals.setdefault(device_id, None)
+
         if not check_internet_connection():
             print(f"🌐 No internet connection detected. Retrying in {wait_time} seconds...")
             time.sleep(wait_time)
-            wait_time = min(wait_time * 2, max_wait) #exponential backoff
-            continue  # skip this cycle
+            wait_time = min(wait_time * 2, max_wait)
+            continue
 
         now_date = datetime.datetime.now(datetime.timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
 
-        # If new day → reset per device
+        # new day handling
         if now_date != tracking_day:
-            tracking_day = now_date 
-            for name, device_id in DEVICE_MAP.items():
+            tracking_day = now_date
+            # reset totals for all devices
+            for d in device_list:
+                device_id = d["device_id"]
                 device_totals[device_id] = 0.0
-                save_current_total(name, device_id, tracking_day, 0.0, "inactive")
-                save_daily_total_per_plug(name, device_id, tracking_day, 0.0)
+                # use device label for saved doc
+                label = d.get("appliance_name") or device_id
+                save_current_total(device_id, tracking_day, 0.0, "inactive", label)
+                save_daily_total_per_plug(device_id, tracking_day, 0.0, label)
             save_overall_daily_total(tracking_day)
 
-        # Divider for each cycle
         print("\n" + "─" * 35 + " ⚡ Plug Readings " + "─" * 35)
-
         device_summaries = {}
 
-        for name, device_id in DEVICE_MAP.items():
+        for d in device_list:
+            device_id = d["device_id"]
+            device_label = d.get("appliance_name") or device_id
+            appliance_type = d.get("appliance_type")
+
             response = openapi.get(f"/v1.0/devices/{device_id}/status")
-            response = try_reconnect_if_invalid(response, name, device_id)
+            response = try_reconnect_if_invalid(response, device_id)
 
             if isinstance(response, dict) and (not response.get("success", True)) and response.get("code") == 1010:
-                print(f"❌ Still invalid token for {name} ({device_id}). Skipping...")
+                print(f"❌ Still invalid token for {device_label} ({device_id}). Skipping...")
                 continue
 
             timestamp_ms = response.get("t")
@@ -313,56 +358,45 @@ while not stop_flag:
                         power_watts = 0.0
 
             if first_run:
-                print(f"⏳ Initial reading for {name} ({device_id}) collected, will compute kWh after 5 minutes...")
+                print(f"⏳ Initial reading for {device_label} ({device_id}) collected, will compute kWh after 5 minutes...")
                 continue
 
-            # kWh calculation (5 min)
-            energy_kwh = (power_watts / 1000.0) * (5.0 / 60.0) #3.0 / 60.0 if 3 minutes
+            # kWh for 5-minute interval
+            energy_kwh = (power_watts / 1000.0) * (2.0 / 60.0)
 
-            # Active/inactive handling
+            # Active/inactive logic
             if power_watts == 0:
-                inactive_counts[name] += 1
-                if inactive_counts[name] >= 1 and is_active[name]:
-                    is_active[name] = False
-                    print(f"\n🔴 {name} is inactive (no power for 1 interval)")
+                inactive_counts[device_id] = inactive_counts.get(device_id, 0) + 1
+                if inactive_counts[device_id] >= 1 and is_active.get(device_id, True):
+                    is_active[device_id] = False
+                    print(f"\n🔴 {device_label} is inactive (no power for 1 interval)")
             else:
-                inactive_counts[name] = 0
-                if not is_active[name]:
-                    is_active[name] = True
-                    print(f"\n🟢 {name} is active again")
+                inactive_counts[device_id] = 0
+                if not is_active.get(device_id, True):
+                    is_active[device_id] = True
+                    print(f"\n🟢 {device_label} is active again")
 
-            # Update running totals
-            device_totals[device_id] += energy_kwh
+            # Update running total
+            device_totals[device_id] = device_totals.get(device_id, 0.0) + energy_kwh
 
-            # Save to Mongo
-            save_current_total(name, device_id, tracking_day, device_totals[device_id],"active" if is_active[name] else "inactive")
-            save_daily_total_per_plug(name, device_id, tracking_day, device_totals[device_id])
+            # Persist totals
+            save_current_total(device_id, tracking_day, device_totals[device_id], "active" if is_active[device_id] else "inactive", device_label)
+            save_daily_total_per_plug(device_id, tracking_day, device_totals[device_id], device_label)
 
-            # Only print if total changed (avoid duplicates)
-            if last_printed_totals[device_id] != round(device_totals[device_id], 6):
-                print_plug_reading(
-                    name,                          # device_name
-                    power_watts,                   # power_watts
-                    energy_kwh,                    # energy_kwh
-                    device_totals[device_id],      # total_kwh
-                    "active" if is_active[name] else "inactive",  # status
-                    readable_time,                 # timestamp
-                    device_id,                     # device_id
-                    tracking_day                   # date
-                )
+            # Insert energy_data and print if changed
+            if last_printed_totals.get(device_id) != round(device_totals[device_id], 6):
+                print_plug_reading(device_label, power_watts, energy_kwh, device_totals[device_id],
+                                   "active" if is_active[device_id] else "inactive", readable_time, device_id, tracking_day, appliance_type)
                 last_printed_totals[device_id] = round(device_totals[device_id], 6)
 
-            # Store for summary
-            device_summaries[name] = {
+            device_summaries[device_label] = {
                 "total_kwh": device_totals[device_id],
-                "status": "active" if is_active[name] else "inactive"
+                "status": "active" if is_active[device_id] else "inactive"
             }
 
-        # After all plugs updated → overall daily total
+        # After all plugs processed → overall daily total
         if not first_run:
             save_overall_daily_total(tracking_day)
-
-            # Compute summary total
             overall_total = sum(d["total_kwh"] for d in device_summaries.values())
             print_cycle_summary(tracking_day, datetime.datetime.now(datetime.timezone.utc).strftime("%H:%M:%S"),
                                 device_summaries, overall_total)
@@ -371,8 +405,9 @@ while not stop_flag:
         print("❌ Lost connection to MongoDB. Check Wi-Fi or VPN.")
     except Exception as e:
         print("⚠️ Unexpected error:", e)
-    # Sleep loop
-    for _ in range(300): #change to 180 if 3 minutes, 300 if 5 minutes
+
+    # Sleep loop (5 minutes)
+    for _ in range(120):
         if stop_flag:
             break
         time.sleep(1)
@@ -380,5 +415,4 @@ while not stop_flag:
     if first_run:
         first_run = False
 
-print("✅ Program stopped succesfully.")
-
+print("✅ Program stopped successfully.")
