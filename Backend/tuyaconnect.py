@@ -30,12 +30,10 @@ API_ENDPOINT = os.getenv("API_ENDPOINT")
 
 # Parse DEVICE_MAP from .env → {"plug_1": "id1", "plug_2": "id2"}
 # We keep parsing DEVICE_MAP only to seed the appliances collection if needed.
-DEVICE_MAP = {}
-raw_map = os.getenv("DEVICE_MAP", "")
-for pair in raw_map.split(","):
-    if ":" in pair:
-        name, device_id = pair.split(":")
-        DEVICE_MAP[name.strip()] = device_id.strip()
+DEVICE_IDS = []
+raw_ids = os.getenv("DEVICE_IDS", "")
+if raw_ids:
+    DEVICE_IDS = [did.strip() for did in raw_ids.split(",") if did.strip()]
 
 # MongoDB setup
 mongo_client = MongoClient(os.getenv("MONGO_URI"))
@@ -85,21 +83,21 @@ except errors.OperationFailure as e:
 
 # --- If appliances collection lacks entries, seed placeholders from DEVICE_MAP ---
 # This allows the app to show available device_ids in a dropdown even before user registers names.
-if DEVICE_MAP:
-    for env_name, dev_id in DEVICE_MAP.items():
+if DEVICE_IDS:
+    for dev_id in DEVICE_IDS:
         try:
             appliances_collection.update_one(
                 {"household_id": HOUSEHOLD_ID, "device_id": dev_id},
                 {"$setOnInsert": {
                     "appliance_name": None,       # user will register this later
                     "appliance_type": None,
+                    "registered":False,         # user will register this later
                     "created_at": datetime.datetime.now(datetime.timezone.utc)
                 }},
                 upsert=True
             )
         except Exception as e:
-            print(f"⚠️ Failed to seed appliances for {env_name} ({dev_id}): {e}")
-
+            print(f"⚠️ Failed to seed appliance for {dev_id}: {e}")
 # --------------------------------------------------------------------
 # Timezone helpers — use PH midnight as the day boundary but store dates
 # as UTC datetimes (this keeps DB UTC-normalized while making "days"

@@ -28,14 +28,12 @@ HOUSEHOLD_ID = os.getenv("HOUSEHOLD_ID")
 if not HOUSEHOLD_ID:
     raise RuntimeError("HOUSEHOLD_ID not set in secrets.env")
 
-# Parse DEVICE_MAP (format: plug1:deviceid1,plug2:deviceid2)
-raw_device_map = os.getenv("DEVICE_MAP", "")
-DEVICE_MAP: Dict[str, str] = {}
-if raw_device_map:
-    for pair in raw_device_map.split(","):
-        if ":" in pair:
-            key, value = pair.split(":")
-            DEVICE_MAP[key.strip()] = value.strip()
+# --- Load DEVICE_IDS from env ---
+raw_device_ids = os.getenv("DEVICE_IDS", "")
+DEVICE_IDS: List[str] = []
+
+if raw_device_ids:
+    DEVICE_IDS = [id.strip() for id in raw_device_ids.split(",") if id.strip()]
 
 app = FastAPI(title="HomeSense API", version="1.0")
 
@@ -145,14 +143,33 @@ def get_utc_range_for_date(date: str = None):
     end = (local_start + datetime.timedelta(days=1)).astimezone(UTC)
     return start, end
 
-def validate_device(device_name: str) -> str:
-    """Ensure device_name exists in DEVICE_MAP."""
-    if device_name not in DEVICE_MAP:
-        raise HTTPException(status_code=404, detail=f"Device '{device_name}' not found")
-    return DEVICE_MAP[device_name]
+def validate_device(device_id: str) -> str:
+    """Ensure device_id exists in DEVICE_IDS."""
+    if device_id not in DEVICE_IDS:
+        raise HTTPException(status_code=404, detail=f"Device '{device_id}' not found")
+    return device_id
 
 def get_household_id() -> str:
     return HOUSEHOLD_ID
+
+def get_registered_device_ids(household_id: str):
+    appliances = db["appliances"].find({"household_id": household_id, "registered": True}, {"device_id": 1})
+    return [a["device_id"] for a in appliances]
+
+# ========================
+# HELPER: Check if registered
+# ========================
+def ensure_registered(device_id: str, household_id: str):
+    appliances = db["appliances"]
+    doc = appliances.find_one({
+        "household_id": household_id,
+        "device_id": device_id,
+        "registered": True  # ✅ check flag directly
+    })
+    if not doc:
+        raise HTTPException(status_code=403, detail=f"Device {device_id} not registered in this household")
+    return True
+
 
 # ========================
 # MODELS
@@ -316,6 +333,108 @@ def delete_user(email: str = Path(..., description="Email of the user to delete"
         raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
 
 
+# ========================
+# MODELS FOR APPLIANCES
+# ========================
+class ApplianceCreate(BaseModel):
+    device_id: str
+    name: str
+    type: str
+
+class ApplianceUpdate(BaseModel):
+    name: str | None = None
+    type: str | None = None
+
+
+# ========================
+# APPLIANCE ENDPOINTS (CRUD)
+# ========================
+@app.post("/appliances")
+def register_appliance(appliance: ApplianceCreate, household_id: str = Depends(get_household_id)):
+    """Register a new appliance for this household"""
+    try:
+        validate_device(appliance.device_id)
+
+        appliances = db["appliances"]
+        existing = appliances.find_one({
+            "household_id": household_id,
+            "device_id": appliance.device_id,
+            "registered": True
+        })
+        if existing:
+            raise HTTPException(status_code=400, detail="Appliance already registered for this household")
+
+        doc = {
+            "household_id": household_id,
+            "device_id": appliance.device_id,
+            "name": appliance.name,
+            "type": appliance.type,
+            "registered": True,  # ✅ explicit flag
+            "created_at": datetime.datetime.now(UTC),
+            "updated_at": datetime.datetime.now(UTC),
+        }
+        appliances.update_one(
+            {"household_id": household_id, "device_id": appliance.device_id},
+            {"$set": doc},
+            upsert=True  # ✅ overwrite unregistered entry if it exists
+        )
+
+        return {"message": "Appliance registered successfully", "appliance": clean_doc(doc)}
+
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error registering appliance: {str(e)}")
+
+
+@app.get("/appliances")
+def list_appliances(household_id: str = Depends(get_household_id)):
+    """List all appliances for this household"""
+    try:
+        appliances = db["appliances"]
+        docs = list(appliances.find({"household_id": household_id, "registered": True}))
+        return {"appliances": clean_docs(docs)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error listing appliances: {str(e)}")
+
+
+@app.put("/appliances/{device_id}")
+def update_appliance(device_id: str, updates: ApplianceUpdate, household_id: str = Depends(get_household_id)):
+    """Update appliance name/type for this household"""
+    try:
+        appliances = db["appliances"]
+        update_data = {k: v for k, v in updates.dict().items() if v is not None}
+        if not update_data:
+            raise HTTPException(status_code=400, detail="No fields to update")
+
+        result = appliances.update_one(
+            {"household_id": household_id, "device_id": device_id, "registered": True},
+            {"$set": {**update_data, "updated_at": datetime.datetime.now(UTC)}}
+        )
+        if result.matched_count == 0:
+            raise HTTPException(status_code=404, detail="Appliance not found or not registered")
+
+        return {"message": "Appliance updated successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error updating appliance: {str(e)}")
+
+
+@app.delete("/appliances/{device_id}")
+def delete_appliance(device_id: str, household_id: str = Depends(get_household_id)):
+    """Delete appliance registration from this household"""
+    try:
+        appliances = db["appliances"]
+        result = appliances.delete_one({
+            "household_id": household_id,
+            "device_id": device_id,
+            "registered": True
+        })
+        if result.deleted_count == 0:
+            raise HTTPException(status_code=404, detail="Appliance not found or not registered")
+        return {"message": "Appliance deleted successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error deleting appliance: {str(e)}")
+
 
 # ========================
 # ROOT
@@ -328,19 +447,18 @@ def root():
 # DEVICES ENDPOINT
 # ========================
 @app.get("/devices")
-def list_devices(household_id: str = Depends(get_household_id)):
-    
-   #not used now, but can be used to verify device map from env
-    
-    return {"household_id": household_id, "devices": DEVICE_MAP}
+def list_devices(device_name: str, household_id: str = Depends(get_household_id)):
+    """Return all configured device IDs for this household."""
+    device_id = validate_device(device_name)
+    return {"household_id": household_id, "devices": device_id}
 
 # ========================
-# 1️⃣ Current plug status (scoped by household)
+# 1️⃣ Current plug status (scoped by household), must be REGISTERED
 # ========================
 @app.get("/devices/status/{device_name}")
 def get_device_status(device_name: str, household_id: str = Depends(get_household_id)):
-    """Return current total kWh and active/inactive status of a single device for the household."""
     device_id = validate_device(device_name)
+    ensure_registered(device_id, household_id)  # ✅ must be registered
     try:
         current = db["current_totals"].find_one({"household_id": household_id, "device_id": device_id})
 
@@ -370,30 +488,74 @@ def get_device_status(device_name: str, household_id: str = Depends(get_househol
 @app.get("/energy/daily/total")
 def get_household_daily_total(date: str = None, household_id: str = Depends(get_household_id)):
     start, end = get_utc_range_for_date(date)
+
     try:
-        doc = db["daily_totals"].find_one({
+        registered_devices = get_registered_device_ids(household_id)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"DB error fetching registered devices: {str(e)}")
+
+    if not registered_devices:
+        return {
+            "date": date or start.strftime("%Y-%m-%d"),
+            "total_kwh": 0.0,
+            "status": "No registered appliances"
+        }
+
+    try:
+        pipeline = [
+            {"$match": {
+                "household_id": household_id,
+                "device_id": {"$in": registered_devices},
+                "date": {"$gte": start, "$lt": end}
+            }},
+            {"$group": {"_id": None, "total_kwh": {"$sum": "$total_kwh"}}}
+        ]
+        result = list(db["daily_totals_per_plug"].aggregate(pipeline))
+        total = result[0]["total_kwh"] if result else 0.0
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"DB error: {str(e)}")
+
+    return {
+        "date": date or start.astimezone(PH_TZ).strftime("%Y-%m-%d"),
+        "total_kwh": total,
+        "status": "OK" if total > 0 else "No data available"
+    }
+
+
+# ========================
+# 3️⃣ Daily total per plug (scoped by household)
+# ========================
+@app.get("/dev/energy/daily/{device_name}")
+def get_daily_total(device_name: str, date: str = None, household_id: str = Depends(get_household_id)):
+    device_id = validate_device(device_name)
+    start, end = get_utc_range_for_date(date)
+    try:
+        doc = db["daily_totals_per_plug"].find_one({
             "household_id": household_id,
+            "device_id": device_id,
             "date": {"$gte": start, "$lt": end}
         })
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"DB error: {str(e)}")
     
-    if not doc:
-        return {
-            "date": date or start.astimezone(PH_TZ).strftime("%Y-%m-%d"),
-            "total_kwh": "No data available",
-            "status": "No data available"
-        }
-
-    return clean_doc(doc)
+    return clean_doc(doc) if doc else {
+        "device_id": device_id,
+        "household_id": household_id,
+        "date": date or start.astimezone(PH_TZ).strftime("%Y-%m-%d"),
+        "device_name": device_name,
+        "total_kwh": "No data available",
+        "status": "No data available"
+    }
 
 # ========================
-# 3️⃣ Daily total per plug (scoped by household)
+# 3️⃣ Daily total per plug (scoped by household), must be REGISTERED
 # ========================
-@app.get("/energy/daily/{device_name}")
+@app.get("/energy/daily/registered/{device_name}")
 def get_daily_total(device_name: str, date: str = None, household_id: str = Depends(get_household_id)):
     device_id = validate_device(device_name)
+    ensure_registered(device_id, household_id)
     start, end = get_utc_range_for_date(date)
+    
     try:
         doc = db["daily_totals_per_plug"].find_one({
             "household_id": household_id,
@@ -417,33 +579,53 @@ def get_daily_total(device_name: str, date: str = None, household_id: str = Depe
 # ========================
 @app.get("/energy/summary")
 def get_energy_summary(household_id: str = Depends(get_household_id)):
-    """Return current totals, status, and daily totals for all devices in the household."""
-    summary = []
+    """Return summary of all registered appliances in the household,
+    including status, daily consumption, and last update time.
+    """
     start, end = get_utc_range_for_date()  # today PH -> UTC
 
-    for name, device_id in DEVICE_MAP.items():
+    # ✅ Get registered devices
+    registered_ids = get_registered_device_ids(household_id)
+    if not registered_ids:
+        return {
+            "household_id": household_id,
+            "summary": [],
+            "status": "No registered appliances"
+        }
+
+    summary = []
+    for device_id in registered_ids:
         try:
-            current = db["current_totals"].find_one({
-                "household_id": household_id,
-                "device_id": device_id
-            })
-            daily = db["daily_totals_per_plug"].find_one({
-                "household_id": household_id,
-                "device_id": device_id,
-                "date": {"$gte": start, "$lt": end}
-            })
+            # ✅ Get appliance details
+            appliance = db["appliances"].find_one(
+                {"household_id": household_id, "device_id": device_id},
+                {"_id": 0, "name": 1, "type": 1}
+            )
+
+            # ✅ Get most recent status from current_totals
+            current = db["current_totals"].find_one(
+                {"household_id": household_id, "device_id": device_id}
+            )
+
+            # ✅ Get today’s daily consumption from daily_totals_per_plug
+            daily = db["daily_totals_per_plug"].find_one(
+                {"household_id": household_id, "device_id": device_id,
+                 "date": {"$gte": start, "$lt": end}}
+            )
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"DB error: {str(e)}")
-        
+
         summary.append({
-            "device_name": name,
             "device_id": device_id,
+            "appliance_name": appliance.get("appliance_ame") if appliance else None,
+            "appliance_type": appliance.get("appliance_type") if appliance else None,
             "status": current.get("status", "inactive") if current else "No data available",
             "daily_total_kwh": daily.get("total_kwh", 0.0) if daily else 0.0,
             "last_updated": format_datetime(current["updated_at"]) if current and current.get("updated_at") else None
         })
 
-    return {"household_id": household_id, "summary": summary}
+    return {"household_id": household_id, "summary": summary, "status": "OK"}
+
 
 
 # ========================
@@ -456,10 +638,12 @@ def get_daily_history(
     end: str = Query(...),
     household_id: str = Depends(get_household_id)
 ):
+    ensure_registered(device_id, household_id)
     device_id = validate_device(device_name)
     start_date = parse_date(start)
     end_date = parse_date(end)
 
+    
     try:
         cursor = db["daily_totals_per_plug"].find({
             "household_id": household_id,
@@ -498,20 +682,23 @@ def get_household_history(
 # ========================
 @app.get("/energy/weekly/total")
 def get_weekly_total_household(limit: int = Query(None, ge=1), household_id: str = Depends(get_household_id)):
+    registered_devices = get_registered_device_ids(household_id)
+    if not registered_devices:
+        return {"data": []}
+
     try:
         pipeline = [
-            {"$match": {"household_id": household_id}},
+            {"$match": {"household_id": household_id, "device_id": {"$in": registered_devices}}},
             {"$group": {
                 "_id": {"year": {"$isoWeekYear": "$date"}, "week": {"$isoWeek": "$date"}},
                 "total_kwh": {"$sum": "$total_kwh"}
             }},
             {"$sort": {"_id.year": -1, "_id.week": -1}}
         ]
-
         if limit:
             pipeline.append({"$limit": limit})
 
-        cursor = db["daily_totals"].aggregate(pipeline)
+        cursor = db["daily_totals_per_plug"].aggregate(pipeline)
         results = list(cursor)
 
         data = []
@@ -531,12 +718,14 @@ def get_weekly_total_household(limit: int = Query(None, ge=1), household_id: str
         raise HTTPException(status_code=500, detail=f"DB error: {str(e)}")
 
 
+
 # ========================
 # 8. Weekly total per plug (Mon–Sun) with optional limit
 # ========================
 @app.get("/energy/weekly/{device_name}")
 def get_weekly_total(device_name: str, limit: int = Query(None, ge=1), household_id: str = Depends(get_household_id)):
     device_id = validate_device(device_name)
+    ensure_registered(device_id, household_id)
     try:
         pipeline = [
             {"$match": {"household_id": household_id, "device_id": device_id}},
@@ -575,27 +764,34 @@ def get_weekly_total(device_name: str, limit: int = Query(None, ge=1), household
 # ========================
 @app.get("/energy/monthly/total")
 def get_monthly_total_household(limit: int = Query(None, ge=1), household_id: str = Depends(get_household_id)):
+    registered_devices = get_registered_device_ids(household_id)
+    if not registered_devices:
+        return {"data": []}
+
     try:
         pipeline = [
-            {"$match": {"household_id": household_id}},
+            {"$match": {"household_id": household_id, "device_id": {"$in": registered_devices}}},
             {"$group": {
                 "_id": {"year": {"$year": "$date"}, "month": {"$month": "$date"}},
                 "total_kwh": {"$sum": "$total_kwh"}
             }},
             {"$sort": {"_id.year": -1, "_id.month": -1}}
         ]
-
         if limit:
             pipeline.append({"$limit": limit})
 
-        cursor = db["daily_totals"].aggregate(pipeline)
+        cursor = db["daily_totals_per_plug"].aggregate(pipeline)
         results = list(cursor)
 
-        data = [{"month": f"{r['_id']['year']}-{r['_id']['month']:02}", "monthly_total_kwh": r["total_kwh"]} for r in reversed(results)]
+        data = [
+            {"month": f"{r['_id']['year']}-{r['_id']['month']:02}", "monthly_total_kwh": r["total_kwh"]}
+            for r in reversed(results)
+        ]
         return {"data": data}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"DB error: {str(e)}")
+
 
 
 # ========================
@@ -604,6 +800,7 @@ def get_monthly_total_household(limit: int = Query(None, ge=1), household_id: st
 @app.get("/energy/monthly/{device_name}")
 def get_monthly_total(device_name: str, limit: int = Query(None, ge=1), household_id: str = Depends(get_household_id)):
     device_id = validate_device(device_name)
+    ensure_registered(device_id, household_id)
     try:
         pipeline = [
             {"$match": {"household_id": household_id, "device_id": device_id}},
@@ -634,6 +831,7 @@ def get_monthly_total(device_name: str, limit: int = Query(None, ge=1), househol
 def get_recent_weekly_household(household_id: str = Depends(get_household_id)):
     end_date = today_utc_midnight()
     start_date = end_date - datetime.timedelta(days=6)  # last 7 days
+    
     try:
         pipeline = [
             {"$match": {"household_id": household_id, "date": {"$gte": start_date, "$lte": end_date}}},
@@ -658,6 +856,7 @@ def get_recent_weekly_household(household_id: str = Depends(get_household_id)):
 @app.get("/energy/weekly/recent/{device_name}")
 def get_recent_weekly(device_name: str, household_id: str = Depends(get_household_id)):
     device_id = validate_device(device_name)
+    ensure_registered(device_id, household_id)
     end_date = today_utc_midnight()
     start_date = end_date - datetime.timedelta(days=6)
     try:
@@ -708,6 +907,7 @@ def get_recent_monthly_household(household_id: str = Depends(get_household_id)):
 @app.get("/energy/monthly/recent/{device_name}")
 def get_recent_monthly(device_name: str, household_id: str = Depends(get_household_id)):
     device_id = validate_device(device_name)
+    ensure_registered(device_id, household_id)
     end_date = today_utc_midnight()
     start_date = end_date - datetime.timedelta(days=29)
     try:
