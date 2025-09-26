@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   View, 
   Text, 
   TouchableOpacity, 
   ScrollView, 
   Modal, 
-  FlatList 
+  FlatList, 
+  ActivityIndicator 
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -13,22 +14,23 @@ import { useNavigation } from '@react-navigation/native';
 import { RootStackParamList } from '../App';
 import { styles } from './styles/ConsumptionPageStyles';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import api from '../utils/api'; // ✅ use api.ts
 
 type ConsumptionPageNavProp = NativeStackNavigationProp<RootStackParamList, 'ConsumptionPage'>;
 
 const timeRanges = ['Daily', 'Weekly', 'Monthly'];
+const deviceNames = ['plug_1', 'plug_2', 'plug_3']; // for individual appliance filter
 
-// sample appliance data
-const appliances = [
-  { id: '1', name: 'Aircon 1', location: 'Bedroom', time: 'May 21, 07:34', status: 'ON', usage: '17 kWh' },
-  { id: '2', name: 'Refrigerator', location: 'Kitchen', time: 'May 21, 09:23', status: 'ON', usage: '14.5 kWh' },
-  { id: '3', name: 'Electric Fan 1', location: 'Living Room', time: 'May 21, 12:44', status: 'OFF', usage: '9 kWh' },
-  { id: '4', name: 'Aircon 2', location: 'Living Room', time: 'May 21, 15:48', status: 'ON', usage: '8.5 kWh' },
-];
+interface ApplianceData {
+  device_name: string;
+  time: string;
+  status: string; // only for daily
+  usage: string;
+}
 
 const ConsumptionPage = () => {
   const navigation = useNavigation<ConsumptionPageNavProp>();
-  const [selectedRange, setSelectedRange] = useState('Daily');
+  const [selectedRange, setSelectedRange] = useState<'Daily' | 'Weekly' | 'Monthly'>('Daily');
   const [viewType, setViewType] = useState<'table' | 'chart'>('table');
   const [dropdownVisible, setDropdownVisible] = useState(false);
 
@@ -38,19 +40,74 @@ const ConsumptionPage = () => {
   const [applianceDropdownVisible, setApplianceDropdownVisible] = useState(false);
   const [selectedAppliance, setSelectedAppliance] = useState<string | null>(null);
 
-  // filtered data
-  const filteredAppliances = filterType === 'all' 
-    ? appliances 
-    : appliances.filter(a => a.name === selectedAppliance);
+  // data
+  const [appliances, setAppliances] = useState<ApplianceData[]>([]);
+  const [dailyStatus, setDailyStatus] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(false);
+
+  // fetch appliance usage
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const applianceList = filterType === 'all' ? deviceNames : selectedAppliance ? [selectedAppliance] : [];
+      const requests = applianceList.map((device) => {
+        let endpoint = '';
+        if (selectedRange === 'Daily') endpoint = `/energy/daily/${device}`;
+        else if (selectedRange === 'Weekly') endpoint = `/energy/weekly/${device}`;
+        else if (selectedRange === 'Monthly') endpoint = `/energy/monthly/${device}`;
+        return api.get(endpoint);
+      });
+
+      const responses = await Promise.all(requests);
+
+      const allData: ApplianceData[] = [];
+      responses.forEach((res, i) => {
+        const device = applianceList[i];
+        const dataArr = Array.isArray(res.data.history || res.data.data) ? res.data.history || res.data.data : [res.data];
+
+        dataArr.forEach((d: any) => {
+          allData.push({
+            device_name: device,
+            time: d.date || d.week_start || d.month || 'N/A',
+            status: 'N/A', // placeholder, will be replaced for Daily
+            usage: d.total_kwh ? `${d.total_kwh} kWh` : 'N/A',
+          });
+        });
+      });
+
+      setAppliances(allData);
+
+      // fetch daily status only if selectedRange is Daily
+      if (selectedRange === 'Daily') {
+        const summaryRes = await api.get('/energy/summary');
+        const statusMap: Record<string, string> = {};
+        summaryRes.data.summary.forEach((item: any) => {
+          // map your backend status to ON/OFF
+          statusMap[item.device_name] = item.status.toLowerCase() === 'active' ? 'ON' : 'OFF';
+        });
+        setDailyStatus(statusMap);
+      } else {
+        setDailyStatus({});
+      }
+
+    } catch (error) {
+      console.log('Error fetching appliance data:', error);
+      setAppliances([]);
+      setDailyStatus({});
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, [filterType, selectedAppliance, selectedRange]);
 
   return (
     <View style={styles.container}>
-      {/* ✅ Page Title */}
       <Text style={styles.pageTitle}>Appliance Records</Text>
 
       {/* Top Controls */}
       <View style={styles.topControls}>
-        {/* Time Range Dropdown */}
         <View style={styles.dropdownContainer}>
           <TouchableOpacity style={styles.dropdownButton} onPress={() => setDropdownVisible(true)}>
             <Text style={styles.dropdownText}>{selectedRange}</Text>
@@ -58,7 +115,6 @@ const ConsumptionPage = () => {
           </TouchableOpacity>
         </View>
 
-        {/* Table button */}
         <TouchableOpacity 
           style={[styles.toggleButton, { backgroundColor: viewType === 'table' ? '#000' : '#f1f1f1' }]}
           onPress={() => setViewType('table')}
@@ -67,7 +123,6 @@ const ConsumptionPage = () => {
           <Text style={[styles.toggleText, { color: viewType === 'table' ? '#fff' : '#000' }]}>Table</Text>
         </TouchableOpacity>
 
-        {/* Chart button */}
         <TouchableOpacity 
           style={[styles.toggleButton, { backgroundColor: viewType === 'chart' ? '#000' : '#f1f1f1' }]}
           onPress={() => setViewType('chart')}
@@ -76,7 +131,6 @@ const ConsumptionPage = () => {
           <Text style={[styles.toggleText, { color: viewType === 'chart' ? '#fff' : '#000' }]}>Chart</Text>
         </TouchableOpacity>
 
-        {/* Filter Button */}
         <TouchableOpacity style={styles.filterButton} onPress={() => setFilterVisible(true)}>
           <Icon name="filter-list" size={17} color="#000" />
         </TouchableOpacity>
@@ -104,7 +158,7 @@ const ConsumptionPage = () => {
                 <TouchableOpacity 
                   style={{ padding: 12 }}
                   onPress={() => {
-                    setSelectedRange(item);
+                    setSelectedRange(item as 'Daily' | 'Weekly' | 'Monthly');
                     setDropdownVisible(false);
                   }}
                 >
@@ -156,7 +210,6 @@ const ConsumptionPage = () => {
 
       {/* Content */}
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Show label or appliance dropdown depending on filter */}
         {filterType === 'all' ? (
           <Text style={{ fontSize: 16, fontWeight: 'bold', marginBottom: 8, color: '#000' }}>
             All Appliances
@@ -173,7 +226,6 @@ const ConsumptionPage = () => {
               <Icon name="arrow-drop-down" size={22} color="#000" />
             </TouchableOpacity>
 
-            {/* Appliance Dropdown Modal */}
             <Modal visible={applianceDropdownVisible} transparent animationType="fade">
               <TouchableOpacity 
                 style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.3)' }}
@@ -189,17 +241,17 @@ const ConsumptionPage = () => {
                   elevation: 5
                 }}>
                   <FlatList
-                    data={appliances}
-                    keyExtractor={(item) => item.id}
+                    data={deviceNames}
+                    keyExtractor={(item) => item}
                     renderItem={({ item }) => (
                       <TouchableOpacity 
                         style={{ padding: 12 }}
                         onPress={() => {
-                          setSelectedAppliance(item.name);
+                          setSelectedAppliance(item);
                           setApplianceDropdownVisible(false);
                         }}
                       >
-                        <Text style={{ fontSize: 16, color: '#000' }}>{item.name}</Text>
+                        <Text style={{ fontSize: 16, color: '#000' }}>{item}</Text>
                       </TouchableOpacity>
                     )}
                   />
@@ -211,31 +263,35 @@ const ConsumptionPage = () => {
 
         {viewType === 'table' ? (
           <>
-            {/* ✅ Table Header */}
-            <View style={styles.tableHeader}>
-              <Text style={[styles.tableCell, styles.tableHeaderText, styles.tableCellBorder]}>Appliance</Text>
-              <Text style={[styles.tableCell, styles.tableHeaderText, styles.tableCellBorder]}>Location</Text>
-              <Text style={[styles.tableCell, styles.tableHeaderText, styles.tableCellBorder]}>Time</Text>
-              <Text style={[styles.tableCell, styles.tableHeaderText, styles.tableCellBorder]}>Status</Text>
-              <Text style={[styles.tableCell, styles.tableHeaderText]}>Usage</Text>
-            </View>
+            {loading ? (
+              <ActivityIndicator size="large" color="#000" style={{ marginTop: 20 }} />
+            ) : (
+              <>
+                <View style={styles.tableHeader}>
+                  <Text style={[styles.tableCell, styles.tableHeaderText, styles.tableCellBorder]}>Appliance</Text>
+                  <Text style={[styles.tableCell, styles.tableHeaderText, styles.tableCellBorder]}>Location</Text>
+                  <Text style={[styles.tableCell, styles.tableHeaderText, styles.tableCellBorder]}>Time</Text>
+                  <Text style={[styles.tableCell, styles.tableHeaderText, styles.tableCellBorder]}>Status</Text>
+                  <Text style={[styles.tableCell, styles.tableHeaderText]}>Usage</Text>
+                </View>
 
-            {/* ✅ Table Rows */}
-            {filteredAppliances.map((item) => (
-              <View key={item.id} style={styles.tableRow}>
-                <Text style={[styles.tableCell, styles.tableCellBorder]}>{item.name}</Text>
-                <Text style={[styles.tableCell, styles.tableCellBorder]}>{item.location}</Text>
-                <Text style={[styles.tableCell, styles.tableCellBorder]}>{item.time}</Text>
-                <Text style={[
-                  styles.tableCell, 
-                  styles.tableCellBorder, 
-                  { color: item.status === 'ON' ? 'green' : 'red' }
-                ]}>
-                  {item.status}
-                </Text>
-                <Text style={styles.tableCell}>{item.usage}</Text>
-              </View>
-            ))}
+                {appliances.map((item, index) => (
+                  <View key={index} style={styles.tableRow}>
+                    <Text style={[styles.tableCell, styles.tableCellBorder]}>{item.device_name}</Text>
+                    <Text style={[styles.tableCell, styles.tableCellBorder]}>N/A</Text>
+                    <Text style={[styles.tableCell, styles.tableCellBorder]}>{item.time}</Text>
+                    <Text style={[
+                      styles.tableCell,
+                      styles.tableCellBorder,
+                      { color: selectedRange === 'Daily' && dailyStatus[item.device_name] === 'ON' ? 'green' : 'red' }
+                    ]}>
+                      {selectedRange === 'Daily' ? dailyStatus[item.device_name] || 'OFF' : 'N/A'}
+                    </Text>
+                    <Text style={styles.tableCell}>{item.usage}</Text>
+                  </View>
+                ))}
+              </>
+            )}
           </>
         ) : (
           <View style={styles.chartPlaceholder}>
