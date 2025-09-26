@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 from passlib.hash import bcrypt
 import os
 import datetime
-from typing import List, Dict
+from typing import List
 from fastapi.middleware.cors import CORSMiddleware
 
 # ========================
@@ -27,13 +27,6 @@ db = client["homesense_db"]
 HOUSEHOLD_ID = os.getenv("HOUSEHOLD_ID")
 if not HOUSEHOLD_ID:
     raise RuntimeError("HOUSEHOLD_ID not set in secrets.env")
-
-# --- Load DEVICE_IDS from env ---
-raw_device_ids = os.getenv("DEVICE_IDS", "")
-DEVICE_IDS: List[str] = []
-
-if raw_device_ids:
-    DEVICE_IDS = [id.strip() for id in raw_device_ids.split(",") if id.strip()]
 
 app = FastAPI(title="HomeSense API", version="1.0")
 
@@ -143,9 +136,10 @@ def get_utc_range_for_date(date: str = None):
     end = (local_start + datetime.timedelta(days=1)).astimezone(UTC)
     return start, end
 
-def validate_device(device_id: str) -> str:
-    """Ensure device_id exists in DEVICE_IDS."""
-    if device_id not in DEVICE_IDS:
+def validate_device(household_id: str, device_id: str) -> str:
+    """Ensure device_id exists in appliances."""
+    appliances = db["appliances"].find({"household_id": household_id}, {"device_id": 1})
+    if device_id not in [a["device_id"] for a in appliances]:
         raise HTTPException(status_code=404, detail=f"Device '{device_id}' not found")
     return device_id
 
@@ -353,7 +347,7 @@ class ApplianceUpdate(BaseModel):
 def register_appliance(appliance: ApplianceCreate, household_id: str = Depends(get_household_id)):
     """Register a new appliance for this household"""
     try:
-        validate_device(appliance.device_id)
+        validate_device(appliance.household_id, appliance.device_id)
 
         appliances = db["appliances"]
         existing = appliances.find_one({
@@ -449,7 +443,7 @@ def root():
 @app.get("/devices")
 def list_devices(device_name: str, household_id: str = Depends(get_household_id)):
     """Return all configured device IDs for this household."""
-    device_id = validate_device(device_name)
+    device_id = validate_device(household_id,device_name)
     return {"household_id": household_id, "devices": device_id}
 
 # ========================
@@ -457,7 +451,7 @@ def list_devices(device_name: str, household_id: str = Depends(get_household_id)
 # ========================
 @app.get("/devices/status/{device_name}")
 def get_device_status(device_name: str, household_id: str = Depends(get_household_id)):
-    device_id = validate_device(device_name)
+    device_id = validate_device(household_id, device_name)
     ensure_registered(device_id, household_id)  # ✅ must be registered
     try:
         current = db["current_totals"].find_one({"household_id": household_id, "device_id": device_id})
@@ -527,7 +521,7 @@ def get_household_daily_total(date: str = None, household_id: str = Depends(get_
 # ========================
 @app.get("/dev/energy/daily/{device_name}")
 def get_daily_total(device_name: str, date: str = None, household_id: str = Depends(get_household_id)):
-    device_id = validate_device(device_name)
+    device_id = validate_device(household_id, device_name)
     start, end = get_utc_range_for_date(date)
     try:
         doc = db["daily_totals_per_plug"].find_one({
@@ -550,9 +544,9 @@ def get_daily_total(device_name: str, date: str = None, household_id: str = Depe
 # ========================
 # 3️⃣ Daily total per plug (scoped by household), must be REGISTERED
 # ========================
-@app.get("/energy/daily/registered/{device_name}")
+@app.get("/energy/daily/{device_name}")
 def get_daily_total(device_name: str, date: str = None, household_id: str = Depends(get_household_id)):
-    device_id = validate_device(device_name)
+    device_id = validate_device(household_id,device_name)
     ensure_registered(device_id, household_id)
     start, end = get_utc_range_for_date(date)
     
@@ -632,14 +626,9 @@ def get_energy_summary(household_id: str = Depends(get_household_id)):
 # 5️⃣ Historical daily totals per plug (scoped by household)
 # ========================
 @app.get("/energy/history/range/{device_name}")
-def get_daily_history(
-    device_name: str,
-    start: str = Query(...),
-    end: str = Query(...),
-    household_id: str = Depends(get_household_id)
-):
+def get_daily_history(device_name: str,start: str = Query(...),end: str = Query(...),household_id: str = Depends(get_household_id)):
+    device_id = validate_device(household_id,device_name)
     ensure_registered(device_id, household_id)
-    device_id = validate_device(device_name)
     start_date = parse_date(start)
     end_date = parse_date(end)
 
@@ -659,13 +648,18 @@ def get_daily_history(
 # 6️⃣ Historical household totals (scoped by household)
 # ========================
 @app.get("/energy/history/total_range")
-def get_household_history(
-    start: str = Query(...),
-    end: str = Query(...),
-    household_id: str = Depends(get_household_id)
-):
+def get_household_history(start: str = Query(...),end: str = Query(...),household_id: str = Depends(get_household_id)):
     start_date = parse_date(start)
     end_date = parse_date(end)
+    try:
+        registered_devices = get_registered_device_ids(household_id)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"DB error fetching registered devices: {str(e)}")
+
+    if not registered_devices:
+        return {
+            "status": "No registered appliances"
+        }
     try:
         cursor = db["daily_totals"].find({
             "household_id": household_id,
@@ -684,7 +678,7 @@ def get_household_history(
 def get_weekly_total_household(limit: int = Query(None, ge=1), household_id: str = Depends(get_household_id)):
     registered_devices = get_registered_device_ids(household_id)
     if not registered_devices:
-        return {"data": []}
+        return {"data": "No data available"}
 
     try:
         pipeline = [
@@ -724,7 +718,7 @@ def get_weekly_total_household(limit: int = Query(None, ge=1), household_id: str
 # ========================
 @app.get("/energy/weekly/{device_name}")
 def get_weekly_total(device_name: str, limit: int = Query(None, ge=1), household_id: str = Depends(get_household_id)):
-    device_id = validate_device(device_name)
+    device_id = validate_device(household_id, device_name)
     ensure_registered(device_id, household_id)
     try:
         pipeline = [
@@ -766,7 +760,7 @@ def get_weekly_total(device_name: str, limit: int = Query(None, ge=1), household
 def get_monthly_total_household(limit: int = Query(None, ge=1), household_id: str = Depends(get_household_id)):
     registered_devices = get_registered_device_ids(household_id)
     if not registered_devices:
-        return {"data": []}
+        return {"data": "No data available"}
 
     try:
         pipeline = [
@@ -799,7 +793,7 @@ def get_monthly_total_household(limit: int = Query(None, ge=1), household_id: st
 # ========================
 @app.get("/energy/monthly/{device_name}")
 def get_monthly_total(device_name: str, limit: int = Query(None, ge=1), household_id: str = Depends(get_household_id)):
-    device_id = validate_device(device_name)
+    device_id = validate_device(household_id, device_name)
     ensure_registered(device_id, household_id)
     try:
         pipeline = [
@@ -855,7 +849,7 @@ def get_recent_weekly_household(household_id: str = Depends(get_household_id)):
 # ========================
 @app.get("/energy/weekly/recent/{device_name}")
 def get_recent_weekly(device_name: str, household_id: str = Depends(get_household_id)):
-    device_id = validate_device(device_name)
+    device_id = validate_device(household_id, device_name)
     ensure_registered(device_id, household_id)
     end_date = today_utc_midnight()
     start_date = end_date - datetime.timedelta(days=6)
@@ -882,7 +876,7 @@ def get_recent_weekly(device_name: str, household_id: str = Depends(get_househol
 @app.get("/energy/monthly/recent/total")
 def get_recent_monthly_household(household_id: str = Depends(get_household_id)):
     end_date = today_utc_midnight()
-    start_date = end_date - datetime.timedelta(days=29)
+    start_date = end_date - datetime.timedelta(days=30)
     try:
         pipeline = [
             {"$match": {"household_id": household_id, "date": {"$gte": start_date, "$lte": end_date}}},
@@ -906,7 +900,7 @@ def get_recent_monthly_household(household_id: str = Depends(get_household_id)):
 # ========================
 @app.get("/energy/monthly/recent/{device_name}")
 def get_recent_monthly(device_name: str, household_id: str = Depends(get_household_id)):
-    device_id = validate_device(device_name)
+    device_id = validate_device(household_id, device_name)
     ensure_registered(device_id, household_id)
     end_date = today_utc_midnight()
     start_date = end_date - datetime.timedelta(days=29)
