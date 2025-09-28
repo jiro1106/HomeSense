@@ -332,12 +332,14 @@ def delete_user(email: str = Path(..., description="Email of the user to delete"
 # ========================
 class ApplianceCreate(BaseModel):
     device_id: str
-    name: str
-    type: str
+    appliance_name: str
+    appliance_type: str           # Appliance type (e.g., "Air Conditioner")
+    location: str       # Appliance location (e.g., "Bedroom")
 
 class ApplianceUpdate(BaseModel):
-    name: str | None = None
-    type: str | None = None
+    appliance_name: str | None = None
+    appliance_type: str | None = None
+    location: str | None = None
 
 
 # ========================
@@ -347,7 +349,8 @@ class ApplianceUpdate(BaseModel):
 def register_appliance(appliance: ApplianceCreate, household_id: str = Depends(get_household_id)):
     """Register a new appliance for this household"""
     try:
-        validate_device(appliance.household_id, appliance.device_id)
+        # Validate device exists in appliances collection
+        validate_device(household_id, appliance.device_id)
 
         appliances = db["appliances"]
         existing = appliances.find_one({
@@ -361,16 +364,18 @@ def register_appliance(appliance: ApplianceCreate, household_id: str = Depends(g
         doc = {
             "household_id": household_id,
             "device_id": appliance.device_id,
-            "name": appliance.name,
-            "type": appliance.type,
-            "registered": True,  # ✅ explicit flag
+            "appliance_name": appliance.appliance_name,
+            "appliance_type": appliance.appliance_type,
+            "location": appliance.location, 
+            "registered": True,
             "created_at": datetime.datetime.now(UTC),
             "updated_at": datetime.datetime.now(UTC),
         }
+
         appliances.update_one(
             {"household_id": household_id, "device_id": appliance.device_id},
             {"$set": doc},
-            upsert=True  # ✅ overwrite unregistered entry if it exists
+            upsert=True
         )
 
         return {"message": "Appliance registered successfully", "appliance": clean_doc(doc)}
@@ -379,6 +384,7 @@ def register_appliance(appliance: ApplianceCreate, household_id: str = Depends(g
         raise e
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error registering appliance: {str(e)}")
+
 
 
 @app.get("/appliances")
@@ -418,12 +424,10 @@ def delete_appliance(device_id: str, household_id: str = Depends(get_household_i
     """Delete appliance registration from this household"""
     try:
         appliances = db["appliances"]
-        result = appliances.delete_one({
-            "household_id": household_id,
-            "device_id": device_id,
-            "registered": True
-        })
-        if result.deleted_count == 0:
+        result = appliances.update_one({"household_id": household_id, "device_id": device_id, "registered": True},
+        {"$set": {"registered": False, "updated_at": datetime.datetime.now(UTC)}})
+        
+        if result.matched_count == 0:
             raise HTTPException(status_code=404, detail="Appliance not found or not registered")
         return {"message": "Appliance deleted successfully"}
     except Exception as e:
