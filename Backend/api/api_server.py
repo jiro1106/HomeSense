@@ -440,11 +440,30 @@ def root():
 # ========================
 # DEVICES ENDPOINT
 # ========================
-@app.get("/devices")
-def list_devices(device_name: str, household_id: str = Depends(get_household_id)):
-    """Return all configured device IDs for this household."""
-    device_id = validate_device(household_id,device_name)
-    return {"household_id": household_id, "devices": device_id}
+@app.get("/devices/unregistered")
+def list_unregistered_devices(household_id: str = Depends(get_household_id)):
+    """Return all unregistered devices for this household (for registration dropdown)."""
+    try:
+        devices = list(db["appliances"].find(
+            {"household_id": household_id, "registered": False},
+            {"_id": 0, "device_id": 1, "name": 1, "type": 1}  # only return relevant fields
+        ))
+
+        if not devices:
+            return {
+                "household_id": household_id,
+                "devices": [],
+                "status": "No unregistered devices found"
+            }
+
+        return {
+            "household_id": household_id,
+            "devices": devices,
+            "status": "OK"
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"DB error: {str(e)}")
 
 # ========================
 # 1️⃣ Current plug status (scoped by household), must be REGISTERED
