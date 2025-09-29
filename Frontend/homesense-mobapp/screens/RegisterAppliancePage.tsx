@@ -8,9 +8,15 @@ import {
   Alert,
   Modal,
   FlatList,
+  ActivityIndicator,
 } from 'react-native';
 import { styles } from './styles/RegisterAppliancePageStyles';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import api from '../utils/api'; // ✅ axios instance
+
+interface Device {
+  device_id: string;
+}
 
 interface RegisterAppliancePageProps {
   navigation: any;
@@ -21,11 +27,15 @@ const RegisterAppliancePage: React.FC<RegisterAppliancePageProps> = ({ navigatio
   const [applianceName, setApplianceName] = useState('');
   const [applianceType, setApplianceType] = useState('');
   const [location, setLocation] = useState('');
-  const [applianceId, setApplianceId] = useState('');
+  const [deviceId, setDeviceId] = useState('');
 
   // modal state
   const [showTypeModal, setShowTypeModal] = useState(false);
   const [showLocationModal, setShowLocationModal] = useState(false);
+  const [showDeviceModal, setShowDeviceModal] = useState(false);
+
+  const [availableDevices, setAvailableDevices] = useState<Device[]>([]);
+  const [loadingDevices, setLoadingDevices] = useState(false);
 
   const applianceTypes = [
     'Electric Fan',
@@ -53,44 +63,71 @@ const RegisterAppliancePage: React.FC<RegisterAppliancePageProps> = ({ navigatio
     'Other',
   ];
 
-  // Generate ID once all inputs are filled
+  // 🔌 Fetch available device IDs from backend
   useEffect(() => {
-    if (applianceName.trim() && applianceType && location) {
-      const newId = Math.random().toString(36).substring(2, 12);
-      setApplianceId(newId);
-    } else {
-      setApplianceId('');
-    }
-  }, [applianceName, applianceType, location]);
+    const fetchDevices = async () => {
+      setLoadingDevices(true);
+      try {
+        const res = await api.get('/devices/unregistered');
+        // ✅ normalize to array of { device_id: string }
+        const rawDevices = res.data.devices || [];
+        const normalized: Device[] = rawDevices.map((d: any) => ({
+          device_id: typeof d === 'string' ? d : d.device_id,
+        }));
+        setAvailableDevices(normalized);
+      } catch (err) {
+        console.error('Failed to fetch devices:', err);
+        Alert.alert('Error', 'Failed to load available devices.');
+      } finally {
+        setLoadingDevices(false);
+      }
+    };
+    fetchDevices();
+  }, []);
 
-  const handleRegisterAppliance = () => {
-    if (!applianceName.trim() || !applianceType || !location) {
+  const handleRegisterAppliance = async () => {
+    if (!deviceId || !applianceName.trim() || !applianceType || !location) {
       Alert.alert('Error', 'Please fill out all fields before registering.');
       return;
     }
 
-    console.log('Registering appliance:', {
-      name: applianceName,
-      type: applianceType,
-      location: location,
-      id: applianceId,
-    });
+    try {
+      const payload = {
+        device_id: deviceId,
+        appliance_name: applianceName, // ✅ align with backend
+        appliance_type: applianceType, // ✅ align with backend
+        location: location,
+      };
 
-    Alert.alert('Success', 'Appliance registered successfully!', [
-      {
-        text: 'OK',
-        onPress: () => {
-          setApplianceName('');
-          setApplianceType('');
-          setLocation('');
-          setApplianceId('');
-          onSuccess?.();
+      await api.post('/appliances', payload);
+
+      Alert.alert('Success', 'Appliance registered successfully!', [
+        {
+          text: 'OK',
+          onPress: () => {
+            setApplianceName('');
+            setApplianceType('');
+            setLocation('');
+            setDeviceId('');
+            onSuccess?.();
+            // ❌ removed navigation.navigate("ConsumptionPage");
+          },
         },
-      },
-    ]);
+      ]);
+    } catch (error: any) {
+      console.error('Error registering appliance:', error);
+      Alert.alert(
+        'Error',
+        error?.response?.data?.detail || 'Failed to register appliance.'
+      );
+    }
   };
 
-  const renderOption = (item: string, onSelect: (val: string) => void, close: () => void) => (
+  const renderOption = (
+    item: string,
+    onSelect: (val: string) => void,
+    close: () => void
+  ) => (
     <TouchableOpacity
       style={styles.optionItem}
       onPress={() => {
@@ -107,6 +144,18 @@ const RegisterAppliancePage: React.FC<RegisterAppliancePageProps> = ({ navigatio
       <ScrollView style={styles.contentContainer} showsVerticalScrollIndicator={false}>
         <Text style={styles.title}>Appliance Registration</Text>
 
+        {/* Device ID */}
+        <View style={styles.formField}>
+          <Text style={styles.label}>Smart Plug ID</Text>
+          <TouchableOpacity
+            style={styles.dropdownContainer}
+            onPress={() => setShowDeviceModal(true)}
+          >
+            <Text style={styles.dropdownText}>{deviceId || 'Select a device ID'}</Text>
+            <Icon name="arrow-drop-down" size={24} color="#666" />
+          </TouchableOpacity>
+        </View>
+
         {/* Appliance Name */}
         <View style={styles.formField}>
           <Text style={styles.label}>Appliance Name</Text>
@@ -122,7 +171,10 @@ const RegisterAppliancePage: React.FC<RegisterAppliancePageProps> = ({ navigatio
         {/* Appliance Type */}
         <View style={styles.formField}>
           <Text style={styles.label}>Appliance Type</Text>
-          <TouchableOpacity style={styles.dropdownContainer} onPress={() => setShowTypeModal(true)}>
+          <TouchableOpacity
+            style={styles.dropdownContainer}
+            onPress={() => setShowTypeModal(true)}
+          >
             <Text style={styles.dropdownText}>{applianceType || 'Select appliance type'}</Text>
             <Icon name="arrow-drop-down" size={24} color="#666" />
           </TouchableOpacity>
@@ -140,24 +192,39 @@ const RegisterAppliancePage: React.FC<RegisterAppliancePageProps> = ({ navigatio
           </TouchableOpacity>
         </View>
 
-        {/* ID (only show if available) */}
-        {applianceId ? (
-          <View style={styles.formField}>
-            <Text style={styles.label}>ID</Text>
-            <TextInput
-              style={styles.readOnlyInput}
-              value={applianceId}
-              editable={false}
-              selectTextOnFocus={false}
-            />
-          </View>
-        ) : null}
-
         {/* Register Button */}
         <TouchableOpacity style={styles.registerButton} onPress={handleRegisterAppliance}>
           <Text style={styles.registerButtonText}>Register Appliance</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Device Modal */}
+      <Modal visible={showDeviceModal} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Select Smart Plug ID</Text>
+            {loadingDevices ? (
+              <ActivityIndicator size="large" color="#000" />
+            ) : (
+              <FlatList
+                data={availableDevices}
+                keyExtractor={(item, index) =>
+                  item.device_id ? item.device_id.toString() : index.toString()
+                }
+                renderItem={({ item }) =>
+                  renderOption(item.device_id, setDeviceId, () => setShowDeviceModal(false))
+                }
+              />
+            )}
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={() => setShowDeviceModal(false)}
+            >
+              <Text style={styles.closeButtonText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* Appliance Type Modal */}
       <Modal visible={showTypeModal} transparent animationType="slide">
@@ -167,9 +234,14 @@ const RegisterAppliancePage: React.FC<RegisterAppliancePageProps> = ({ navigatio
             <FlatList
               data={applianceTypes}
               keyExtractor={(item) => item}
-              renderItem={({ item }) => renderOption(item, setApplianceType, () => setShowTypeModal(false))}
+              renderItem={({ item }) =>
+                renderOption(item, setApplianceType, () => setShowTypeModal(false))
+              }
             />
-            <TouchableOpacity style={styles.closeButton} onPress={() => setShowTypeModal(false)}>
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={() => setShowTypeModal(false)}
+            >
               <Text style={styles.closeButtonText}>Cancel</Text>
             </TouchableOpacity>
           </View>
@@ -184,9 +256,14 @@ const RegisterAppliancePage: React.FC<RegisterAppliancePageProps> = ({ navigatio
             <FlatList
               data={locations}
               keyExtractor={(item) => item}
-              renderItem={({ item }) => renderOption(item, setLocation, () => setShowLocationModal(false))}
+              renderItem={({ item }) =>
+                renderOption(item, setLocation, () => setShowLocationModal(false))
+              }
             />
-            <TouchableOpacity style={styles.closeButton} onPress={() => setShowLocationModal(false)}>
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={() => setShowLocationModal(false)}
+            >
               <Text style={styles.closeButtonText}>Cancel</Text>
             </TouchableOpacity>
           </View>

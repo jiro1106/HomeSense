@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { BackHandler, Platform } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { GestureHandlerRootView } from 'react-native-gesture-handler'; // ✅ added
 
 import LandingPage from './screens/LandingPage';
 import LoginScreen from './screens/LoginScreen';
@@ -39,39 +40,37 @@ export default function App() {
     if (Platform.OS === 'android') {
       const backHandler = BackHandler.addEventListener(
         'hardwareBackPress',
-        () => {
-          // returning true means we have handled it
-          // so it will not exit or navigate back
-          return true;
-        }
+        () => true
       );
       return () => backHandler.remove();
     }
   }, []);
 
   return (
-    <NavigationContainer>
-      <Stack.Navigator
-        initialRouteName="Landing"
-        screenOptions={{
-          headerShown: false,
-          animation: 'none',
-          gestureEnabled: false, // disables swipe-back on iOS
-        }}
-      >
-        <Stack.Screen name="Landing" component={LandingPage} />
-        <Stack.Screen name="Login" component={LoginScreen} />
-        <Stack.Screen name="Signup" component={SignupScreen} />
-        <Stack.Screen name="MainMenu" component={MainMenu} />
-        <Stack.Screen name="SettingsPage" component={SettingsPage} />
-        <Stack.Screen name="ConsumptionPage" component={ConsumptionPage} />
-        <Stack.Screen name="RegisterAppliancePage" component={RegisterAppliancePage} />
-        <Stack.Screen name="Bills" component={Bills} />
-        <Stack.Screen name="Recommendations" component={Recommendations} />
-        <Stack.Screen name="AccountSecurityPage" component={AccountSecurityPage} /> 
-        <Stack.Screen name="ElectricityProvider" component={ElectricityProvider} />
-        <Stack.Screen name="SavingMode" component={SavingMode} />
-      </Stack.Navigator>
-    </NavigationContainer>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <NavigationContainer>
+        <Stack.Navigator
+          initialRouteName="Landing"
+          screenOptions={{
+            headerShown: false,
+            animation: 'none',
+            gestureEnabled: false,
+          }}
+        >
+          <Stack.Screen name="Landing" component={LandingPage} />
+          <Stack.Screen name="Login" component={LoginScreen} />
+          <Stack.Screen name="Signup" component={SignupScreen} />
+          <Stack.Screen name="MainMenu" component={MainMenu} />
+          <Stack.Screen name="SettingsPage" component={SettingsPage} />
+          <Stack.Screen name="ConsumptionPage" component={ConsumptionPage} />
+          <Stack.Screen name="RegisterAppliancePage" component={RegisterAppliancePage} />
+          <Stack.Screen name="Bills" component={Bills} />
+          <Stack.Screen name="Recommendations" component={Recommendations} />
+          <Stack.Screen name="AccountSecurityPage" component={AccountSecurityPage} /> 
+          <Stack.Screen name="ElectricityProvider" component={ElectricityProvider} />
+          <Stack.Screen name="SavingMode" component={SavingMode} />
+        </Stack.Navigator>
+      </NavigationContainer>
+    </GestureHandlerRootView>
   );
 }
