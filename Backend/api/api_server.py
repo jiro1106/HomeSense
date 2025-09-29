@@ -425,7 +425,7 @@ def delete_appliance(device_id: str, household_id: str = Depends(get_household_i
     try:
         appliances = db["appliances"]
         result = appliances.update_one({"household_id": household_id, "device_id": device_id, "registered": True},
-        {"$set": {"registered": False, "updated_at": datetime.datetime.now(UTC)}})
+        {"$set": {"appliance_type":None,"location":None, "appliance_name":device_id,"registered": False, "updated_at": datetime.datetime.now(UTC)}})
         
         if result.matched_count == 0:
             raise HTTPException(status_code=404, detail="Appliance not found or not registered")
@@ -943,3 +943,5 @@ def get_recent_monthly(device_name: str, household_id: str = Depends(get_househo
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"DB error: {str(e)}")
+
+
