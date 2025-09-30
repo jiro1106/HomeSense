@@ -69,6 +69,7 @@ export const styles = StyleSheet.create({
     borderRadius: 8,
     marginBottom: 5,
   },
+  
   tableRow: {
     flexDirection: 'row',
     borderBottomWidth: 1,
@@ -91,6 +92,17 @@ export const styles = StyleSheet.create({
     color: '#000',
     fontSize: 12,
   },
+  tableHeaderText2: {
+    fontWeight: 'bold',
+    color: '#000',
+    fontSize: 10,
+  },
+  statusCell: {
+   flex: 0.47, // proportionally smaller
+  textAlign: 'center',// 👈 smaller portion than others
+},
+
+  
   chartPlaceholder: {
     height: 200,
     justifyContent: 'center',
