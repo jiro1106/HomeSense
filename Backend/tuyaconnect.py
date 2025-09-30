@@ -91,6 +91,7 @@ if DEVICE_IDS:
                 {"$setOnInsert": {
                     "appliance_name": None,       # user will register this later
                     "appliance_type": None,
+                    "location": None,
                     "registered":False,         # user will register this later
                     "created_at": datetime.datetime.now(datetime.timezone.utc)
                 }},
@@ -133,7 +134,8 @@ def load_device_list():
             devices.append({
                 "device_id": doc.get("device_id"),
                 "appliance_name": doc.get("appliance_name"), # user assigned name (Air Conditioner)
-                "appliance_type": doc.get("appliance_type")  # optional (e.g., cooling, kitchen)
+                "appliance_type": doc.get("appliance_type"), # optional (e.g., cooling, kitchen)
+                "location": doc.get("location"),            # optional (e.g., Living Room)
             })
     except Exception as e:
         print("❌ Error loading appliances from MongoDB:", e)
@@ -229,7 +231,7 @@ def try_reconnect_if_invalid(response, device_id):
 
 first_run = True
 
-def save_current_total(device_id: str, date: datetime.datetime, total: float, status: str, device_label, appliance_type: str = None):
+def save_current_total(device_id: str, date: datetime.datetime, total: float, status: str, device_label, appliance_type, location):
     current_totals_collection.update_one(
         {"household_id": HOUSEHOLD_ID, "device_id": device_id},
         {"$set": {
@@ -237,6 +239,7 @@ def save_current_total(device_id: str, date: datetime.datetime, total: float, st
             "device_id": device_id,
             "appliance_name": device_label if device_label else None,
             "appliance_type": appliance_type,
+            "location": location,
             "date": date,  # date is expected to be a tz-aware UTC datetime representing PH midnight
             "total_kwh": round(total, 6),
             "status": status,
@@ -245,7 +248,7 @@ def save_current_total(device_id: str, date: datetime.datetime, total: float, st
         upsert=True
     )
 
-def save_daily_total_per_plug(device_id: str, date: datetime.datetime, total: float, device_label,appliance_type=None):
+def save_daily_total_per_plug(device_id: str, date: datetime.datetime, total: float, device_label,appliance_type,location):
     try:
         daily_totals_per_plug_collection.update_one(
             {"household_id": HOUSEHOLD_ID, "device_id": device_id, "date": date},
@@ -254,6 +257,7 @@ def save_daily_total_per_plug(device_id: str, date: datetime.datetime, total: fl
                 "device_id": device_id,
                 "appliance_name": device_label if device_label else None,
                 "appliance_type": appliance_type,
+                "location": location,
                 "total_kwh": round(total, 6),
                 "updated_at": datetime.datetime.now(datetime.timezone.utc)
             }},
@@ -353,8 +357,10 @@ while not stop_flag:
                 device_totals[device_id] = 0.0
                 # use device label for saved doc
                 label = d.get("appliance_name") or device_id
-                save_current_total(device_id, tracking_day, 0.0, "inactive", label)
-                save_daily_total_per_plug(device_id, tracking_day, 0.0, label)
+                appliance_type = d.get("appliance_type")
+                location = d.get("location")
+                save_current_total(device_id, tracking_day, 0.0, "inactive", label, appliance_type, location)
+                save_daily_total_per_plug(device_id, tracking_day, 0.0, label, appliance_type, location)
             save_overall_daily_total(tracking_day)
 
         print("\n" + "─" * 35 + " ⚡ Plug Readings " + "─" * 35)
@@ -364,7 +370,7 @@ while not stop_flag:
             device_id = d["device_id"]
             device_label = d.get("appliance_name") or device_id
             appliance_type = d.get("appliance_type")
-
+            location = d.get("location")
             response = openapi.get(f"/v1.0/devices/{device_id}/status")
             response = try_reconnect_if_invalid(response, device_id)
 
@@ -393,7 +399,7 @@ while not stop_flag:
                 continue
 
             # kWh for 5-minute interval
-            energy_kwh = (power_watts / 1000.0) * (2.0 / 60.0)
+            energy_kwh = (power_watts / 1000.0) * (1.0 / 60.0)
 
             # Active/inactive logic
             if power_watts == 0:
@@ -411,8 +417,8 @@ while not stop_flag:
             device_totals[device_id] = device_totals.get(device_id, 0.0) + energy_kwh
 
             # Persist totals (date param is tracking_day which is UTC datetime representing PH midnight)
-            save_current_total(device_id, tracking_day, device_totals[device_id], "active" if is_active[device_id] else "inactive", device_label)
-            save_daily_total_per_plug(device_id, tracking_day, device_totals[device_id], device_label)
+            save_current_total(device_id, tracking_day, device_totals[device_id], "active" if is_active[device_id] else "inactive", device_label, appliance_type, location)
+            save_daily_total_per_plug(device_id, tracking_day, device_totals[device_id], device_label, appliance_type, location)
 
             # Insert energy_data and print if changed
             if last_printed_totals.get(device_id) != round(device_totals[device_id], 6):
@@ -439,7 +445,7 @@ while not stop_flag:
         print("⚠️ Unexpected error:", e)
 
     # Sleep loop (5 minutes)
-    for _ in range(120):
+    for _ in range(60):
         if stop_flag:
             break
         time.sleep(1)
