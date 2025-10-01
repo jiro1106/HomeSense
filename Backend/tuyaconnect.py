@@ -399,7 +399,7 @@ while not stop_flag:
                 continue
 
             # kWh for 5-minute interval
-            energy_kwh = (power_watts / 1000.0) * (1.0 / 60.0)
+            energy_kwh = (power_watts / 1000.0) * (5.0 / 60.0)
 
             # Active/inactive logic
             if power_watts == 0:
@@ -445,7 +445,7 @@ while not stop_flag:
         print("⚠️ Unexpected error:", e)
 
     # Sleep loop (5 minutes)
-    for _ in range(60):
+    for _ in range(300):
         if stop_flag:
             break
         time.sleep(1)
