@@ -616,7 +616,7 @@ def get_energy_summary(household_id: str = Depends(get_household_id)):
             # ✅ Get appliance details
             appliance = db["appliances"].find_one(
                 {"household_id": household_id, "device_id": device_id},
-                {"_id": 0, "name": 1, "type": 1}
+                {"_id": 0, "appliance_name": 1, "appliance_type": 1, "location": 1}  # only return relevant fields
             )
 
             # ✅ Get most recent status from current_totals
@@ -634,8 +634,9 @@ def get_energy_summary(household_id: str = Depends(get_household_id)):
 
         summary.append({
             "device_id": device_id,
-            "appliance_name": appliance.get("appliance_ame") if appliance else None,
+            "appliance_name": appliance.get("appliance_name") if appliance else None,
             "appliance_type": appliance.get("appliance_type") if appliance else None,
+            "location": appliance.get("location") if appliance else None,
             "status": current.get("status", "inactive") if current else "No data available",
             "daily_total_kwh": daily.get("total_kwh", 0.0) if daily else 0.0,
             "last_updated": format_datetime(current["updated_at"]) if current and current.get("updated_at") else None
