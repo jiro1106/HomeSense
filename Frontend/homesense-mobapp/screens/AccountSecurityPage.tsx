@@ -22,6 +22,7 @@ import {
   PasswordValidation,
 } from "../utils/PasswordValidation";
 import { Ionicons } from "@expo/vector-icons";
+import api from "../utils/api";
 
 type NavProp = NativeStackNavigationProp<
   RootStackParamList,
@@ -45,6 +46,8 @@ const AccountSecurityPage = () => {
   const [passwordRules, setPasswordRules] = useState<PasswordValidation[]>([]);
 
   const [isSaveEnabled, setIsSaveEnabled] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
 
   // ✅ Inline success messages
   const [usernameSuccessMsg, setUsernameSuccessMsg] = useState("");
@@ -53,18 +56,67 @@ const AccountSecurityPage = () => {
   useEffect(() => {
     const loadUserData = async () => {
       try {
-        const data = await AsyncStorage.getItem("userData");
-        if (data) {
-          const user = JSON.parse(data);
-          setUsername(user.username || "");
-          setOriginalUsername(user.username || "");
-          setEmail(user.email || "");
-          setPassword(user.password || "");
+        setIsLoading(true);
+        // Get user data from AsyncStorage
+        const userData = await AsyncStorage.getItem("userData");
+        console.log("Stored userData:", userData);
+        
+        if (userData) {
+          const user = JSON.parse(userData);
+          console.log("Parsed user object:", user);
+          
+          // Check if we have email and username directly in the stored data
+          if (user.email && user.username) {
+            // If login endpoint returns user data directly
+            setUsername(user.username);
+            setOriginalUsername(user.username);
+            setEmail(user.email);
+            setPassword("********");
+            console.log("Using data from stored login response");
+          } else {
+            // If not, we need to fetch from profile endpoint
+            // But we need the email first - check if user stored it elsewhere
+            const storedEmail = await AsyncStorage.getItem("userEmail");
+            if (storedEmail) {
+              console.log("Found email in separate storage:", storedEmail);
+              await fetchUserProfile(storedEmail);
+            } else {
+              console.log("No email available to fetch profile");
+              Alert.alert("Error", "Please log in again to refresh your session");
+              navigation.goBack();
+            }
+          }
+        } else {
+          console.log("No userData found in AsyncStorage");
+          Alert.alert("Error", "Please log in again");
+          navigation.goBack();
         }
-      } catch (error) {
+      } catch (error: any) {
         console.log("Error loading user data:", error);
+        Alert.alert("Error", "Failed to load user profile");
+      } finally {
+        setIsLoading(false);
       }
     };
+
+    const fetchUserProfile = async (userEmail: string) => {
+      try {
+        console.log("Fetching profile for email:", userEmail);
+        const response = await api.get(`/user/profile?email=${encodeURIComponent(userEmail)}`);
+        console.log("Profile API Response:", response.data);
+        
+        if (response.data) {
+          setUsername(response.data.username || "");
+          setOriginalUsername(response.data.username || "");
+          setEmail(response.data.email || "");
+          setPassword("********");
+        }
+      } catch (apiError: any) {
+        console.log("Profile API Error:", apiError.response?.data);
+        Alert.alert("Error", "Failed to fetch user profile from server");
+      }
+    };
+
     loadUserData();
   }, []);
 
@@ -86,53 +138,94 @@ const AccountSecurityPage = () => {
   ]);
 
   const handleSave = async () => {
-    if (enableChangePass) {
-      if (!newPassword || !confirmPassword) {
-        Alert.alert("Error", "Please enter and confirm your new password.");
-        return;
-      }
-
-      const rules = getPasswordRules(newPassword, confirmPassword);
-      setPasswordRules(rules);
-
-      const isValid = rules.every((rule) => rule.valid);
-      if (!isValid) {
-        Alert.alert("Error", "Please fix the password requirements.");
-        return;
-      }
-    }
-
     try {
-      const updatedUser = {
-        username,
-        email,
-        password: enableChangePass ? newPassword : password,
+      if (!email) {
+        Alert.alert("Error", "No email available for update");
+        return;
+      }
+
+      let updatePayload: any = {
+        username: username.trim(),
       };
-      await AsyncStorage.setItem("userData", JSON.stringify(updatedUser));
 
-      // ✅ Show success alerts + inline messages
+      // If password change is requested
       if (enableChangePass) {
-        setPassword(newPassword);
-        setEnableChangePass(false);
-        setNewPassword("");
-        setConfirmPassword("");
-        setPasswordSuccessMsg("Password changed successfully.");
-        setTimeout(() => setPasswordSuccessMsg(""), 4000);
+        if (!newPassword || !confirmPassword) {
+          Alert.alert("Error", "Please enter and confirm your new password.");
+          return;
+        }
 
-        // ✅ NEW: Alert popup for password change
-        Alert.alert("Success", "Password changed successfully.");
-      }
-      if (isEditingUsername) {
-        setIsEditingUsername(false);
-        setOriginalUsername(username);
-        setUsernameSuccessMsg("Username changed successfully.");
-        setTimeout(() => setUsernameSuccessMsg(""), 4000);
+        if (!currentPassword) {
+          Alert.alert("Error", "Please enter your current password to change password.");
+          return;
+        }
 
-        // Optional alert for username change
-        Alert.alert("Success", "Username changed successfully.");
+        const rules = getPasswordRules(newPassword, confirmPassword);
+        setPasswordRules(rules);
+
+        const isValid = rules.every((rule) => rule.valid);
+        if (!isValid) {
+          Alert.alert("Error", "Please fix the password requirements.");
+          return;
+        }
+
+        updatePayload.current_password = currentPassword;
+        updatePayload.new_password = newPassword;
       }
-    } catch (error) {
-      console.log(error);
+
+      console.log("Sending update payload:", updatePayload);
+      console.log("Using email:", email);
+      
+      // Make API call to update profile
+      const response = await api.put(`/user/profile?email=${encodeURIComponent(email)}`, updatePayload);
+      console.log("Update response:", response.data);
+
+      if (response.status === 200) {
+        // Update local storage with new data
+        const userData = await AsyncStorage.getItem("userData");
+        if (userData) {
+          const user = JSON.parse(userData);
+          const updatedUser = {
+            ...user,
+            username: username.trim(),
+            email: email // Ensure email is included
+          };
+          await AsyncStorage.setItem("userData", JSON.stringify(updatedUser));
+        }
+
+        // ✅ Show success alerts + inline messages
+        if (enableChangePass) {
+          setPassword("********");
+          setEnableChangePass(false);
+          setNewPassword("");
+          setConfirmPassword("");
+          setCurrentPassword("");
+          setPasswordSuccessMsg("Password changed successfully.");
+          setTimeout(() => setPasswordSuccessMsg(""), 4000);
+          Alert.alert("Success", "Password changed successfully.");
+        }
+        
+        if (isEditingUsername) {
+          setIsEditingUsername(false);
+          setOriginalUsername(username);
+          setUsernameSuccessMsg("Username changed successfully.");
+          setTimeout(() => setUsernameSuccessMsg(""), 4000);
+          Alert.alert("Success", "Username changed successfully.");
+        }
+      }
+    } catch (error: any) {
+      console.log("Update error:", error);
+      console.log("Error response:", error.response?.data);
+      
+      if (error.response?.status === 401) {
+        Alert.alert("Error", "Current password is incorrect");
+      } else if (error.response?.status === 400) {
+        Alert.alert("Error", error.response.data.detail || "Invalid request");
+      } else if (error.response?.status === 404) {
+        Alert.alert("Error", "User not found");
+      } else {
+        Alert.alert("Error", "Failed to update profile. Please try again.");
+      }
     }
   };
 
@@ -152,6 +245,7 @@ const AccountSecurityPage = () => {
     setEnableChangePass(false);
     setNewPassword("");
     setConfirmPassword("");
+    setCurrentPassword("");
     setShowNewPassword(false);
     setShowConfirmPassword(false);
   };
@@ -166,6 +260,28 @@ const AccountSecurityPage = () => {
       ]
     );
   };
+
+  if (isLoading) {
+    return (
+      <View style={styles.container}>
+        <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+        <SafeAreaView style={styles.safeArea}>
+          <View style={styles.topBar}>
+            <TouchableOpacity
+              onPress={() => navigation.goBack()}
+              style={styles.backButton}
+            >
+              <Icon name="arrow-back" size={24} color="#000" />
+            </TouchableOpacity>
+            <Text style={styles.topBarTitle}>Account & Security</Text>
+          </View>
+          <View style={[styles.form, { justifyContent: 'center', alignItems: 'center' }]}>
+            <Text>Loading user data...</Text>
+          </View>
+        </SafeAreaView>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -205,6 +321,7 @@ const AccountSecurityPage = () => {
                   value={username}
                   onChangeText={setUsername}
                   editable={isEditingUsername}
+                  placeholder={username ? "" : "No username set"}
                 />
                 {!isEditingUsername ? (
                   <TouchableOpacity
@@ -233,14 +350,17 @@ const AccountSecurityPage = () => {
                 value={email}
                 editable={false}
                 keyboardType="email-address"
+                placeholder={email ? "" : "No email available"}
               />
 
               {/* Password */}
               <Text style={styles.label}>Password</Text>
               <TextInput
                 style={[styles.input, styles.disabledInput]}
-                value={password ? "********" : ""}
+                value={password}
                 editable={false}
+                secureTextEntry
+                placeholder="********"
               />
 
               {!enableChangePass ? (
@@ -252,6 +372,28 @@ const AccountSecurityPage = () => {
                 </TouchableOpacity>
               ) : (
                 <View style={{ marginTop: 15 }}>
+                  {/* Current Password */}
+                  <Text style={styles.label}>Current Password</Text>
+                  <View style={styles.passwordContainer}>
+                    <TextInput
+                      style={[styles.input, { flex: 1 }]}
+                      value={currentPassword}
+                      onChangeText={setCurrentPassword}
+                      secureTextEntry={!showNewPassword}
+                      placeholder="Enter current password"
+                    />
+                    <TouchableOpacity
+                      style={styles.eyeButton}
+                      onPress={() => setShowNewPassword(!showNewPassword)}
+                    >
+                      <Icon
+                        name={showNewPassword ? "visibility" : "visibility-off"}
+                        size={22}
+                        color="#666"
+                      />
+                    </TouchableOpacity>
+                  </View>
+
                   <Text style={styles.label}>New Password</Text>
                   <View style={styles.passwordContainer}>
                     <TextInput
@@ -264,8 +406,8 @@ const AccountSecurityPage = () => {
                         );
                       }}
                       secureTextEntry={!showNewPassword}
+                      placeholder="Enter new password"
                     />
-
                     <TouchableOpacity
                       style={styles.eyeButton}
                       onPress={() => setShowNewPassword(!showNewPassword)}
@@ -288,8 +430,8 @@ const AccountSecurityPage = () => {
                         setPasswordRules(getPasswordRules(newPassword, text));
                       }}
                       secureTextEntry={!showConfirmPassword}
+                      placeholder="Confirm new password"
                     />
-
                     <TouchableOpacity
                       style={styles.eyeButton}
                       onPress={() =>
@@ -305,6 +447,7 @@ const AccountSecurityPage = () => {
                       />
                     </TouchableOpacity>
                   </View>
+                  
                   <View style={{ marginTop: 2, padding: 5 }}>
                     {passwordRules.map((rule, index) => (
                       <Text
@@ -327,6 +470,7 @@ const AccountSecurityPage = () => {
                       </Text>
                     ))}
                   </View>
+                  
                   <TouchableOpacity
                     style={styles.cancelButton}
                     onPress={handleCancelChangePassword}
