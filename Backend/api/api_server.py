@@ -9,6 +9,8 @@ import os
 import datetime
 from typing import List
 from fastapi.middleware.cors import CORSMiddleware
+from api import api_recommendations
+
 
 # ========================
 # ENV + DB SETUP
@@ -29,6 +31,7 @@ if not HOUSEHOLD_ID:
     raise RuntimeError("HOUSEHOLD_ID not set in secrets.env")
 
 app = FastAPI(title="HomeSense API", version="1.0")
+app.include_router(api_recommendations.router, prefix="/energy", tags=["Recommendations"])
 
 # Allow frontend to talk to backend
 app.add_middleware(
