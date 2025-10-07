@@ -56,6 +56,9 @@ export const styles = StyleSheet.create({
     backgroundColor: '#FFD700',
     padding: 8,
     borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 4,
   },
   content: {
     flex: 1,
@@ -75,6 +78,7 @@ export const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
     paddingVertical: 8,
+    minHeight: 60,
   },
   tableCell: {
     flex: 1,
@@ -98,11 +102,9 @@ export const styles = StyleSheet.create({
     fontSize: 10,
   },
   statusCell: {
-   flex: 0.47, // proportionally smaller
-  textAlign: 'center',// 👈 smaller portion than others
+   flex: 0.47, 
+  textAlign: 'center',
 },
-
-  
   chartPlaceholder: {
     height: 200,
     justifyContent: 'center',
@@ -144,4 +146,33 @@ export const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 4,
   },
+  dataPointStyle:{
+    backgroundColor: '#f8f8f8', 
+    padding: 12, 
+    borderRadius: 8, 
+    marginBottom: 16,
+    borderLeftWidth: 4,
+    borderLeftColor: '#000',
+    position: 'relative',
+  },
+
+timeSortColumn: {
+  flexDirection: 'column',
+  alignItems: 'center',
+  marginRight: 8,
+},
+sortButton: {
+  flexDirection: 'row',
+  padding: 8,
+  borderRadius: 8,
+  backgroundColor: '#f1f1f1',
+  marginTop: 4,
+  borderWidth: 1,
+  borderColor: '#ddd',
+},
+sortButtonText: {
+  fontSize: 12,
+  color: '#000',
+  marginLeft: 4,
+},
 });

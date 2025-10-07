@@ -261,6 +261,8 @@ def login_user(req: LoginRequest):
             "message": "Login successful",
             "household_id": HOUSEHOLD_ID,
             "last_logged_in": format_datetime(now),
+            "email": user["email"],  
+            "username": user["username"]  
         }
 
     except HTTPException as e: 
@@ -328,6 +330,77 @@ def delete_user(email: str = Path(..., description="Email of the user to delete"
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
+
+# ========================
+# USER PROFILE ENDPOINTS
+# ========================
+
+class UserProfileResponse(BaseModel):
+    email: str
+    username: str
+
+class UpdateProfileRequest(BaseModel):
+    username: str
+    current_password: str = None  # For password changes
+    new_password: str = None
+
+@app.get("/user/profile")
+def get_user_profile(email: str = Query(..., description="User email")):
+    try:
+        users = db["users"]
+        user = users.find_one({"email": email.lower().strip()}, {"_id": 0, "email": 1, "username": 1})
+        
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        return user
+    except errors.PyMongoError:
+        raise HTTPException(status_code=500, detail="Database error")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
+
+@app.put("/user/profile")
+def update_user_profile(req: UpdateProfileRequest, email: str = Query(..., description="User email")):
+    try:
+        users = db["users"]
+        
+        # Find user
+        user = users.find_one({"email": email.lower().strip()})
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        update_data = {"username": req.username.strip()}
+        
+        # If password change is requested
+        if req.new_password:
+            if not req.current_password:
+                raise HTTPException(status_code=400, detail="Current password is required to change password")
+            
+            # Verify current password
+            if not bcrypt.verify(req.current_password, user["password"]):
+                raise HTTPException(status_code=401, detail="Current password is incorrect")
+            
+            # Hash new password
+            update_data["password"] = bcrypt.hash(req.new_password)
+        
+        # Update user
+        result = users.update_one(
+            {"email": email.lower().strip()},
+            {"$set": update_data}
+        )
+        
+        if result.modified_count == 0:
+            return {"message": "No changes detected"}
+        
+        return {"message": "Profile updated successfully"}
+        
+    except HTTPException as e:
+        raise e
+    except errors.PyMongoError:
+        raise HTTPException(status_code=500, detail="Database error")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
+
 
 
 # ========================
