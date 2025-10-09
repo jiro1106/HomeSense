@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Query
 from pymongo import MongoClient
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 import os
 
@@ -117,14 +117,20 @@ def generate_recommendations(appliances, mode):
 # ==========================
 @router.put("/household/{household_id}/mode")
 def set_savings_mode(household_id: str, mode: str):
+    from api.api_server import get_household_id
+
+    household_id = get_household_id()
+
     if mode not in ["low", "medium", "high"]:
         raise HTTPException(status_code=400, detail="Invalid mode. Choose from low, medium, or high.")
+
     households_collection.update_one(
         {"household_id": household_id},
         {"$set": {"savings_mode": mode}},
         upsert=True
     )
-    return {"message": f"Savings mode set to '{mode}' for household '{household_id}'."}
+    return {"message": f"Savings mode set to {mode.upper()} for this household."}
+
 
 @router.get("/recommendations/{household_id}")
 def get_recommendations(household_id: str, device_id: str = Query(None, description="Optional device_id to get single-appliance recommendations")):
@@ -135,7 +141,15 @@ def get_recommendations(household_id: str, device_id: str = Query(None, descript
     mode = household["savings_mode"]
 
     # Step 2: Fetch data
-    query = {"household_id": household_id}
+    ph_tz = timezone(timedelta(hours=8))
+    today = datetime.now(ph_tz).date()
+    start_of_day = datetime.combine(today, datetime.min.time(), tzinfo=ph_tz)
+    end_of_day = datetime.combine(today, datetime.max.time(), tzinfo=ph_tz)
+
+    query = {
+        "household_id": household_id,
+        "date": {"$gte": start_of_day, "$lte": end_of_day}
+    }
     if device_id:
         query["device_id"] = device_id
 
@@ -147,9 +161,16 @@ def get_recommendations(household_id: str, device_id: str = Query(None, descript
     merged_data = {}
     for entry in data:
         did = entry["device_id"]
-        merged_data.setdefault(did, entry).update({
-            "total_kwh": merged_data.get(did, {}).get("total_kwh", 0) + entry.get("total_kwh", 0)
-        })
+        if did not in merged_data:
+            merged_data[did] = {
+                "device_id": did,
+                "household_id": entry["household_id"],
+                "total_kwh": entry.get("total_kwh", 0),
+                "date": entry.get("date")
+            }
+        else:
+            merged_data[did]["total_kwh"] += entry.get("total_kwh", 0)
+
 
     # Step 4: Add appliance info
     registered_appliances = []
