@@ -177,12 +177,14 @@ export const styles = StyleSheet.create({
     shadowRadius: 4,
   },
   dataPointStyle: {
-    backgroundColor: "#f8f8f8",
+    backgroundColor: "#ffd90021",
     padding: 12,
     borderRadius: 8,
     marginBottom: 16,
-    borderLeftWidth: 4,
-    borderLeftColor: "#000",
+    borderLeftWidth: 5,
+    borderLeftColor: "#FFD700",
+    borderWidth: 1.5,
+    borderColor: "#FFD700",
     position: "relative",
   },
 
