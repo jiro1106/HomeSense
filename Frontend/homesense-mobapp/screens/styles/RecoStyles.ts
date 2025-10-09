@@ -4,6 +4,7 @@ export const styles = StyleSheet.create({
   // ====== Main Container ======
   container: {
     flex: 1,
+    backgroundColor: "#fff",
   },
 
   // ====== Page Title ======
@@ -20,60 +21,101 @@ export const styles = StyleSheet.create({
   // ====== Content Scroll ======
   content: {
     paddingHorizontal: 16,
-    paddingBottom: 100,
   },
-
-  // ====== Appliance Group Card ======
-  applianceCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 18,
+  usageCard: {
+    marginTop: 20,
+    backgroundColor: "#FFF8E1",
+    borderRadius: 12,
     padding: 16,
-    marginVertical: 10,
-    shadowColor: "#000",
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 2,
-    borderWidth: 0.5,
-    borderColor: "#E0E0E0",
-  },
-
-  cardHeader: {
     flexDirection: "row",
     alignItems: "center",
+    marginBottom: 20,
+  },
+  usageTextContainer: {
+    flexDirection: "column",
+    justifyContent: "center",
+    alignItems: "flex-start",
+    marginLeft: 20,
+  },
+  usageValue: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#000",
+  },
+  usageKwh: {
+    fontSize: 22,
+    fontWeight: "bold",
+    color: "#2E7D32",
+  },
+  usageNote: {
+    fontSize: 14,
+    color: "#666",
+    marginTop: 4,
+  },
+  filterButtonContainer: {
+    flexDirection: "row",
+    justifyContent: "flex-start",
+    gap: 5,
+    marginBottom: 10,
+  },
+  // ====== Appliance Group Card ======
+  applianceCard: {
+    flexDirection: "column",
+    backgroundColor: "#ffd90021",
+    borderWidth: 1.5,
+    borderColor: "#000000ff",
+    padding: 16,
+    marginVertical: 10,
+    borderRadius: 18,
+  },
+  cardContainer: {
+    flexDirection: "row",
+    justifyContent: "flex-start",
+    marginBottom: 10,
+    alignItems: "flex-start",
+  },
+  cardContent: {
+    flexDirection: "column",
+    alignItems: "flex-start",
+    justifyContent: "center",
+    width: "80%",
+    marginLeft: 10,
+  },
+  cardHeader: {
     marginBottom: 6,
   },
   applianceTitle: {
     fontSize: 17,
     fontWeight: "700",
-    marginLeft: 8,
     color: "#2E2E2E",
   },
   applianceLocation: {
     fontSize: 13,
     color: "#6A6A6A",
     marginBottom: 10,
-    marginLeft: 30, // aligns with icon start
   },
 
   // ====== Recommendation Items ======
   recommendItem: {
     flexDirection: "row",
-    alignItems: "flex-start",
-    backgroundColor: "#F5FAF5",
-    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
+    textAlign: "right",
+    backgroundColor: "#27661a23",
     padding: 10,
-    marginBottom: 10,
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 1,
-    transform: [{ scale: 1 }],
+    width: "100%",
+    height: 100,
+    // borderWidth: 1,
+    borderRadius: 18,
+    // borderColor: "#71df0bff",
   },
   recommendDesc: {
-    flex: 1,
-    fontSize: 14.5,
-    color: "#333",
+    fontSize: 13,
+    color: "#000000ff",
+    fontWeight: "bold",
+    marginHorizontal: 20,
     lineHeight: 20,
+    marginLeft: 10,
   },
 
   // ====== Section Titles ======

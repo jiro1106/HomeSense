@@ -134,6 +134,7 @@ export const styles = StyleSheet.create({
   statusCell: {
     flex: 0.47,
     textAlign: "center",
+    fontWeight: "bold",
   },
   chartPlaceholder: {
     height: 200,
