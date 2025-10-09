@@ -117,6 +117,8 @@ export const styles = StyleSheet.create({
   },
   devicesContainer: {
     marginBottom: 25,
+    marginTop: 8,
+    minHeight: 60,
   },
   deviceItem: {
     flexDirection: "row",
@@ -190,4 +192,35 @@ export const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 4,
   },
+   noDataContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+    backgroundColor: '#f8f8f8',
+    borderRadius: 8,
+    marginVertical: 10,
+  },
+  
+  noDataText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#666',
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  
+  noDataSubText: {
+    fontSize: 14,
+    color: '#999',
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  
+  loadingText: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  
 });

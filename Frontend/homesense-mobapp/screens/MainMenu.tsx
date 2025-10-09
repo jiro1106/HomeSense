@@ -21,12 +21,20 @@ import RegisterAppliancePage from "./RegisterAppliancePage";
 import Recommendations from "./Recommendations";
 import Bills from "./Bills";
 import ConsumptionPage from "./ConsumptionPage";
-import api from "../utils/api"; // ✅ axios instance
+import api from "../utils/api";
 
 type MainMenuNavProp = NativeStackNavigationProp<
   RootStackParamList,
   "MainMenu"
 >;
+
+interface TopDevice {
+  device_id: string;
+  device_name: string;
+  appliance_name: string;
+  appliance_type: string;
+  total_kwh: number;
+}
 
 const MainMenu = () => {
   const navigation = useNavigation<MainMenuNavProp>();
@@ -41,9 +49,108 @@ const MainMenu = () => {
   const [weekUsage, setWeekUsage] = useState<string | null>(null);
   const [monthUsage, setMonthUsage] = useState<string | null>(null);
   const [loadingUsage, setLoadingUsage] = useState(true);
+
+  // =========================
+  // Top Devices state
+  // =========================
+  const [topDevices, setTopDevices] = useState<TopDevice[]>([]);
+  const [loadingTopDevices, setLoadingTopDevices] = useState(true);
+  const [hasRegisteredAppliances, setHasRegisteredAppliances] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
-  // ✅ reusable fetch function
+  // =========================
+  // Fetch registered appliances
+  // =========================
+  const fetchRegisteredAppliances = useCallback(async (): Promise<any[]> => {
+    try {
+      const response = await api.get("/appliances");
+      return response.data.appliances || [];
+    } catch (error) {
+      console.error("Error fetching registered appliances:", error);
+      return [];
+    }
+  }, []);
+
+  // =========================
+  // Fetch monthly consumption for all devices
+  // =========================
+  const fetchMonthlyConsumptionForDevices = useCallback(async (devices: any[]): Promise<TopDevice[]> => {
+    const deviceConsumptions: TopDevice[] = [];
+
+    try {
+      // Fetch consumption for each device in parallel
+      const consumptionPromises = devices.map(async (device) => {
+        try {
+          const response = await api.get(`/energy/monthly/recent/${device.device_id}`);
+          const consumptionData = response.data;
+          
+          return {
+            device_id: device.device_id,
+            device_name: device.device_id,
+            appliance_name: device.appliance_name || device.device_id,
+            appliance_type: device.appliance_type || "Unknown",
+            total_kwh: consumptionData.total_kwh || 0,
+          };
+        } catch (error) {
+          console.error(`Error fetching consumption for ${device.device_id}:`, error);
+          return {
+            device_id: device.device_id,
+            device_name: device.device_id,
+            appliance_name: device.appliance_name || device.device_id,
+            appliance_type: device.appliance_type || "Unknown",
+            total_kwh: 0,
+          };
+        }
+      });
+
+      const results = await Promise.all(consumptionPromises);
+      
+      // Filter out devices with 0 consumption and sort by consumption (descending)
+      return results
+        .filter(device => device.total_kwh > 0)
+        .sort((a, b) => b.total_kwh - a.total_kwh)
+        .slice(0, 3); // Get top 3 devices
+
+    } catch (error) {
+      console.error("Error fetching device consumptions:", error);
+      return [];
+    }
+  }, []);
+
+  // =========================
+  // Fetch top energy consuming devices
+  // =========================
+  const fetchTopEnergyDevices = useCallback(async () => {
+    try {
+      setLoadingTopDevices(true);
+
+      // First, get registered appliances
+      const registeredAppliances = await fetchRegisteredAppliances();
+      
+      if (registeredAppliances.length === 0) {
+        setHasRegisteredAppliances(false);
+        setTopDevices([]);
+        return;
+      }
+
+      setHasRegisteredAppliances(true);
+
+      // Then fetch consumption data for all registered appliances
+      const topDevicesData = await fetchMonthlyConsumptionForDevices(registeredAppliances);
+      setTopDevices(topDevicesData);
+
+    } catch (error) {
+      console.error("Error fetching top energy devices:", error);
+      setTopDevices([]);
+      setHasRegisteredAppliances(false);
+    } finally {
+      setLoadingTopDevices(false);
+    }
+  }, [fetchRegisteredAppliances, fetchMonthlyConsumptionForDevices]);
+
+  // =========================
+  // Reusable fetch function for usage summary
+  // =========================
   const fetchUsageSummary = useCallback(async () => {
     try {
       setLoadingUsage(true);
@@ -88,24 +195,43 @@ const MainMenu = () => {
       setMonthUsage("Error");
     } finally {
       setLoadingUsage(false);
-      setRefreshing(false);
     }
   }, []);
 
+  // =========================
+  // Combined refresh function
+  // =========================
+  const refreshAllData = useCallback(async () => {
+    try {
+      setRefreshing(true);
+      await Promise.all([
+        fetchUsageSummary(),
+        fetchTopEnergyDevices(),
+      ]);
+    } catch (error) {
+      console.error("Error refreshing data:", error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [fetchUsageSummary, fetchTopEnergyDevices]);
+
   useEffect(() => {
-    fetchUsageSummary();
-  }, [fetchUsageSummary]);
+    refreshAllData();
+  }, [refreshAllData]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    fetchUsageSummary();
-  }, [fetchUsageSummary]);
+    refreshAllData();
+  }, [refreshAllData]);
 
   const handleLogout = async () => {
     await AsyncStorage.removeItem("userData");
     navigation.replace("Login");
   };
 
+  // =========================
+  // Component: UsageCard
+  // =========================
   const UsageCard = ({
     icon,
     value,
@@ -126,26 +252,103 @@ const MainMenu = () => {
     </View>
   );
 
+  // =========================
+  // Component: DeviceItem
+  // =========================
   const DeviceItem = ({
-    icon,
     name,
     consumption,
-    color,
+    rank,
   }: {
-    icon: string;
     name: string;
     consumption: string;
-    color: string;
-  }) => (
-    <View style={styles.deviceItem}>
-      <View style={[styles.deviceIcon, { backgroundColor: color }]}>
-        <Icon name={icon} size={20} color="#fff" />
-      </View>
-      <Text style={styles.deviceName}>{name}</Text>
-      <Text style={styles.deviceConsumption}>{consumption}</Text>
-    </View>
-  );
+    rank: number;
+  }) => {
+    // Get rank-based color
+    const getRankColor = (rank: number): string => {
+      switch (rank) {
+        case 1: return "#FFD700"; // Gold for 1st
+        case 2: return "#C0C0C0"; // Silver for 2nd
+        case 3: return "#CD7F32"; // Bronze for 3rd
+        default: return "#666666";
+      }
+    };
 
+    // Get rank icon
+    const getRankIcon = (rank: number): string => {
+      switch (rank) {
+        case 1: return "emoji-events"; // Trophy icon for 1st
+        case 2: return "military-tech"; // Medal icon for 2nd
+        case 3: return "workspace-premium"; // Premium icon for 3rd
+        default: return "power"; // Default power icon
+      }
+    };
+
+    return (
+      <View style={styles.deviceItem}>
+        <View style={[styles.deviceIcon, { backgroundColor: getRankColor(rank) }]}>
+          <Icon name={getRankIcon(rank)} size={20} color="#fff" />
+        </View>
+        <Text style={styles.deviceName}>{name}</Text>
+        <Text style={styles.deviceConsumption}>{consumption}</Text>
+      </View>
+    );
+  };
+
+  // =========================
+  // Component: TopDevicesSection
+  // =========================
+  const TopDevicesSection = () => {
+    if (loadingTopDevices) {
+      return (
+        <View style={styles.devicesContainer}>
+          <ActivityIndicator size="small" color="#000" />
+          <Text style={styles.loadingText}>Loading device data...</Text>
+        </View>
+      );
+    }
+
+    if (!hasRegisteredAppliances) {
+      return (
+        <View style={styles.noDataContainer}>
+          <Icon name="devices" size={32} color="#ccc" />
+          <Text style={styles.noDataText}>No registered appliances</Text>
+          <Text style={styles.noDataSubText}>
+            Register your appliances to see energy consumption data
+          </Text>
+        </View>
+      );
+    }
+
+    if (topDevices.length === 0) {
+      return (
+        <View style={styles.noDataContainer}>
+          <Icon name="show-chart" size={32} color="#ccc" />
+          <Text style={styles.noDataText}>No consumption data available</Text>
+          <Text style={styles.noDataSubText}>
+            Energy usage data will appear here once devices are used
+          </Text>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.devicesContainer}>
+        {topDevices.map((device, index) => (
+          <DeviceItem
+            key={device.device_id}
+            name={device.appliance_name}
+            consumption={`${device.total_kwh.toFixed(1)} kWh`}
+            rank={index + 1}
+          />
+        ))}
+      </View>
+    );
+  };
+
+  // =========================
+  // Home Content Renderer
+  // =========================
   const renderHomeContent = () => (
     <ScrollView
       style={styles.content}
@@ -169,27 +372,8 @@ const MainMenu = () => {
         <Text style={styles.billLabel}>Monthly Bill</Text>
       </View>
 
-      <Text style={styles.sectionLabel}>Top Energy Consuming Devices</Text>
-      <View style={styles.devicesContainer}>
-        <DeviceItem
-          icon="ac-unit"
-          name="Air Conditioner"
-          consumption="20.3 kWh"
-          color="#87CEEB"
-        />
-        <DeviceItem
-          icon="kitchen"
-          name="Refrigerator"
-          consumption="10.5 kWh"
-          color="#FFA500"
-        />
-        <DeviceItem
-          icon="tv"
-          name="Television"
-          consumption="7.1 kWh"
-          color="#FFD700"
-        />
-      </View>
+      <Text style={styles.sectionLabel}>Top Energy Consuming Devices for the Month</Text>
+      <TopDevicesSection />
 
       <Text style={styles.sectionLabel}>Energy Saving Recommendation</Text>
       <View style={styles.recommendationCard}>
@@ -212,7 +396,11 @@ const MainMenu = () => {
         return (
           <RegisterAppliancePage
             navigation={navigation}
-            onSuccess={() => setActiveTab("home")}
+            onSuccess={() => {
+              setActiveTab("home");
+              // Refresh data when returning from successful registration
+              setTimeout(() => refreshAllData(), 500);
+            }}
           />
         );
       case "recommendations":
