@@ -423,7 +423,8 @@ const ConsumptionPage = () => {
     // Ensure we always have valid numeric values, default to 0 if invalid
     const usageData = appliances.map((item) => {
       const usageValue = parseFloat(item.usage.replace(" kWh", ""));
-      return isNaN(usageValue) ? 0 : usageValue;
+      const safeValue = isNaN(usageValue) ? 0 : usageValue;
+      return parseFloat(safeValue.toFixed(2));
     });
 
     const labels = appliances.map((item) =>
@@ -606,7 +607,9 @@ const ConsumptionPage = () => {
                               fontWeight: "bold",
                             }}
                           >
-                            {fullUsage}
+                            {`${parseFloat(
+                              fullUsage.replace(" kWh", "")
+                            ).toFixed(2)} kWh`}
                           </Text>
                         </View>
                       );
