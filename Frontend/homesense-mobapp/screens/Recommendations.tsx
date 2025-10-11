@@ -102,11 +102,54 @@ const Recommendations = () => {
   const [savingsMode, setSavingsMode] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [filteredRecommendations, setFilteredRecommendations] = useState<
+    Record<string, Recommendation[]>
+  >({});
   const [selectedFilter, setSelectedFilter] = useState<
     "all" | "high" | "quick"
   >("all");
 
-  // NEW: performance summary state
+  // ====== Helper Functions ======
+  const filterRecommendations = (
+    grouped: Record<string, Recommendation[]>,
+    filter: "all" | "high" | "quick"
+  ) => {
+    if (filter === "all") return grouped;
+
+    const filtered: Record<string, Recommendation[]> = {};
+
+    Object.entries(grouped).forEach(([appliance, recs]) => {
+      const include = recs.some((r) => {
+        if (!r.recommendations) return false;
+
+        return r.recommendations.some((msg) => {
+          const lowerMsg = msg.toLowerCase();
+
+          if (filter === "high") {
+            return lowerMsg.includes("consuming a lot");
+          } else if (filter === "quick") {
+            return lowerMsg.includes("slightly above threshold");
+          }
+          return false;
+        });
+      });
+
+      if (include) filtered[appliance] = recs;
+    });
+
+    return filtered;
+  };
+
+  // Effect
+  useEffect(() => {
+    const filtered = filterRecommendations(
+      groupedRecommendations,
+      selectedFilter
+    );
+    setFilteredRecommendations(filtered);
+  }, [groupedRecommendations, selectedFilter]);
+
+  //performance summary state
   const [performanceSummary, setPerformanceSummary] =
     useState<PerformanceSummary | null>(null);
 
@@ -186,11 +229,11 @@ const Recommendations = () => {
   const getBackgroundColor = (status: string | undefined) => {
     switch (status) {
       case "good":
-        return "#C8E6C9"; // light green
+        return "#e0e6c8ff"; // light green
       case "moderate":
-        return "#FFF8E1"; // soft yellow-orange
+        return "#eeb517b4"; // soft yellow-orange
       case "high":
-        return "#FFCDD2"; // light red
+        return "#db0b20a8"; // light red
       default:
         return "#FFFFFF"; // fallback
     }
@@ -340,12 +383,12 @@ const Recommendations = () => {
           </View>
 
           {/* Recommendations */}
-          {Object.keys(groupedRecommendations).length === 0 ? (
+          {Object.keys(filteredRecommendations).length === 0 ? (
             <Text style={{ color: "#888", textAlign: "center", marginTop: 30 }}>
               No recommendations available for today.
             </Text>
           ) : (
-            Object.entries(groupedRecommendations).map(([appliance, recs]) => (
+            Object.entries(filteredRecommendations).map(([appliance, recs]) => (
               <View
                 key={appliance}
                 style={[
