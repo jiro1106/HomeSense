@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -11,10 +11,10 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-} from 'react-native';
-import { styles } from './styles/RegisterAppliancePageStyles';
-import Icon from 'react-native-vector-icons/MaterialIcons';
-import api from '../utils/api'; // ✅ axios instance
+} from "react-native";
+import { styles } from "./styles/RegisterAppliancePageStyles";
+import Icon from "react-native-vector-icons/MaterialIcons";
+import api from "../utils/api"; // ✅ axios instance
 
 interface Device {
   device_id: string;
@@ -25,11 +25,14 @@ interface RegisterAppliancePageProps {
   onSuccess?: () => void;
 }
 
-const RegisterAppliancePage: React.FC<RegisterAppliancePageProps> = ({ navigation, onSuccess }) => {
-  const [applianceName, setApplianceName] = useState('');
-  const [applianceType, setApplianceType] = useState('');
-  const [location, setLocation] = useState('');
-  const [deviceId, setDeviceId] = useState('');
+const RegisterAppliancePage: React.FC<RegisterAppliancePageProps> = ({
+  navigation,
+  onSuccess,
+}) => {
+  const [applianceName, setApplianceName] = useState("");
+  const [applianceType, setApplianceType] = useState("");
+  const [location, setLocation] = useState("");
+  const [deviceId, setDeviceId] = useState("");
 
   // modal state
   const [showTypeModal, setShowTypeModal] = useState(false);
@@ -39,34 +42,34 @@ const RegisterAppliancePage: React.FC<RegisterAppliancePageProps> = ({ navigatio
   // Other input states
   const [showOtherTypeInput, setShowOtherTypeInput] = useState(false);
   const [showOtherLocationInput, setShowOtherLocationInput] = useState(false);
-  const [otherApplianceType, setOtherApplianceType] = useState('');
-  const [otherLocation, setOtherLocation] = useState('');
+  const [otherApplianceType, setOtherApplianceType] = useState("");
+  const [otherLocation, setOtherLocation] = useState("");
 
   const [availableDevices, setAvailableDevices] = useState<Device[]>([]);
   const [loadingDevices, setLoadingDevices] = useState(false);
 
   const applianceTypes = [
-    'Electric Fan',
-    'Air Conditioner',
-    'Refrigerator',
-    'Washing Machine',
-    'Television',
-    'Microwave',
-    'Rice Cooker',
-    'Electric Stove',
-    'Printer',
-    'Computer',
-    'Router/Wifi',
-    'Other',
+    "Electric Fan",
+    "Air Conditioner",
+    "Refrigerator",
+    "Washing Machine",
+    "Television",
+    "Microwave",
+    "Rice Cooker",
+    "Electric Stove",
+    "Printer",
+    "Computer",
+    "Router/Wifi",
+    "Other",
   ];
 
   const locations = [
-    'Bedroom',
-    'Living Room',
-    'Kitchen',
-    'Dining Room',
-    'Study Room',
-    'Other',
+    "Bedroom",
+    "Living Room",
+    "Kitchen",
+    "Dining Room",
+    "Study Room",
+    "Other",
   ];
 
   // 🔌 Fetch available device IDs from backend
@@ -74,16 +77,16 @@ const RegisterAppliancePage: React.FC<RegisterAppliancePageProps> = ({ navigatio
     const fetchDevices = async () => {
       setLoadingDevices(true);
       try {
-        const res = await api.get('/devices/unregistered');
+        const res = await api.get("/devices/unregistered");
         // ✅ normalize to array of { device_id: string }
         const rawDevices = res.data.devices || [];
         const normalized: Device[] = rawDevices.map((d: any) => ({
-          device_id: typeof d === 'string' ? d : d.device_id,
+          device_id: typeof d === "string" ? d : d.device_id,
         }));
         setAvailableDevices(normalized);
       } catch (err) {
-        console.error('Failed to fetch devices:', err);
-        Alert.alert('Error', 'Failed to load available devices.');
+        console.error("Failed to fetch devices:", err);
+        Alert.alert("Error", "Failed to load available devices.");
       } finally {
         setLoadingDevices(false);
       }
@@ -93,17 +96,24 @@ const RegisterAppliancePage: React.FC<RegisterAppliancePageProps> = ({ navigatio
 
   const handleRegisterAppliance = async () => {
     // Use custom type if "Other" was selected and custom input provided
-    const finalApplianceType = showOtherTypeInput && otherApplianceType.trim() 
-      ? otherApplianceType.trim() 
-      : applianceType;
-    
-    // Use custom location if "Other" was selected and custom input provided
-    const finalLocation = showOtherLocationInput && otherLocation.trim() 
-      ? otherLocation.trim() 
-      : location;
+    const finalApplianceType =
+      showOtherTypeInput && otherApplianceType.trim()
+        ? otherApplianceType.trim()
+        : applianceType;
 
-    if (!deviceId || !applianceName.trim() || !finalApplianceType || !finalLocation) {
-      Alert.alert('Error', 'Please fill out all fields before registering.');
+    // Use custom location if "Other" was selected and custom input provided
+    const finalLocation =
+      showOtherLocationInput && otherLocation.trim()
+        ? otherLocation.trim()
+        : location;
+
+    if (
+      !deviceId ||
+      !applianceName.trim() ||
+      !finalApplianceType ||
+      !finalLocation
+    ) {
+      Alert.alert("Error", "Please fill out all fields before registering.");
       return;
     }
 
@@ -115,18 +125,18 @@ const RegisterAppliancePage: React.FC<RegisterAppliancePageProps> = ({ navigatio
         location: finalLocation,
       };
 
-      await api.post('/appliances', payload);
+      await api.post("/appliances", payload);
 
-      Alert.alert('Success', 'Appliance registered successfully!', [
+      Alert.alert("Success", "Appliance registered successfully!", [
         {
-          text: 'OK',
+          text: "OK",
           onPress: () => {
-            setApplianceName('');
-            setApplianceType('');
-            setLocation('');
-            setDeviceId('');
-            setOtherApplianceType('');
-            setOtherLocation('');
+            setApplianceName("");
+            setApplianceType("");
+            setLocation("");
+            setDeviceId("");
+            setOtherApplianceType("");
+            setOtherLocation("");
             setShowOtherTypeInput(false);
             setShowOtherLocationInput(false);
             onSuccess?.();
@@ -134,33 +144,33 @@ const RegisterAppliancePage: React.FC<RegisterAppliancePageProps> = ({ navigatio
         },
       ]);
     } catch (error: any) {
-      console.error('Error registering appliance:', error);
+      console.error("Error registering appliance:", error);
       Alert.alert(
-        'Error',
-        error?.response?.data?.detail || 'Failed to register appliance.'
+        "Error",
+        error?.response?.data?.detail || "Failed to register appliance."
       );
     }
   };
 
   const handleApplianceTypeSelect = (selectedType: string) => {
-    if (selectedType === 'Other') {
+    if (selectedType === "Other") {
       setShowOtherTypeInput(true);
-      setApplianceType('Other');
+      setApplianceType("Other");
     } else {
       setShowOtherTypeInput(false);
-      setOtherApplianceType('');
+      setOtherApplianceType("");
       setApplianceType(selectedType);
     }
     setShowTypeModal(false);
   };
 
   const handleLocationSelect = (selectedLocation: string) => {
-    if (selectedLocation === 'Other') {
+    if (selectedLocation === "Other") {
       setShowOtherLocationInput(true);
-      setLocation('Other');
+      setLocation("Other");
     } else {
       setShowOtherLocationInput(false);
-      setOtherLocation('');
+      setOtherLocation("");
       setLocation(selectedLocation);
     }
     setShowLocationModal(false);
@@ -183,14 +193,14 @@ const RegisterAppliancePage: React.FC<RegisterAppliancePageProps> = ({ navigatio
   );
 
   return (
-    <KeyboardAvoidingView 
-      style={styles.container} 
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
-      <ScrollView 
-        style={styles.contentContainer} 
+      <ScrollView
+        style={styles.contentContainer}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ flexGrow: 1 }}
+        contentContainerStyle={{ paddingBottom: 100 }}
         keyboardShouldPersistTaps="handled"
       >
         <Text style={styles.title}>Appliance Registration</Text>
@@ -202,7 +212,9 @@ const RegisterAppliancePage: React.FC<RegisterAppliancePageProps> = ({ navigatio
             style={styles.dropdownContainer}
             onPress={() => setShowDeviceModal(true)}
           >
-            <Text style={styles.dropdownText}>{deviceId || 'Select a device ID'}</Text>
+            <Text style={styles.dropdownText}>
+              {deviceId || "Select a device ID"}
+            </Text>
             <Icon name="arrow-drop-down" size={24} color="#666" />
           </TouchableOpacity>
         </View>
@@ -227,14 +239,13 @@ const RegisterAppliancePage: React.FC<RegisterAppliancePageProps> = ({ navigatio
             onPress={() => setShowTypeModal(true)}
           >
             <Text style={styles.dropdownText}>
-              {showOtherTypeInput && otherApplianceType 
-                ? otherApplianceType 
-                : applianceType || 'Select appliance type'
-              }
+              {showOtherTypeInput && otherApplianceType
+                ? otherApplianceType
+                : applianceType || "Select appliance type"}
             </Text>
             <Icon name="arrow-drop-down" size={24} color="#666" />
           </TouchableOpacity>
-          
+
           {/* Other Appliance Type Input */}
           {showOtherTypeInput && (
             <View style={styles.otherInputContainer}>
@@ -258,14 +269,13 @@ const RegisterAppliancePage: React.FC<RegisterAppliancePageProps> = ({ navigatio
             onPress={() => setShowLocationModal(true)}
           >
             <Text style={styles.dropdownText}>
-              {showOtherLocationInput && otherLocation 
-                ? otherLocation 
-                : location || 'Select location'
-              }
+              {showOtherLocationInput && otherLocation
+                ? otherLocation
+                : location || "Select location"}
             </Text>
             <Icon name="arrow-drop-down" size={24} color="#666" />
           </TouchableOpacity>
-          
+
           {/* Other Location Input */}
           {showOtherLocationInput && (
             <View style={styles.otherInputContainer}>
@@ -282,7 +292,10 @@ const RegisterAppliancePage: React.FC<RegisterAppliancePageProps> = ({ navigatio
         </View>
 
         {/* Register Button */}
-        <TouchableOpacity style={styles.registerButton} onPress={handleRegisterAppliance}>
+        <TouchableOpacity
+          style={styles.registerButton}
+          onPress={handleRegisterAppliance}
+        >
           <Text style={styles.registerButtonText}>Register Appliance</Text>
         </TouchableOpacity>
       </ScrollView>
@@ -301,7 +314,9 @@ const RegisterAppliancePage: React.FC<RegisterAppliancePageProps> = ({ navigatio
                   item.device_id ? item.device_id.toString() : index.toString()
                 }
                 renderItem={({ item }) =>
-                  renderOption(item.device_id, setDeviceId, () => setShowDeviceModal(false))
+                  renderOption(item.device_id, setDeviceId, () =>
+                    setShowDeviceModal(false)
+                  )
                 }
               />
             )}
@@ -324,7 +339,9 @@ const RegisterAppliancePage: React.FC<RegisterAppliancePageProps> = ({ navigatio
               data={applianceTypes}
               keyExtractor={(item) => item}
               renderItem={({ item }) =>
-                renderOption(item, handleApplianceTypeSelect, () => setShowTypeModal(false))
+                renderOption(item, handleApplianceTypeSelect, () =>
+                  setShowTypeModal(false)
+                )
               }
             />
             <TouchableOpacity
@@ -346,7 +363,9 @@ const RegisterAppliancePage: React.FC<RegisterAppliancePageProps> = ({ navigatio
               data={locations}
               keyExtractor={(item) => item}
               renderItem={({ item }) =>
-                renderOption(item, handleLocationSelect, () => setShowLocationModal(false))
+                renderOption(item, handleLocationSelect, () =>
+                  setShowLocationModal(false)
+                )
               }
             />
             <TouchableOpacity

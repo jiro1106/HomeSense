@@ -11,16 +11,17 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import Icon from "react-native-vector-icons/MaterialIcons";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { RootStackParamList } from "../App";
 import { styles } from "./styles/RecoStyles";
 import api from "../utils/api";
 
 const getApplianceIcon = (type?: string) => {
   switch (type?.toLowerCase()) {
-    case "air conditioner":
-      return { name: "ac-unit", color: "#03A9F4", bg: "#E1F5FE" };
     case "electric fan":
       return { name: "toys", color: "#00BCD4", bg: "#E0F7FA" };
+    case "air conditioner":
+      return { name: "ac-unit", color: "#03A9F4", bg: "#E1F5FE" };
     case "refrigerator":
       return { name: "kitchen", color: "#4CAF50", bg: "#E8F5E9" };
     case "washing machine":
@@ -29,12 +30,16 @@ const getApplianceIcon = (type?: string) => {
       return { name: "tv", color: "#FF9800", bg: "#FFF3E0" };
     case "microwave":
       return { name: "microwave", color: "#E91E63", bg: "#FCE4EC" };
-    case "toaster":
-      return { name: "restaurant", color: "#FF5722", bg: "#FBE9E7" };
-    case "coffee maker":
-      return { name: "coffee-maker", color: "#795548", bg: "#EFEBE9" };
-    case "blender":
-      return { name: "blender", color: "#8BC34A", bg: "#F1F8E9" };
+    case "rice cooker":
+      return { name: "rice", color: "#E91E63", bg: "#FCE4EC" };
+    case "electric stove":
+      return { name: "stove", color: "#E91E63", bg: "#FCE4EC" };
+    case "printer":
+      return { name: "printer", color: "#FF5722", bg: "#FBE9E7" };
+    case "computer":
+      return { name: "desktop-classic", color: "#795548", bg: "#EFEBE9" };
+    case "router/wifi":
+      return { name: "wifi", color: "#8BC34A", bg: "#F1F8E9" };
     default:
       return { name: "devices", color: "#9E9E9E", bg: "#F5F5F5" };
   }
@@ -42,24 +47,28 @@ const getApplianceIcon = (type?: string) => {
 
 const getApplianceCardColor = (type?: string) => {
   switch (type?.toLowerCase()) {
-    case "air conditioner":
-      return "#E3F2FD"; // light blue
     case "electric fan":
       return "#E0F7FA"; // cyan
+    case "air conditioner":
+      return "#E3F2FD"; // light blue
     case "refrigerator":
-      return "#0c29cc46"; // green
+      return "#e713a721"; // green
     case "washing machine":
       return "#F3E5F5"; // purple
     case "television":
       return "#FFF3E0"; // orange
     case "microwave":
       return "#FCE4EC"; // pink
-    case "toaster":
+    case "rice cooker":
       return "#FBE9E7"; // red-orange
-    case "coffee maker":
+    case "electric stove":
       return "#EFEBE9"; // brown
-    case "blender":
+    case "printer":
+      return "#EFEBE9"; // brown
+    case "computer":
       return "#F1F8E9"; // light green
+    case "router/wifi":
+      return "#7bc9239d";
     default:
       return "#bfdf0f54"; // default gray
   }
@@ -75,6 +84,14 @@ interface Recommendation {
   recommendations?: string[];
 }
 
+interface PerformanceSummary {
+  checked_appliances: number;
+  below_threshold: number;
+  efficiency_score: number; // e.g. 75.0
+  summary_message: string; // "⚖️ Moderate efficiency..."
+  status: string;
+}
+
 const Recommendations = () => {
   const navigation = useNavigation<NavProp>();
 
@@ -88,13 +105,32 @@ const Recommendations = () => {
   const [selectedFilter, setSelectedFilter] = useState<
     "all" | "high" | "quick"
   >("all");
+
+  // NEW: performance summary state
+  const [performanceSummary, setPerformanceSummary] =
+    useState<PerformanceSummary | null>(null);
+
   // =============================
   // Fetch recommendations from API
   // =============================
   useEffect(() => {
     const fetchRecommendations = async () => {
       try {
-        const household_id = "household1"; // 🔧 make dynamic later
+        const storedUserData = await AsyncStorage.getItem("userData");
+        if (!storedUserData) {
+          console.warn("⚠️ No user data found in storage");
+          return;
+        }
+
+        const parsedUser = JSON.parse(storedUserData);
+        const household_id = parsedUser.household_id;
+        if (!household_id) {
+          console.warn("⚠️ No household_id found in user data");
+          return;
+        }
+
+        console.log("📦 Using household_id:", household_id);
+
         const response = await api.get(
           `/energy/recommendations/${household_id}`
         );
@@ -117,6 +153,13 @@ const Recommendations = () => {
         setGroupedRecommendations(grouped);
         setSavingsMode(data.savings_mode || "");
         setSkippedCount(data.skipped_unregistered || 0);
+
+        // NEW: set performance summary from backend response
+        if (data.performance_summary) {
+          setPerformanceSummary(data.performance_summary as PerformanceSummary);
+        } else {
+          setPerformanceSummary(null);
+        }
       } catch (err: any) {
         console.error("❌ Error fetching recommendations:", err);
         if (err.response?.data?.detail) {
@@ -132,6 +175,26 @@ const Recommendations = () => {
     fetchRecommendations();
   }, []);
 
+  // helper for color dot based on efficiency score
+  const scoreColor = (score: number | undefined) => {
+    if (score === undefined || score === null) return "#999";
+    if (score >= 80) return "#2E7D32"; // green
+    if (score >= 50) return "#F9A825"; // yellow
+    return "#C62828"; // red
+  };
+
+  const getBackgroundColor = (status: string | undefined) => {
+    switch (status) {
+      case "good":
+        return "#C8E6C9"; // light green
+      case "moderate":
+        return "#FFF8E1"; // soft yellow-orange
+      case "high":
+        return "#FFCDD2"; // light red
+      default:
+        return "#FFFFFF"; // fallback
+    }
+  };
   // =============================
   // Render
   // =============================
@@ -169,19 +232,62 @@ const Recommendations = () => {
               {savingsMode.toUpperCase()}
             </Text>
           </Text>
-          <View style={styles.usageCard}>
+
+          {/* =========================
+              USAGE / PERFORMANCE CARD
+              (replaced static content with performance_summary)
+          /* ========================= */}
+          <View
+            style={[
+              styles.usageCard,
+              {
+                backgroundColor: getBackgroundColor(performanceSummary?.status),
+              },
+            ]}
+          >
             <Icon name="eco" size={60} color="#4CAF50" />
             <View style={styles.usageTextContainer}>
-              <Text style={styles.usageValue}>This Week’s Usage</Text>
-              <Text style={styles.usageKwh}>54.6 kWh</Text>
-              <Text style={styles.usageNote}>
-                You saved 12% more energy this week!
-              </Text>
+              {performanceSummary ? (
+                <>
+                  <View style={{ flexDirection: "row", alignItems: "center" }}>
+                    <Text style={styles.usageValue}>Performance</Text>
+                    <View
+                      style={{
+                        width: 10,
+                        height: 10,
+                        borderRadius: 6,
+                        backgroundColor: scoreColor(
+                          performanceSummary.efficiency_score
+                        ),
+                        marginLeft: 8,
+                        marginTop: 6,
+                      }}
+                    />
+                  </View>
+
+                  <Text style={styles.usageKwh}>
+                    {performanceSummary.efficiency_score.toFixed(0)}% Efficient
+                  </Text>
+
+                  <Text style={styles.usageNote}>
+                    {performanceSummary.summary_message}
+                  </Text>
+
+                  <Text style={styles.belowThresholdText}>
+                    {performanceSummary.below_threshold} of{" "}
+                    {performanceSummary.checked_appliances} appliances are below
+                    threshold
+                  </Text>
+                </>
+              ) : (
+                <ActivityIndicator size="small" color="#000" />
+              )}
             </View>
           </View>
+
           <Text
             style={{
-              fontWeight: 500,
+              fontWeight: "500",
               color: "#999",
               fontSize: 20,
               marginVertical: 10,
@@ -189,6 +295,7 @@ const Recommendations = () => {
           >
             Strategies
           </Text>
+
           {/* Skipped Info */}
           {skippedCount > 0 && (
             <Text
@@ -198,6 +305,7 @@ const Recommendations = () => {
               {skippedCount > 1 ? "s" : ""}.
             </Text>
           )}
+
           <View style={styles.filterButtonContainer}>
             {[
               { label: "All", value: "all" },
@@ -230,6 +338,7 @@ const Recommendations = () => {
               </TouchableOpacity>
             ))}
           </View>
+
           {/* Recommendations */}
           {Object.keys(groupedRecommendations).length === 0 ? (
             <Text style={{ color: "#888", textAlign: "center", marginTop: 30 }}>

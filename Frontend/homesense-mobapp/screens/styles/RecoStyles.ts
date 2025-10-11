@@ -24,7 +24,6 @@ export const styles = StyleSheet.create({
   },
   usageCard: {
     marginTop: 20,
-    backgroundColor: "#FFF8E1",
     borderRadius: 12,
     padding: 16,
     flexDirection: "row",
@@ -36,22 +35,34 @@ export const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "flex-start",
     marginLeft: 20,
+    width: "75%",
+    marginHorizontal: 20,
   },
   usageValue: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#000",
-  },
-  usageKwh: {
     fontSize: 22,
-    fontWeight: "bold",
-    color: "#2E7D32",
-  },
-  usageNote: {
-    fontSize: 14,
-    color: "#666",
+    fontWeight: "700",
+    color: "#000",
     marginTop: 4,
   },
+  usageKwh: {
+    marginTop: 2,
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#2b8011ff",
+  },
+  usageNote: {
+    fontWeight: "600",
+    fontSize: 14,
+    color: "#000000af",
+    marginTop: 10,
+  },
+  belowThresholdText: {
+    color: "#000000af",
+    fontWeight: "600",
+    fontSize: 14,
+    marginTop: 15,
+  },
+
   filterButtonContainer: {
     flexDirection: "row",
     justifyContent: "flex-start",
@@ -62,8 +73,8 @@ export const styles = StyleSheet.create({
   applianceCard: {
     flexDirection: "column",
     backgroundColor: "#ffd90021",
-    borderWidth: 1.5,
-    borderColor: "#000000ff",
+    // borderWidth: 1.5,
+    // borderColor: "#000000ff",
     padding: 16,
     marginVertical: 10,
     borderRadius: 18,
@@ -85,45 +96,39 @@ export const styles = StyleSheet.create({
     marginBottom: 6,
   },
   applianceTitle: {
-    fontSize: 17,
+    fontSize: 20,
     fontWeight: "700",
     color: "#2E2E2E",
   },
   applianceLocation: {
     fontSize: 13,
-    color: "#6A6A6A",
+    color: "#020000ff",
+    marginTop: 2,
     marginBottom: 10,
   },
 
   // ====== Recommendation Items ======
   recommendItem: {
     flexDirection: "row",
-    justifyContent: "center",
+    justifyContent: "flex-start",
     alignItems: "center",
+    marginVertical: 10,
     textAlign: "right",
-    backgroundColor: "#27661a23",
-    padding: 10,
+    backgroundColor: "#221a6623",
+    padding: 5,
     width: "100%",
     height: 100,
-    // borderWidth: 1,
     borderRadius: 18,
-    // borderColor: "#71df0bff",
   },
   recommendDesc: {
+    width: "80%",
     fontSize: 13,
     color: "#000000ff",
     fontWeight: "bold",
     marginHorizontal: 20,
     lineHeight: 20,
     marginLeft: 10,
-  },
-
-  // ====== Section Titles ======
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#2E7D32",
-    marginVertical: 12,
+    marginRight: 10,
   },
 
   // ====== Bottom Navigation ======
@@ -147,7 +152,7 @@ export const styles = StyleSheet.create({
     justifyContent: "center",
   },
   fab: {
-    backgroundColor: "#A8E6CF",
+    backgroundColor: "#FFD700",
     width: 60,
     height: 60,
     borderRadius: 30,
@@ -159,33 +164,5 @@ export const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
     shadowRadius: 6,
-  },
-
-  // ====== Animations / Transitions ======
-  fadeInUp: {
-    opacity: 0,
-    transform: [{ translateY: 10 }],
-  },
-
-  // ====== Info Texts ======
-  infoText: {
-    textAlign: "center",
-    color: "#6A6A6A",
-    fontSize: 13,
-    marginBottom: 10,
-  },
-  skippedText: {
-    textAlign: "center",
-    color: "#999",
-    fontSize: 13,
-    marginBottom: 10,
-  },
-
-  // ====== Loading ======
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    marginTop: 40,
   },
 });
