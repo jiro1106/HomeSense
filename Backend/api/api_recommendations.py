@@ -25,11 +25,17 @@ households_collection = db["households"]
 # Helper: Generate Recommendations
 # ==========================
 def generate_recommendations(appliances, mode):
-    """Generate structured recommendations per appliance."""
+    """Generate structured recommendations per appliance with multi-level thresholds and prioritized impact."""
     all_recs = []
-    base_thresholds = {"high": 1, "medium": 3.5, "low": 5}
-    base_thr = base_thresholds.get(mode, 3.5)
 
+    # Multi-level thresholds per savings mode
+    mode_thresholds = {
+        "high": {"low": 1.0, "high": 1.5},
+        "medium": {"low": 3.0, "high": 4.0},
+        "low": {"low": 5.0, "high": 6.0}
+    }
+
+    # Appliance type multipliers
     type_multipliers = {
         "Air Conditioner": 1.0,
         "Electric Fan": 0.3,
@@ -40,68 +46,91 @@ def generate_recommendations(appliances, mode):
         "Toaster": 0.1,
         "Coffee Maker": 0.2,
         "Blender": 0.1,
+        "Router/WiFi": 0.1,
         "Other": 1.0
     }
+
+    # Context-aware tips per appliance type
+    appliance_tips = {
+        "Air Conditioner": {
+            "high": "Set AC to 24 °C and limit usage during 6–10 PM peak hours.",
+            "medium": "Reduce AC runtime by 15–20% or use fan + AC combo.",
+            "low": "Run AC in 'eco' or 'sleep' mode if available."
+        },
+        "Refrigerator": {
+            "high": "Defrost regularly and avoid overpacking.",
+            "medium": "Check gasket and clean coils to reduce energy usage.",
+            "low": "Don't overload — leave room for air circulation."
+        },
+        "Electric Fan": {
+            "high": "Turn off when not in use.",
+            "medium": "Use fan + AC combo for efficiency.",
+            "low": "Turn off when idle."
+        },
+        "Washing Machine": {
+            "high": "Run full loads and avoid peak hours.",
+            "medium": "Use eco cycle and skip small loads.",
+            "low": "Run only when necessary."
+        },
+        "Television": {
+            "high": "Turn off when not watching; reduce brightness.",
+            "medium": "Enable sleep mode or auto turn-off.",
+            "low": "Turn off instead of standby."
+        },
+        "Microwave": {
+            "high": "Use only when needed and unplug when idle.",
+            "medium": "Avoid reheating multiple times — plan cooking efficiently.",
+            "low": "Unplug when not in use to prevent standby power draw."
+        },
+        "Router/WiFi": {  # 🆕 Added
+            "high": "Consider turning off your router when not in use or overnight.",
+            "medium": "Limit connected devices during peak hours.",
+            "low": "Keep firmware updated to maintain efficiency."
+        },
+        "Other": {  # ✅ fallback
+            "high": "Turn off when not in use and unplug idle devices.",
+            "medium": "Avoid unnecessary standby power usage.",
+            "low": "Use only when necessary to reduce energy waste."
+    }
+    }
+
+    # Sort appliances by total kWh (highest impact first)
+    appliances = sorted(appliances, key=lambda x: x.get("total_kwh", 0), reverse=True)
 
     for app in appliances:
         name = app.get("appliance_name", "Unknown appliance")
         kwh = app.get("total_kwh", 0)
-        a_type = app.get("appliance_type", "Appliance")
+        a_type = app.get("appliance_type", "Other")
         location = app.get("location", "unspecified area")
 
         multiplier = type_multipliers.get(a_type, 1.0)
-        effective_thr = base_thr * multiplier
+        low_thr = mode_thresholds[mode]["low"] * multiplier
+        high_thr = mode_thresholds[mode]["high"] * multiplier
+
         app_recs = []
 
-        # === HIGH SAVINGS MODE ===
-        if mode == "high":
-            if kwh > effective_thr:
-                app_recs.append(f"{a_type} in {location} uses {kwh:.1f} kWh, above threshold {effective_thr:.1f}. Consider reducing usage or upgrading to a more efficient model.")
-            if a_type == "Air Conditioner":
-                app_recs.append(f"Set your {a_type} to around 24 °C and limit usage during 6–10 PM peak hours.")
-            elif a_type == "Refrigerator":
-                app_recs.append(f"Defrost your {a_type} regularly and avoid overpacking it.")
-            elif a_type == "Electric Fan":
-                app_recs.append(f"Turn off your {a_type} when not in use.")
-            elif a_type == "Washing Machine":
-                app_recs.append(f"Run full loads and avoid using your {a_type} during peak hours.")
-            elif a_type == "Television":
-                app_recs.append(f"Turn off your {a_type} when not watching and reduce brightness settings.")
-            elif a_type == "Microwave":
-                app_recs.append(f"Use your {a_type} only when needed and unplug it when idle.")
+        # Multi-level threshold logic
+        if kwh > high_thr:
+            app_recs.append(
+                f"{a_type} in {location} is consuming a lot ({kwh:.1f} kWh)! Major savings recommended."
+            )
+        elif kwh > low_thr:
+            app_recs.append(
+                f"{a_type} in {location} is slightly above threshold ({kwh:.1f} kWh). Consider reducing usage slightly."
+            )
+        elif kwh == 0:
+            app_recs.append(
+                f"Unplug idle appliances like {a_type} in {location} to avoid standby drain."
+            )
+        else:
+            app_recs.append(f"Your {a_type} in {location} is below the threshold ({kwh:.1f} kWh). Great job managing energy efficiently!"
+            )
 
-        # === MEDIUM SAVINGS MODE ===
-        elif mode == "medium":
-            if kwh > effective_thr:
-                app_recs.append(f"{a_type} in {location} is using more than {effective_thr:.1f} kWh — try shifting its use to off-peak hours.")
-            if a_type == "Air Conditioner":
-                app_recs.append(f"In medium mode: reduce AC runtime by 15–20% or use fan + AC combo.")
-            elif a_type == "Refrigerator":
-                app_recs.append(f"Check your {a_type}'s gasket and clean coils to reduce energy usage.")
-            elif a_type == "Washing Machine":
-                app_recs.append(f"Use eco cycle for {a_type}, and skip small loads.")
-            elif a_type == "Television":
-                app_recs.append(f"Enable sleep mode or auto turn-off on your {a_type}.")
-            elif a_type == "Lighting":
-                app_recs.append(f"Use LED bulbs and avoid leaving lights on in empty rooms.")
+        # Add context-aware appliance-specific tips
+        tip = appliance_tips.get(a_type, {}).get(mode)
+        if tip:
+            app_recs.append(tip)
 
-        # === LOW SAVINGS MODE ===
-        elif mode == "low":
-            if kwh > effective_thr:
-                app_recs.append(f"{a_type} in {location} uses a bit more than {effective_thr:.1f} kWh/day. Try turning it off when idle.")
-            elif kwh == 0:
-                app_recs.append(f"Unplug idle appliances like {a_type} in {location} to avoid standby drain.")
-            if a_type == "Air Conditioner":
-                app_recs.append(f"In low mode, run AC in “eco” or “sleep” mode if available for {a_type}.")
-            elif a_type == "Refrigerator":
-                app_recs.append(f"Don't overload your {a_type} — leave room inside for air circulation.")
-            elif a_type == "Television":
-                app_recs.append(f"Turn off your {a_type} instead of using standby mode.")
-
-        if not app_recs:
-            app_recs.append(f"Monitor your {a_type} in {location} regularly for efficient use.")
-
-        # Add structured entry
         all_recs.append({
             "appliance_name": name,
             "appliance_type": a_type,
@@ -111,6 +140,7 @@ def generate_recommendations(appliances, mode):
         })
 
     return all_recs
+
 
 # ==========================
 # API ROUTES
@@ -189,11 +219,41 @@ def get_recommendations(household_id: str, device_id: str = Query(None, descript
     # Step 5: Generate structured recommendations
     recs = generate_recommendations(registered_appliances, mode)
 
+    total_appliances = len(recs)
+    below_threshold = 0
+
+    for r in recs:
+    # Count "below threshold" messages
+        for msg in r["recommendations"]:
+            if "below the threshold" in msg or "Great job" in msg:
+                below_threshold += 1
+                break  # only count once per appliance
+     # Compute efficiency score (percentage)
+    efficiency_score = round((below_threshold / total_appliances) * 100, 1) if total_appliances > 0 else 0
+
+    # User-friendly message
+    if efficiency_score >= 80:
+        summary_msg = f"You're doing great! {below_threshold} out of {total_appliances} appliances are within efficient usage levels.🌱"
+        status="good"
+    elif efficiency_score >= 50:
+        summary_msg = f"Moderate efficiency. {below_threshold} of {total_appliances} appliances are below threshold — room for improvement.⚖️"
+        status="moderate"
+    else:
+        summary_msg = f"Energy usage is " + "HIGH" + f". Only {below_threshold} of {total_appliances} appliances are within efficient range. ⚠️"
+        status="high"
+
     return {
         "household_id": household_id,
         "savings_mode": mode,
         "device_id": device_id or "all",
         "generated_at": datetime.now().isoformat(),
         "recommendations": recs,
+        "performance_summary": {
+            "checked_appliances": total_appliances,
+            "below_threshold": below_threshold,
+            "efficiency_score": efficiency_score,
+            "summary_message": summary_msg,
+            "status": status
+        },
         "skipped_unregistered": skipped_count
     }
