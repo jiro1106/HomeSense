@@ -113,7 +113,7 @@ const SettingsPage = () => {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+      <StatusBar barStyle="light-content" backgroundColor="#000000ff" />
       <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
         {/* Top Bar */}
         <View style={styles.topBar}>
@@ -121,7 +121,7 @@ const SettingsPage = () => {
             onPress={() => navigation.replace("MainMenu")}
             style={styles.backButton}
           >
-            <Icon name="arrow-back" size={24} color="#000" />
+            <Icon name="arrow-back" size={24} color="#ffffffff" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Settings</Text>
           {/* placeholder for right side to balance flex */}

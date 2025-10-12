@@ -65,7 +65,7 @@ const SavingMode = () => {
       );
 
       Alert.alert("Success", response.data.message);
-      navigation.goBack();
+      // navigation.goBack();
     } catch (error: any) {
       console.error("Error updating savings mode:", error);
       Alert.alert(
@@ -80,7 +80,7 @@ const SavingMode = () => {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+      <StatusBar barStyle="light-content" backgroundColor="#000000ff" />
       <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
         {/* Top Bar */}
         <View style={styles.topBar}>
@@ -88,28 +88,57 @@ const SavingMode = () => {
             onPress={() => navigation.goBack()}
             style={styles.backButton}
           >
-            <Icon name="arrow-back" size={24} color="#000" />
+            <Icon name="arrow-back" size={24} color="#fff" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Saving Mode</Text>
+          <Text style={styles.headerTitle}>Savings Mode</Text>
+          <View style={{ width: 24 }} />
         </View>
 
         {loading ? (
           <View
             style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
           >
-            <ActivityIndicator size="large" color="#4CAF50" />
+            <ActivityIndicator size="large" color="#FFD700" />
             <Text style={{ marginTop: 10 }}>Updating mode...</Text>
           </View>
         ) : (
           <ScrollView contentContainerStyle={styles.content}>
             {/* Instructions */}
+            <View style={styles.iconContainer}>
+              <Icon
+                name="tune"
+                size={60}
+                color="#040a04ff"
+                style={styles.ecoIcon}
+              />
+            </View>
+            <Text style={styles.chooseMode}>Choose Your Savings Mode</Text>
             <Text style={styles.instructions}>
-              Choose how strict the system should be when suggesting
-              energy-saving recommendations.
+              Choose how helpful HomeSense should be, stricter modes help you
+              save more, while relaxed modes keep things comfy
             </Text>
-
+            <Text style={styles.modeTitle}>Modes:</Text>
             {/* Options */}
-            {["Low", "Medium", "High"].map((mode) => (
+            {[
+              {
+                mode: "High",
+                icon: "bolt",
+                color: "#F44336",
+                desc: "Strict mode — frequent and detailed tips for small increases in usage.",
+              },
+              {
+                mode: "Medium",
+                icon: "tune",
+                color: "#FFC107",
+                desc: "Balanced mode — helpful tips when usage rises noticeably.",
+              },
+              {
+                mode: "Low",
+                icon: "eco",
+                color: "#4CAF50",
+                desc: "Relaxed mode — suggests changes only for big or unusual spikes.",
+              },
+            ].map(({ mode, icon, color, desc }) => (
               <TouchableOpacity
                 key={mode}
                 style={[
@@ -118,7 +147,16 @@ const SavingMode = () => {
                 ]}
                 onPress={() => handleSelectMode(mode)}
               >
-                <Text style={styles.optionText}>{mode}</Text>
+                <View style={styles.optionRow}>
+                  <View style={styles.optionIconContainer}>
+                    <Icon name={icon} size={36} color={color} />
+                  </View>
+
+                  <View style={styles.textContainer}>
+                    <Text style={styles.optionTitle}>{mode} Mode</Text>
+                    <Text style={styles.optionDesc}>{desc}</Text>
+                  </View>
+                </View>
               </TouchableOpacity>
             ))}
           </ScrollView>

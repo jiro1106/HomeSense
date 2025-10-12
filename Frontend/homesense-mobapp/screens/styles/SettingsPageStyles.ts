@@ -10,6 +10,7 @@ export const styles = StyleSheet.create({
     backgroundColor: "#fff",
   },
   topBar: {
+    backgroundColor: "#000000ff",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between", // keeps text centered
@@ -22,7 +23,7 @@ export const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#000",
+    color: "#FFD700",
     textAlign: "center",
     flex: 1,
   },

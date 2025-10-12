@@ -60,11 +60,11 @@ const AccountSecurityPage = () => {
         // Get user data from AsyncStorage
         const userData = await AsyncStorage.getItem("userData");
         console.log("Stored userData:", userData);
-        
+
         if (userData) {
           const user = JSON.parse(userData);
           console.log("Parsed user object:", user);
-          
+
           // Check if we have email and username directly in the stored data
           if (user.email && user.username) {
             // If login endpoint returns user data directly
@@ -82,7 +82,10 @@ const AccountSecurityPage = () => {
               await fetchUserProfile(storedEmail);
             } else {
               console.log("No email available to fetch profile");
-              Alert.alert("Error", "Please log in again to refresh your session");
+              Alert.alert(
+                "Error",
+                "Please log in again to refresh your session"
+              );
               navigation.goBack();
             }
           }
@@ -102,9 +105,11 @@ const AccountSecurityPage = () => {
     const fetchUserProfile = async (userEmail: string) => {
       try {
         console.log("Fetching profile for email:", userEmail);
-        const response = await api.get(`/user/profile?email=${encodeURIComponent(userEmail)}`);
+        const response = await api.get(
+          `/user/profile?email=${encodeURIComponent(userEmail)}`
+        );
         console.log("Profile API Response:", response.data);
-        
+
         if (response.data) {
           setUsername(response.data.username || "");
           setOriginalUsername(response.data.username || "");
@@ -156,7 +161,10 @@ const AccountSecurityPage = () => {
         }
 
         if (!currentPassword) {
-          Alert.alert("Error", "Please enter your current password to change password.");
+          Alert.alert(
+            "Error",
+            "Please enter your current password to change password."
+          );
           return;
         }
 
@@ -175,9 +183,12 @@ const AccountSecurityPage = () => {
 
       console.log("Sending update payload:", updatePayload);
       console.log("Using email:", email);
-      
+
       // Make API call to update profile
-      const response = await api.put(`/user/profile?email=${encodeURIComponent(email)}`, updatePayload);
+      const response = await api.put(
+        `/user/profile?email=${encodeURIComponent(email)}`,
+        updatePayload
+      );
       console.log("Update response:", response.data);
 
       if (response.status === 200) {
@@ -188,7 +199,7 @@ const AccountSecurityPage = () => {
           const updatedUser = {
             ...user,
             username: username.trim(),
-            email: email // Ensure email is included
+            email: email, // Ensure email is included
           };
           await AsyncStorage.setItem("userData", JSON.stringify(updatedUser));
         }
@@ -204,7 +215,7 @@ const AccountSecurityPage = () => {
           setTimeout(() => setPasswordSuccessMsg(""), 4000);
           Alert.alert("Success", "Password changed successfully.");
         }
-        
+
         if (isEditingUsername) {
           setIsEditingUsername(false);
           setOriginalUsername(username);
@@ -216,7 +227,7 @@ const AccountSecurityPage = () => {
     } catch (error: any) {
       console.log("Update error:", error);
       console.log("Error response:", error.response?.data);
-      
+
       if (error.response?.status === 401) {
         Alert.alert("Error", "Current password is incorrect");
       } else if (error.response?.status === 400) {
@@ -264,18 +275,23 @@ const AccountSecurityPage = () => {
   if (isLoading) {
     return (
       <View style={styles.container}>
-        <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+        <StatusBar barStyle="light-content" backgroundColor="#000000ff" />
         <SafeAreaView style={styles.safeArea}>
           <View style={styles.topBar}>
             <TouchableOpacity
               onPress={() => navigation.goBack()}
               style={styles.backButton}
             >
-              <Icon name="arrow-back" size={24} color="#000" />
+              <Icon name="arrow-back" size={24} color="#fcfcfcff" />
             </TouchableOpacity>
             <Text style={styles.topBarTitle}>Account & Security</Text>
           </View>
-          <View style={[styles.form, { justifyContent: 'center', alignItems: 'center' }]}>
+          <View
+            style={[
+              styles.form,
+              { justifyContent: "center", alignItems: "center" },
+            ]}
+          >
             <Text>Loading user data...</Text>
           </View>
         </SafeAreaView>
@@ -285,7 +301,7 @@ const AccountSecurityPage = () => {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+      <StatusBar barStyle="light-content" backgroundColor="#000000ff" />
       <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
         <KeyboardAvoidingView
           style={{ flex: 1 }}
@@ -302,9 +318,10 @@ const AccountSecurityPage = () => {
                 onPress={() => navigation.goBack()}
                 style={styles.backButton}
               >
-                <Icon name="arrow-back" size={24} color="#000" />
+                <Icon name="arrow-back" size={24} color="#ffffffff" />
               </TouchableOpacity>
               <Text style={styles.topBarTitle}>Account & Security</Text>
+              <View style={{ width: 24 }} />
             </View>
 
             {/* Form */}
@@ -447,7 +464,7 @@ const AccountSecurityPage = () => {
                       />
                     </TouchableOpacity>
                   </View>
-                  
+
                   <View style={{ marginTop: 2, padding: 5 }}>
                     {passwordRules.map((rule, index) => (
                       <Text
@@ -470,7 +487,7 @@ const AccountSecurityPage = () => {
                       </Text>
                     ))}
                   </View>
-                  
+
                   <TouchableOpacity
                     style={styles.cancelButton}
                     onPress={handleCancelChangePassword}

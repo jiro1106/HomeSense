@@ -66,7 +66,8 @@ export const styles = StyleSheet.create({
   },
   usageContainer: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: 25,
   },
   usageCard: {
@@ -81,8 +82,9 @@ export const styles = StyleSheet.create({
     marginBottom: 8,
   },
   usageValue: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: "bold",
+    textAlign: "center",
     color: "#000",
     marginBottom: 4,
   },
@@ -192,35 +194,34 @@ export const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 4,
   },
-   noDataContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
+  noDataContainer: {
+    alignItems: "center",
+    justifyContent: "center",
     padding: 20,
-    backgroundColor: '#f8f8f8',
+    backgroundColor: "#f8f8f8",
     borderRadius: 8,
     marginVertical: 10,
   },
-  
+
   noDataText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#666',
+    fontWeight: "600",
+    color: "#666",
     marginTop: 8,
-    textAlign: 'center',
+    textAlign: "center",
   },
-  
+
   noDataSubText: {
     fontSize: 14,
-    color: '#999',
+    color: "#999",
     marginTop: 4,
-    textAlign: 'center',
+    textAlign: "center",
   },
-  
+
   loadingText: {
     fontSize: 14,
-    color: '#666',
+    color: "#666",
     marginTop: 8,
-    textAlign: 'center',
+    textAlign: "center",
   },
-  
 });

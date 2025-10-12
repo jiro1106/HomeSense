@@ -74,48 +74,55 @@ const MainMenu = () => {
   // =========================
   // Fetch monthly consumption for all devices
   // =========================
-  const fetchMonthlyConsumptionForDevices = useCallback(async (devices: any[]): Promise<TopDevice[]> => {
-    const deviceConsumptions: TopDevice[] = [];
+  const fetchMonthlyConsumptionForDevices = useCallback(
+    async (devices: any[]): Promise<TopDevice[]> => {
+      const deviceConsumptions: TopDevice[] = [];
 
-    try {
-      // Fetch consumption for each device in parallel
-      const consumptionPromises = devices.map(async (device) => {
-        try {
-          const response = await api.get(`/energy/monthly/recent/${device.device_id}`);
-          const consumptionData = response.data;
-          
-          return {
-            device_id: device.device_id,
-            device_name: device.device_id,
-            appliance_name: device.appliance_name || device.device_id,
-            appliance_type: device.appliance_type || "Unknown",
-            total_kwh: consumptionData.total_kwh || 0,
-          };
-        } catch (error) {
-          console.error(`Error fetching consumption for ${device.device_id}:`, error);
-          return {
-            device_id: device.device_id,
-            device_name: device.device_id,
-            appliance_name: device.appliance_name || device.device_id,
-            appliance_type: device.appliance_type || "Unknown",
-            total_kwh: 0,
-          };
-        }
-      });
+      try {
+        // Fetch consumption for each device in parallel
+        const consumptionPromises = devices.map(async (device) => {
+          try {
+            const response = await api.get(
+              `/energy/monthly/recent/${device.device_id}`
+            );
+            const consumptionData = response.data;
 
-      const results = await Promise.all(consumptionPromises);
-      
-      // Filter out devices with 0 consumption and sort by consumption (descending)
-      return results
-        .filter(device => device.total_kwh > 0)
-        .sort((a, b) => b.total_kwh - a.total_kwh)
-        .slice(0, 3); // Get top 3 devices
+            return {
+              device_id: device.device_id,
+              device_name: device.device_id,
+              appliance_name: device.appliance_name || device.device_id,
+              appliance_type: device.appliance_type || "Unknown",
+              total_kwh: consumptionData.total_kwh || 0,
+            };
+          } catch (error) {
+            console.error(
+              `Error fetching consumption for ${device.device_id}:`,
+              error
+            );
+            return {
+              device_id: device.device_id,
+              device_name: device.device_id,
+              appliance_name: device.appliance_name || device.device_id,
+              appliance_type: device.appliance_type || "Unknown",
+              total_kwh: 0,
+            };
+          }
+        });
 
-    } catch (error) {
-      console.error("Error fetching device consumptions:", error);
-      return [];
-    }
-  }, []);
+        const results = await Promise.all(consumptionPromises);
+
+        // Filter out devices with 0 consumption and sort by consumption (descending)
+        return results
+          .filter((device) => device.total_kwh > 0)
+          .sort((a, b) => b.total_kwh - a.total_kwh)
+          .slice(0, 3); // Get top 3 devices
+      } catch (error) {
+        console.error("Error fetching device consumptions:", error);
+        return [];
+      }
+    },
+    []
+  );
 
   // =========================
   // Fetch top energy consuming devices
@@ -126,7 +133,7 @@ const MainMenu = () => {
 
       // First, get registered appliances
       const registeredAppliances = await fetchRegisteredAppliances();
-      
+
       if (registeredAppliances.length === 0) {
         setHasRegisteredAppliances(false);
         setTopDevices([]);
@@ -136,9 +143,10 @@ const MainMenu = () => {
       setHasRegisteredAppliances(true);
 
       // Then fetch consumption data for all registered appliances
-      const topDevicesData = await fetchMonthlyConsumptionForDevices(registeredAppliances);
+      const topDevicesData = await fetchMonthlyConsumptionForDevices(
+        registeredAppliances
+      );
       setTopDevices(topDevicesData);
-
     } catch (error) {
       console.error("Error fetching top energy devices:", error);
       setTopDevices([]);
@@ -182,8 +190,7 @@ const MainMenu = () => {
       // ✅ monthly → get last item from data array
       if (Array.isArray(monthRes.data?.data) && monthRes.data.data.length > 0) {
         const lastMonth =
-          monthRes.data.data[monthRes.data.data.length - 1]
-            .monthly_total_kwh;
+          monthRes.data.data[monthRes.data.data.length - 1].monthly_total_kwh;
         setMonthUsage(safeFormat(lastMonth));
       } else {
         setMonthUsage("0.00 kWh");
@@ -204,10 +211,7 @@ const MainMenu = () => {
   const refreshAllData = useCallback(async () => {
     try {
       setRefreshing(true);
-      await Promise.all([
-        fetchUsageSummary(),
-        fetchTopEnergyDevices(),
-      ]);
+      await Promise.all([fetchUsageSummary(), fetchTopEnergyDevices()]);
     } catch (error) {
       console.error("Error refreshing data:", error);
     } finally {
@@ -267,26 +271,36 @@ const MainMenu = () => {
     // Get rank-based color
     const getRankColor = (rank: number): string => {
       switch (rank) {
-        case 1: return "#FFD700"; // Gold for 1st
-        case 2: return "#C0C0C0"; // Silver for 2nd
-        case 3: return "#CD7F32"; // Bronze for 3rd
-        default: return "#666666";
+        case 1:
+          return "#FFD700"; // Gold for 1st
+        case 2:
+          return "#C0C0C0"; // Silver for 2nd
+        case 3:
+          return "#CD7F32"; // Bronze for 3rd
+        default:
+          return "#666666";
       }
     };
 
     // Get rank icon
     const getRankIcon = (rank: number): string => {
       switch (rank) {
-        case 1: return "emoji-events"; // Trophy icon for 1st
-        case 2: return "military-tech"; // Medal icon for 2nd
-        case 3: return "workspace-premium"; // Premium icon for 3rd
-        default: return "power"; // Default power icon
+        case 1:
+          return "emoji-events"; // Trophy icon for 1st
+        case 2:
+          return "military-tech"; // Medal icon for 2nd
+        case 3:
+          return "workspace-premium"; // Premium icon for 3rd
+        default:
+          return "power"; // Default power icon
       }
     };
 
     return (
       <View style={styles.deviceItem}>
-        <View style={[styles.deviceIcon, { backgroundColor: getRankColor(rank) }]}>
+        <View
+          style={[styles.deviceIcon, { backgroundColor: getRankColor(rank) }]}
+        >
           <Icon name={getRankIcon(rank)} size={20} color="#fff" />
         </View>
         <Text style={styles.deviceName}>{name}</Text>
@@ -372,7 +386,9 @@ const MainMenu = () => {
         <Text style={styles.billLabel}>Monthly Bill</Text>
       </View>
 
-      <Text style={styles.sectionLabel}>Top Energy Consuming Devices for the Month</Text>
+      <Text style={styles.sectionLabel}>
+        Top Energy Consuming Devices for the Month
+      </Text>
       <TopDevicesSection />
 
       <Text style={styles.sectionLabel}>Energy Saving Recommendation</Text>

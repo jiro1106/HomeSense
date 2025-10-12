@@ -45,7 +45,7 @@ const ElectricityProvider = () => {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+      <StatusBar barStyle="light-content" backgroundColor="#000000ff" />
       <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
         {/* Top Bar */}
         <View style={styles.topBar}>
@@ -53,9 +53,10 @@ const ElectricityProvider = () => {
             onPress={() => navigation.goBack()}
             style={styles.backButton}
           >
-            <Icon name="arrow-back" size={24} color="#000" />
+            <Icon name="arrow-back" size={24} color="#ffffffff" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Electricity Provider</Text>
+          <View style={{ width: 24 }} />
         </View>
 
         <ScrollView contentContainerStyle={styles.content}>
