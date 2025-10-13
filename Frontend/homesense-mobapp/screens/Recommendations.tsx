@@ -19,7 +19,7 @@ import api from "../utils/api";
 const getApplianceIcon = (type?: string) => {
   switch (type?.toLowerCase()) {
     case "electric fan":
-      return { name: "toys", color: "#00BCD4", bg: "#E0F7FA" };
+      return { name: "air", color: "#00BCD4", bg: "#E0F7FA" };
     case "air conditioner":
       return { name: "ac-unit", color: "#03A9F4", bg: "#E1F5FE" };
     case "refrigerator":
@@ -28,14 +28,6 @@ const getApplianceIcon = (type?: string) => {
       return { name: "local-laundry-service", color: "#9C27B0", bg: "#F3E5F5" };
     case "television":
       return { name: "tv", color: "#FF9800", bg: "#FFF3E0" };
-    case "microwave":
-      return { name: "microwave", color: "#E91E63", bg: "#FCE4EC" };
-    case "rice cooker":
-      return { name: "rice", color: "#E91E63", bg: "#FCE4EC" };
-    case "electric stove":
-      return { name: "stove", color: "#E91E63", bg: "#FCE4EC" };
-    case "printer":
-      return { name: "printer", color: "#FF5722", bg: "#FBE9E7" };
     case "computer":
       return { name: "desktop-classic", color: "#795548", bg: "#EFEBE9" };
     case "router/wifi":
@@ -57,14 +49,6 @@ const getApplianceCardColor = (type?: string) => {
       return "#F3E5F5"; // purple
     case "television":
       return "#FFF3E0"; // orange
-    case "microwave":
-      return "#FCE4EC"; // pink
-    case "rice cooker":
-      return "#FBE9E7"; // red-orange
-    case "electric stove":
-      return "#EFEBE9"; // brown
-    case "printer":
-      return "#EFEBE9"; // brown
     case "computer":
       return "#F1F8E9"; // light green
     case "router/wifi":

@@ -147,7 +147,11 @@ const SettingsPage = () => {
             title="Saving Mode"
             onPress={() => navigation.navigate("SavingMode")}
           />
-
+          <SettingsItem
+            icon="menu-book"
+            title="Instructions"
+            onPress={() => navigation.navigate("InstructionPage")}
+          />
           {/* Notifications */}
           <SettingsItem
             id="notifications-switch"
