@@ -42,10 +42,7 @@ def generate_recommendations(appliances, mode):
         "Refrigerator": 0.5,
         "Washing Machine": 0.4,
         "Television": 0.2,
-        "Microwave": 0.3,
-        "Toaster": 0.1,
-        "Coffee Maker": 0.2,
-        "Blender": 0.1,
+        "Computer": 0.4,
         "Router/WiFi": 0.1,
         "Other": 1.0
     }
@@ -86,6 +83,11 @@ def generate_recommendations(appliances, mode):
             "high": "Consider turning off your router when not in use or overnight.",
             "medium": "Limit connected devices during peak hours.",
             "low": "Keep firmware updated to maintain efficiency."
+        },
+        "Computer": {  # 🆕 Added
+            "high": "Shut down or sleep your computer when not in use for long periods.",
+            "medium": "Reduce screen brightness and close unused applications.",
+            "low": "Enable power-saving mode or sleep after inactivity."
         },
         "Other": {  # ✅ fallback
             "high": "Turn off when not in use and unplug idle devices.",
