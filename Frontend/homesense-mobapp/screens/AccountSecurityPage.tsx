@@ -302,221 +302,214 @@ const AccountSecurityPage = () => {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#000000ff" />
-      <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
-        <KeyboardAvoidingView
-          style={{ flex: 1 }}
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
+      <SafeAreaView style={styles.safeArea} edges={["top"]}></SafeAreaView>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
+        <ScrollView
+          contentContainerStyle={{ flexGrow: 1, paddingBottom: 40 }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
-          <ScrollView
-            contentContainerStyle={{ flexGrow: 1, paddingBottom: 40 }}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-          >
-            {/* Top Bar */}
-            <View style={styles.topBar}>
-              <TouchableOpacity
-                onPress={() => navigation.goBack()}
-                style={styles.backButton}
-              >
-                <Icon name="arrow-back" size={24} color="#ffffffff" />
-              </TouchableOpacity>
-              <Text style={styles.topBarTitle}>Account & Security</Text>
-              <View style={{ width: 24 }} />
-            </View>
+          {/* Top Bar */}
+          <View style={styles.topBar}>
+            <TouchableOpacity
+              onPress={() => navigation.goBack()}
+              style={styles.backButton}
+            >
+              <Icon name="arrow-back" size={24} color="#ffffffff" />
+            </TouchableOpacity>
+            <Text style={styles.topBarTitle}>Account & Security</Text>
+            <View style={{ width: 24 }} />
+          </View>
 
-            {/* Form */}
-            <View style={styles.form}>
-              {/* Username */}
-              <Text style={styles.label}>Username</Text>
-              <View style={styles.rowInput}>
-                <TextInput
-                  style={[
-                    styles.input,
-                    { flex: 1 },
-                    !isEditingUsername && styles.disabledInput,
-                  ]}
-                  value={username}
-                  onChangeText={setUsername}
-                  editable={isEditingUsername}
-                  placeholder={username ? "" : "No username set"}
-                />
-                {!isEditingUsername ? (
-                  <TouchableOpacity
-                    style={styles.editButton}
-                    onPress={handleEditUsername}
-                  >
-                    <Icon name="edit" size={22} color="#000" />
-                  </TouchableOpacity>
-                ) : (
-                  <TouchableOpacity
-                    style={styles.cancelButton2}
-                    onPress={handleCancelEditUsername}
-                  >
-                    <Text style={styles.cancelButtonText}>Cancel</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-              {usernameSuccessMsg ? (
-                <Text style={styles.successMessage}>{usernameSuccessMsg}</Text>
-              ) : null}
-
-              {/* Email */}
-              <Text style={styles.label}>Email</Text>
+          {/* Form */}
+          <View style={styles.form}>
+            {/* Username */}
+            <Text style={styles.label}>Username</Text>
+            <View style={styles.rowInput}>
               <TextInput
-                style={[styles.input, styles.disabledInput]}
-                value={email}
-                editable={false}
-                keyboardType="email-address"
-                placeholder={email ? "" : "No email available"}
+                style={[
+                  styles.input,
+                  { flex: 1 },
+                  !isEditingUsername && styles.disabledInput,
+                ]}
+                value={username}
+                onChangeText={setUsername}
+                editable={isEditingUsername}
+                placeholder={username ? "" : "No username set"}
               />
-
-              {/* Password */}
-              <Text style={styles.label}>Password</Text>
-              <TextInput
-                style={[styles.input, styles.disabledInput]}
-                value={password}
-                editable={false}
-                secureTextEntry
-                placeholder="********"
-              />
-
-              {!enableChangePass ? (
+              {!isEditingUsername ? (
                 <TouchableOpacity
-                  onPress={handleEnableChangePassword}
-                  style={styles.changePasswordTextButton}
+                  style={styles.editButton}
+                  onPress={handleEditUsername}
                 >
-                  <Text style={styles.changePasswordLink}>Change Password</Text>
+                  <Icon name="edit" size={22} color="#000" />
                 </TouchableOpacity>
               ) : (
-                <View style={{ marginTop: 15 }}>
-                  {/* Current Password */}
-                  <Text style={styles.label}>Current Password</Text>
-                  <View style={styles.passwordContainer}>
-                    <TextInput
-                      style={[styles.input, { flex: 1 }]}
-                      value={currentPassword}
-                      onChangeText={setCurrentPassword}
-                      secureTextEntry={!showNewPassword}
-                      placeholder="Enter current password"
-                    />
-                    <TouchableOpacity
-                      style={styles.eyeButton}
-                      onPress={() => setShowNewPassword(!showNewPassword)}
-                    >
-                      <Icon
-                        name={showNewPassword ? "visibility" : "visibility-off"}
-                        size={22}
-                        color="#666"
-                      />
-                    </TouchableOpacity>
-                  </View>
-
-                  <Text style={styles.label}>New Password</Text>
-                  <View style={styles.passwordContainer}>
-                    <TextInput
-                      style={[styles.input, { flex: 1 }]}
-                      value={newPassword}
-                      onChangeText={(text) => {
-                        setNewPassword(text);
-                        setPasswordRules(
-                          getPasswordRules(text, confirmPassword)
-                        );
-                      }}
-                      secureTextEntry={!showNewPassword}
-                      placeholder="Enter new password"
-                    />
-                    <TouchableOpacity
-                      style={styles.eyeButton}
-                      onPress={() => setShowNewPassword(!showNewPassword)}
-                    >
-                      <Icon
-                        name={showNewPassword ? "visibility" : "visibility-off"}
-                        size={22}
-                        color="#666"
-                      />
-                    </TouchableOpacity>
-                  </View>
-
-                  <Text style={styles.label}>Confirm Password</Text>
-                  <View style={styles.passwordContainer}>
-                    <TextInput
-                      style={[styles.input, { flex: 1 }]}
-                      value={confirmPassword}
-                      onChangeText={(text) => {
-                        setConfirmPassword(text);
-                        setPasswordRules(getPasswordRules(newPassword, text));
-                      }}
-                      secureTextEntry={!showConfirmPassword}
-                      placeholder="Confirm new password"
-                    />
-                    <TouchableOpacity
-                      style={styles.eyeButton}
-                      onPress={() =>
-                        setShowConfirmPassword(!showConfirmPassword)
-                      }
-                    >
-                      <Icon
-                        name={
-                          showConfirmPassword ? "visibility" : "visibility-off"
-                        }
-                        size={22}
-                        color="#666"
-                      />
-                    </TouchableOpacity>
-                  </View>
-
-                  <View style={{ marginTop: 2, padding: 5 }}>
-                    {passwordRules.map((rule, index) => (
-                      <Text
-                        key={index}
-                        style={{
-                          color: rule.valid ? "green" : "black",
-                          fontSize: 15,
-                          fontWeight: rule.valid ? "500" : "500",
-                          marginBottom: 8,
-                        }}
-                      >
-                        <Ionicons
-                          name={
-                            rule.valid ? "checkmark-circle" : "close-circle"
-                          }
-                          size={15}
-                          color={rule.valid ? "green" : "grey"}
-                        />
-                        {rule.valid ? "" : ""} {rule.label}
-                      </Text>
-                    ))}
-                  </View>
-
-                  <TouchableOpacity
-                    style={styles.cancelButton}
-                    onPress={handleCancelChangePassword}
-                  >
-                    <Text style={styles.cancelButtonText}>Cancel</Text>
-                  </TouchableOpacity>
-
-                  {passwordSuccessMsg ? (
-                    <Text style={styles.successMessage}>
-                      {passwordSuccessMsg}
-                    </Text>
-                  ) : null}
-                </View>
+                <TouchableOpacity
+                  style={styles.cancelButton2}
+                  onPress={handleCancelEditUsername}
+                >
+                  <Text style={styles.cancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
               )}
-
-              <TouchableOpacity
-                style={[
-                  styles.saveButton,
-                  { backgroundColor: isSaveEnabled ? "#000" : "#ccc" },
-                ]}
-                onPress={handleSave}
-                disabled={!isSaveEnabled}
-              >
-                <Text style={styles.saveButtonText}>Save Changes</Text>
-              </TouchableOpacity>
             </View>
-          </ScrollView>
-        </KeyboardAvoidingView>
-      </SafeAreaView>
+            {usernameSuccessMsg ? (
+              <Text style={styles.successMessage}>{usernameSuccessMsg}</Text>
+            ) : null}
+
+            {/* Email */}
+            <Text style={styles.label}>Email</Text>
+            <TextInput
+              style={[styles.input, styles.disabledInput]}
+              value={email}
+              editable={false}
+              keyboardType="email-address"
+              placeholder={email ? "" : "No email available"}
+            />
+
+            {/* Password */}
+            <Text style={styles.label}>Password</Text>
+            <TextInput
+              style={[styles.input, styles.disabledInput]}
+              value={password}
+              editable={false}
+              secureTextEntry
+              placeholder="********"
+            />
+
+            {!enableChangePass ? (
+              <TouchableOpacity
+                onPress={handleEnableChangePassword}
+                style={styles.changePasswordTextButton}
+              >
+                <Text style={styles.changePasswordLink}>Change Password</Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={{ marginTop: 15 }}>
+                {/* Current Password */}
+                <Text style={styles.label}>Current Password</Text>
+                <View style={styles.passwordContainer}>
+                  <TextInput
+                    style={[styles.input, { flex: 1 }]}
+                    value={currentPassword}
+                    onChangeText={setCurrentPassword}
+                    secureTextEntry={!showNewPassword}
+                    placeholder="Enter current password"
+                  />
+                  <TouchableOpacity
+                    style={styles.eyeButton}
+                    onPress={() => setShowNewPassword(!showNewPassword)}
+                  >
+                    <Icon
+                      name={showNewPassword ? "visibility" : "visibility-off"}
+                      size={22}
+                      color="#666"
+                    />
+                  </TouchableOpacity>
+                </View>
+
+                <Text style={styles.label}>New Password</Text>
+                <View style={styles.passwordContainer}>
+                  <TextInput
+                    style={[styles.input, { flex: 1 }]}
+                    value={newPassword}
+                    onChangeText={(text) => {
+                      setNewPassword(text);
+                      setPasswordRules(getPasswordRules(text, confirmPassword));
+                    }}
+                    secureTextEntry={!showNewPassword}
+                    placeholder="Enter new password"
+                  />
+                  <TouchableOpacity
+                    style={styles.eyeButton}
+                    onPress={() => setShowNewPassword(!showNewPassword)}
+                  >
+                    <Icon
+                      name={showNewPassword ? "visibility" : "visibility-off"}
+                      size={22}
+                      color="#666"
+                    />
+                  </TouchableOpacity>
+                </View>
+
+                <Text style={styles.label}>Confirm Password</Text>
+                <View style={styles.passwordContainer}>
+                  <TextInput
+                    style={[styles.input, { flex: 1 }]}
+                    value={confirmPassword}
+                    onChangeText={(text) => {
+                      setConfirmPassword(text);
+                      setPasswordRules(getPasswordRules(newPassword, text));
+                    }}
+                    secureTextEntry={!showConfirmPassword}
+                    placeholder="Confirm new password"
+                  />
+                  <TouchableOpacity
+                    style={styles.eyeButton}
+                    onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                  >
+                    <Icon
+                      name={
+                        showConfirmPassword ? "visibility" : "visibility-off"
+                      }
+                      size={22}
+                      color="#666"
+                    />
+                  </TouchableOpacity>
+                </View>
+
+                <View style={{ marginTop: 2, padding: 5 }}>
+                  {passwordRules.map((rule, index) => (
+                    <Text
+                      key={index}
+                      style={{
+                        color: rule.valid ? "green" : "black",
+                        fontSize: 15,
+                        fontWeight: rule.valid ? "500" : "500",
+                        marginBottom: 8,
+                      }}
+                    >
+                      <Ionicons
+                        name={rule.valid ? "checkmark-circle" : "close-circle"}
+                        size={15}
+                        color={rule.valid ? "green" : "grey"}
+                      />
+                      {rule.valid ? "" : ""} {rule.label}
+                    </Text>
+                  ))}
+                </View>
+
+                <TouchableOpacity
+                  style={styles.cancelButton}
+                  onPress={handleCancelChangePassword}
+                >
+                  <Text style={styles.cancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+
+                {passwordSuccessMsg ? (
+                  <Text style={styles.successMessage}>
+                    {passwordSuccessMsg}
+                  </Text>
+                ) : null}
+              </View>
+            )}
+
+            <TouchableOpacity
+              style={[
+                styles.saveButton,
+                { backgroundColor: isSaveEnabled ? "#000" : "#ccc" },
+              ]}
+              onPress={handleSave}
+              disabled={!isSaveEnabled}
+            >
+              <Text style={styles.saveButtonText}>Save Changes</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 };

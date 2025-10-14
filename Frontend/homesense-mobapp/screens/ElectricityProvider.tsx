@@ -46,7 +46,7 @@ const ElectricityProvider = () => {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#000000ff" />
-      <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
+      <SafeAreaView style={styles.safeArea} edges={["top"]}>
         {/* Top Bar */}
         <View style={styles.topBar}>
           <TouchableOpacity
@@ -58,52 +58,51 @@ const ElectricityProvider = () => {
           <Text style={styles.headerTitle}>Electricity Provider</Text>
           <View style={{ width: 24 }} />
         </View>
-
-        <ScrollView contentContainerStyle={styles.content}>
-          {/* Instruction */}
-          <Text style={styles.instructions}>
-            Please select your electricity provider. This will help the system
-            use the correct billing rates and data for more accurate monitoring
-            and recommendations.
-          </Text>
-
-          {/* BATELec Option */}
-          <TouchableOpacity
-            style={[
-              styles.optionButton,
-              selectedProvider === "BATELEC" && styles.selectedOption,
-            ]}
-            onPress={() => handleSelectProvider("BATELEC")}
-          >
-            <View style={styles.optionContent}>
-              <Image
-                source={require("../assets/batelec-logo.png")}
-                style={styles.logo}
-                resizeMode="contain"
-              />
-              <Text style={styles.optionText}>BATELEC</Text>
-            </View>
-          </TouchableOpacity>
-
-          {/* MERALCO Option */}
-          <TouchableOpacity
-            style={[
-              styles.optionButton,
-              selectedProvider === "MERALCO" && styles.selectedOption,
-            ]}
-            onPress={() => handleSelectProvider("MERALCO")}
-          >
-            <View style={styles.optionContent}>
-              <Image
-                source={require("../assets/meralco-logo.png")}
-                style={styles.logo}
-                resizeMode="contain"
-              />
-              <Text style={styles.optionText}>MERALCO</Text>
-            </View>
-          </TouchableOpacity>
-        </ScrollView>
       </SafeAreaView>
+      <ScrollView contentContainerStyle={styles.content}>
+        {/* Instruction */}
+        <Text style={styles.instructions}>
+          Please select your electricity provider. This will help the system use
+          the correct billing rates and data for more accurate monitoring and
+          recommendations.
+        </Text>
+
+        {/* BATELec Option */}
+        <TouchableOpacity
+          style={[
+            styles.optionButton,
+            selectedProvider === "BATELEC" && styles.selectedOption,
+          ]}
+          onPress={() => handleSelectProvider("BATELEC")}
+        >
+          <View style={styles.optionContent}>
+            <Image
+              source={require("../assets/batelec-logo.png")}
+              style={styles.logo}
+              resizeMode="contain"
+            />
+            <Text style={styles.optionText}>BATELEC</Text>
+          </View>
+        </TouchableOpacity>
+
+        {/* MERALCO Option */}
+        <TouchableOpacity
+          style={[
+            styles.optionButton,
+            selectedProvider === "MERALCO" && styles.selectedOption,
+          ]}
+          onPress={() => handleSelectProvider("MERALCO")}
+        >
+          <View style={styles.optionContent}>
+            <Image
+              source={require("../assets/meralco-logo.png")}
+              style={styles.logo}
+              resizeMode="contain"
+            />
+            <Text style={styles.optionText}>MERALCO</Text>
+          </View>
+        </TouchableOpacity>
+      </ScrollView>
     </View>
   );
 };

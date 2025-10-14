@@ -114,7 +114,7 @@ const SettingsPage = () => {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#000000ff" />
-      <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
+      <SafeAreaView style={styles.safeArea} edges={["top"]}>
         {/* Top Bar */}
         <View style={styles.topBar}>
           <TouchableOpacity
@@ -127,49 +127,48 @@ const SettingsPage = () => {
           {/* placeholder for right side to balance flex */}
           <View style={{ width: 24 }} />
         </View>
-
-        {/* Settings Content */}
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-          <Text style={styles.sectionTitle}>Account</Text>
-
-          <SettingsItem
-            icon="security"
-            title="Account & Security"
-            onPress={() => navigation.navigate("AccountSecurityPage")}
-          />
-          <SettingsItem
-            icon="flash-on"
-            title="Electricity Provider"
-            onPress={() => navigation.navigate("ElectricityProvider")}
-          />
-          <SettingsItem
-            icon="eco"
-            title="Saving Mode"
-            onPress={() => navigation.navigate("SavingMode")}
-          />
-          <SettingsItem
-            icon="menu-book"
-            title="Instructions"
-            onPress={() => navigation.navigate("InstructionPage")}
-          />
-          {/* Notifications */}
-          <SettingsItem
-            id="notifications-switch"
-            icon="notifications"
-            title="Notifications"
-            showToggle={true}
-            toggleValue={notificationsEnabled}
-            onToggle={handleNotificationsToggle}
-          />
-        </ScrollView>
-
-        {/* Bottom Logout Button */}
-        <View style={styles.bottomContainer}>
-          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-            <Text style={styles.logoutButtonText}>Logout</Text>
-          </TouchableOpacity>
-        </View>
       </SafeAreaView>
+      {/* Settings Content */}
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        <Text style={styles.sectionTitle}>Account</Text>
+
+        <SettingsItem
+          icon="security"
+          title="Account & Security"
+          onPress={() => navigation.navigate("AccountSecurityPage")}
+        />
+        <SettingsItem
+          icon="flash-on"
+          title="Electricity Provider"
+          onPress={() => navigation.navigate("ElectricityProvider")}
+        />
+        <SettingsItem
+          icon="eco"
+          title="Saving Mode"
+          onPress={() => navigation.navigate("SavingMode")}
+        />
+        <SettingsItem
+          icon="menu-book"
+          title="Instructions"
+          onPress={() => navigation.navigate("InstructionPage")}
+        />
+        {/* Notifications */}
+        <SettingsItem
+          id="notifications-switch"
+          icon="notifications"
+          title="Notifications"
+          showToggle={true}
+          toggleValue={notificationsEnabled}
+          onToggle={handleNotificationsToggle}
+        />
+      </ScrollView>
+
+      {/* Bottom Logout Button */}
+      <View style={styles.bottomContainer}>
+        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+          <Text style={styles.logoutButtonText}>Logout</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 };

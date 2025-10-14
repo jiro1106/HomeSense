@@ -22,6 +22,7 @@ import Recommendations from "./Recommendations";
 import Bills from "./Bills";
 import ConsumptionPage from "./ConsumptionPage";
 import api from "../utils/api";
+import RecoSummary from "./RecoSummary";
 
 type MainMenuNavProp = NativeStackNavigationProp<
   RootStackParamList,
@@ -366,6 +367,7 @@ const MainMenu = () => {
   const renderHomeContent = () => (
     <ScrollView
       style={styles.content}
+      contentContainerStyle={{ paddingBottom: 150 }}
       showsVerticalScrollIndicator={false}
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
@@ -391,13 +393,8 @@ const MainMenu = () => {
       </Text>
       <TopDevicesSection />
 
-      <Text style={styles.sectionLabel}>Energy Saving Recommendation</Text>
-      <View style={styles.recommendationCard}>
-        <Icon name="eco" size={32} color="#4CAF50" />
-        <Text style={styles.recommendationText}>
-          Consider using energy-efficient appliances to reduce your electricity
-          consumption
-        </Text>
+      <View>
+        <RecoSummary />
       </View>
     </ScrollView>
   );

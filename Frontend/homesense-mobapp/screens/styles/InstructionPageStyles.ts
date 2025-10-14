@@ -6,7 +6,8 @@ export default StyleSheet.create({
     backgroundColor: "#fff",
   },
   safeArea: {
-    flex: 1,
+    // flex: 1,
+    backgroundColor: "#000000ff",
   },
   topBar: {
     flexDirection: "row",
@@ -37,20 +38,10 @@ export default StyleSheet.create({
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 10,
+    marginVertical: 10,
     backgroundColor: "#000000ff",
     padding: 20,
     borderRadius: 16,
-  },
-  titleIcon: {
-    // width: 50,
-    // height: 50,
-    // borderRadius: 25,
-    // justifyContent: "center",
-    // alignItems: "center",
-    // paddingVertical: 10,
-    // paddingHorizontal: 11,
-    // backgroundColor: "#0000006d",
   },
   contentTitle: {
     textAlign: "center",
@@ -120,10 +111,9 @@ export default StyleSheet.create({
   },
   footer: {
     alignItems: "center",
-    marginTop: 20,
   },
   doneTitle: {
-    fontSize: 18,
+    fontSize: 25,
     fontWeight: "700",
     color: "#2E7D32",
     marginTop: 6,

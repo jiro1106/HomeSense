@@ -6,7 +6,7 @@ export default StyleSheet.create({
     backgroundColor: "#fff",
   },
   safeArea: {
-    flex: 1,
+    backgroundColor: "#000000ff",
   },
   topBar: {
     backgroundColor: "#000000ff",
