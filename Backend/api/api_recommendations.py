@@ -49,52 +49,53 @@ def generate_recommendations(appliances, mode):
 
     # Context-aware tips per appliance type
     appliance_tips = {
-        "Air Conditioner": {
-            "high": "Set AC to 24 °C and limit usage during 6–10 PM peak hours.",
-            "medium": "Reduce AC runtime by 15–20% or use fan + AC combo.",
-            "low": "Run AC in 'eco' or 'sleep' mode if available."
-        },
-        "Refrigerator": {
-            "high": "Defrost regularly and avoid overpacking.",
-            "medium": "Check gasket and clean coils to reduce energy usage.",
-            "low": "Don't overload — leave room for air circulation."
-        },
-        "Electric Fan": {
-            "high": "Turn off when not in use.",
-            "medium": "Use fan + AC combo for efficiency.",
-            "low": "Turn off when idle."
-        },
-        "Washing Machine": {
-            "high": "Run full loads and avoid peak hours.",
-            "medium": "Use eco cycle and skip small loads.",
-            "low": "Run only when necessary."
-        },
-        "Television": {
-            "high": "Turn off when not watching; reduce brightness.",
-            "medium": "Enable sleep mode or auto turn-off.",
-            "low": "Turn off instead of standby."
-        },
-        "Microwave": {
-            "high": "Use only when needed and unplug when idle.",
-            "medium": "Avoid reheating multiple times — plan cooking efficiently.",
-            "low": "Unplug when not in use to prevent standby power draw."
-        },
-        "Router/WiFi": {  # 🆕 Added
-            "high": "Consider turning off your router when not in use or overnight.",
-            "medium": "Limit connected devices during peak hours.",
-            "low": "Keep firmware updated to maintain efficiency."
-        },
-        "Computer": {  # 🆕 Added
-            "high": "Shut down or sleep your computer when not in use for long periods.",
-            "medium": "Reduce screen brightness and close unused applications.",
-            "low": "Enable power-saving mode or sleep after inactivity."
-        },
-        "Other": {  # ✅ fallback
-            "high": "Turn off when not in use and unplug idle devices.",
-            "medium": "Avoid unnecessary standby power usage.",
-            "low": "Use only when necessary to reduce energy waste."
+    "Air Conditioner": {
+        "high": "Try setting your AC to around 24 °C and limit use during 6–10 PM peak hours.",
+        "medium": "Use a fan together with your AC to cool faster and save energy.",
+        "low": "Great job! Your AC usage is already efficient, keep it up!"
+    },
+    "Refrigerator": {
+        "high": "Defrost regularly and avoid overpacking to help cooling efficiency.",
+        "medium": "Check the door seal and clean coils to reduce power use.",
+        "low": "Your fridge is running efficiently, maintain good spacing and temperature settings!"
+    },
+    "Electric Fan": {
+        "high": "Turn off the fan when not in use to save energy.",
+        "medium": "Use your fan with an AC for faster cooling and shorter AC time.",
+        "low": "Good job managing your fan usage efficiently."
+    },
+    "Washing Machine": {
+        "high": "Run full loads and avoid using it during peak hours.",
+        "medium": "Use the eco cycle and avoid washing small loads frequently.",
+        "low": "Efficient washing habits detected, great work!"
+    },
+    "Television": {
+        "high": "Turn off when not watching and lower brightness to save power.",
+        "medium": "Enable sleep mode or auto power-off when idle.",
+        "low": "Nice! Your TV power usage is already efficient."
+    },
+    "Microwave": {
+        "high": "Use only when needed and unplug when idle to save power.",
+        "medium": "Avoid reheating multiple times, plan cooking efficiently.",
+        "low": "Your microwave usage looks efficient, keep it up!"
+    },
+    "Router/WiFi": {
+        "high": "Turn off your router when not in use or overnight to save energy.",
+        "medium": "Limit the number of connected devices during peak hours.",
+        "low": "Your router’s energy usage is already optimized, great job!"
+    },
+    "Computer": {
+        "high": "Shut down or sleep your computer when not in use for long periods.",
+        "medium": "Try reducing screen brightness and close unused applications.",
+        "low": "Your computer power habits are efficient, keep doing what you’re doing!"
+    },
+    "Other": {
+        "high": "Turn off and unplug devices when not in use.",
+        "medium": "Avoid leaving devices on standby for long periods.",
+        "low": "Energy use looks efficient for this device, nice work!"
     }
-    }
+}
+
 
     # Sort appliances by total kWh (highest impact first)
     appliances = sorted(appliances, key=lambda x: x.get("total_kwh", 0), reverse=True)
@@ -114,18 +115,18 @@ def generate_recommendations(appliances, mode):
         # Multi-level threshold logic
         if kwh > high_thr:
             app_recs.append(
-                f"{a_type} in {location} is consuming a lot ({kwh:.1f} kWh)! Major savings recommended."
+                f"Your {a_type} in {location} is using a high amount of energy ({kwh:.1f} kWh). Try to limit its use or switch it off when not needed."
             )
         elif kwh > low_thr:
             app_recs.append(
-                f"{a_type} in {location} is slightly above threshold ({kwh:.1f} kWh). Consider reducing usage slightly."
+                 f"Your {a_type} in {location} is using slightly more energy than expected ({kwh:.1f} kWh). Try to shorten its usage time a bit to save more."
             )
         elif kwh == 0:
             app_recs.append(
-                f"Unplug idle appliances like {a_type} in {location} to avoid standby drain."
+                 f"Your {a_type} in {location} is using slightly more energy than expected ({kwh:.1f} kWh). Try to shorten its usage time a bit to save more."
             )
         else:
-            app_recs.append(f"Your {a_type} in {location} is below the threshold ({kwh:.1f} kWh). Great job managing energy efficiently!"
+            app_recs.append(f"Good job! Your {a_type} in {location} is running efficiently ({kwh:.1f} kWh). Great job on your energy-saving habits!"
             )
 
         # Add context-aware appliance-specific tips
@@ -238,7 +239,7 @@ def get_recommendations(household_id: str, device_id: str = Query(None, descript
         summary_msg = f"You're doing great! {below_threshold} out of {total_appliances} appliances are within efficient usage levels.🌱"
         status="good"
     elif efficiency_score >= 50:
-        summary_msg = f"Moderate efficiency. {below_threshold} of {total_appliances} appliances are below threshold — room for improvement.⚖️"
+        summary_msg = f"Moderate efficiency. {below_threshold} of {total_appliances} appliances are below threshold, there is room for improvement.⚖️"
         status="moderate"
     else:
         summary_msg = f"Energy usage is " + "HIGH" + f". Only {below_threshold} of {total_appliances} appliances are within efficient range. ⚠️"
