@@ -23,12 +23,11 @@ export const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   usageCard: {
-    marginTop: 20,
+    marginVertical: 20,
     borderRadius: 12,
     padding: 16,
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 20,
   },
   usageTextContainer: {
     flexDirection: "column",
@@ -63,6 +62,27 @@ export const styles = StyleSheet.create({
     marginTop: 15,
   },
 
+  comparisonContainer: {
+    flexDirection: "column",
+    borderRadius: 12,
+    padding: 16,
+    alignItems: "flex-start",
+    justifyContent: "center",
+    marginBottom: 20,
+    backgroundColor: "#bf8282ff",
+  },
+  reportText: {
+    textAlign: "left",
+    fontWeight: "bold",
+    marginBottom: 5,
+    fontSize: 18,
+  },
+  comparisonTitle: {
+    color: "red",
+  },
+  comparisonText: {
+    color: "green",
+  },
   filterButtonContainer: {
     flexDirection: "row",
     justifyContent: "flex-start",
@@ -75,7 +95,7 @@ export const styles = StyleSheet.create({
     backgroundColor: "#ffd90021",
     // borderWidth: 1.5,
     // borderColor: "#000000ff",
-    padding: 16,
+    padding: 15,
     marginVertical: 10,
     borderRadius: 18,
   },

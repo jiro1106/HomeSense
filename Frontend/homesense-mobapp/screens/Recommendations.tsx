@@ -15,6 +15,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { RootStackParamList } from "../App";
 import { styles } from "./styles/RecoStyles";
 import api from "../utils/api";
+import EnergyAnalysis from "./EnergyAnalysis";
 
 const getApplianceIcon = (type?: string) => {
   switch (type?.toLowerCase()) {
@@ -137,6 +138,18 @@ const Recommendations = () => {
   const [performanceSummary, setPerformanceSummary] =
     useState<PerformanceSummary | null>(null);
 
+  // 🆕 Weekly and Monthly Comparison States
+  const [weeklyComparison, setWeeklyComparison] = useState<{
+    current: number;
+    previous: number;
+    diffPercent: number;
+  } | null>(null);
+  const [monthlyComparison, setMonthlyComparison] = useState<{
+    current: number;
+    previous: number;
+    diffPercent: number;
+  } | null>(null);
+
   // =============================
   // Fetch recommendations from API
   // =============================
@@ -187,6 +200,49 @@ const Recommendations = () => {
         } else {
           setPerformanceSummary(null);
         }
+        // 🆕 Fetch weekly and monthly totals
+        const [weeklyRes, monthlyRes] = await Promise.all([
+          api.get(`/energy/weekly/total?limit=2`),
+          api.get(`/energy/monthly/total?limit=2`),
+        ]);
+
+        const weeklyData = weeklyRes.data;
+        const monthlyData = monthlyRes.data;
+
+        console.log("📊 Weekly data:", weeklyRes.data);
+        console.log("📅 Monthly data:", monthlyRes.data);
+
+        if (weeklyData.data?.length === 2) {
+          const [prev, curr] = weeklyData.data;
+          console.log("📆 Previous Week kWh:", prev.weekly_total_kwh);
+          console.log("⚡ Current Week kWh:", curr.weekly_total_kwh);
+
+          const diffPercent =
+            ((curr.weekly_total_kwh - prev.weekly_total_kwh) /
+              prev.weekly_total_kwh) *
+            100;
+
+          setWeeklyComparison({
+            current: curr.weekly_total_kwh,
+            previous: prev.weekly_total_kwh,
+            diffPercent,
+          });
+        }
+        if (monthlyData.data?.length === 2) {
+          const [prev, curr] = monthlyData.data;
+          console.log("📆 Previous Month kWh:", prev.monthly_total_kwh);
+          console.log("⚡ Current Month kWh:", curr.monthly_total_kwh);
+
+          const diffPercent =
+            ((curr.monthly_total_kwh - prev.monthly_total_kwh) /
+              prev.monthly_total_kwh) *
+            100;
+          setMonthlyComparison({
+            current: curr.monthly_total_kwh,
+            previous: prev.monthly_total_kwh,
+            diffPercent,
+          });
+        }
       } catch (err: any) {
         console.error("❌ Error fetching recommendations:", err);
         if (err.response?.data?.detail) {
@@ -222,6 +278,15 @@ const Recommendations = () => {
         return "#FFFFFF"; // fallback
     }
   };
+
+  const formatChange = (diffPercent: number, period: string) => {
+    const rounded = Math.abs(diffPercent).toFixed(1);
+    if (diffPercent < 0) {
+      return `You saved ${rounded}% compared to last ${period} 🔋`;
+    } else {
+      return `You used ${rounded}% more energy ⚡ than last ${period}`;
+    }
+  };
   // =============================
   // Render
   // =============================
@@ -251,7 +316,7 @@ const Recommendations = () => {
             style={{
               textAlign: "center",
               color: "#000000ff",
-              marginBottom: 10,
+              marginTop: 5,
             }}
           >
             Savings Mode:{" "}
@@ -311,13 +376,22 @@ const Recommendations = () => {
               )}
             </View>
           </View>
+          {/* 🆕 Weekly & Monthly Comparison Section */}
+          <View style={{ marginTop: 20 }}>
+            <Text style={styles.reportText}>Energy Consumption Analysis</Text>
+            <EnergyAnalysis
+              weeklyComparison={weeklyComparison}
+              monthlyComparison={monthlyComparison}
+            />
+          </View>
 
           <Text
             style={{
-              fontWeight: "500",
-              color: "#999",
-              fontSize: 20,
-              marginVertical: 10,
+              fontWeight: "bold",
+              color: "#000000ff",
+              fontSize: 18,
+              marginVertical: 20,
+              textAlign: "left",
             }}
           >
             Strategies
@@ -356,7 +430,7 @@ const Recommendations = () => {
                 <Text
                   style={{
                     color: selectedFilter === filter.value ? "#000" : "#000",
-                    fontWeight: "700",
+                    fontWeight: "600",
                     fontSize: 14,
                   }}
                 >
