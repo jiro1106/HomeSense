@@ -47,7 +47,7 @@ export const styles = StyleSheet.create({
     marginTop: 2,
     fontSize: 18,
     fontWeight: "600",
-    color: "#2b8011ff",
+    color: "#53e725e7",
   },
   usageNote: {
     fontWeight: "600",
