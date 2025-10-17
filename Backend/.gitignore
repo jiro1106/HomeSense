@@ -14,6 +14,7 @@ env/
 # Environment variables
 *.env
 secrets.env
+secrets2.env
 
 # IDE / Editor stuff
 .vscode/
