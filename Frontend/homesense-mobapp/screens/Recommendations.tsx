@@ -244,7 +244,7 @@ const Recommendations = () => {
           });
         }
       } catch (err: any) {
-        console.error("❌ Error fetching recommendations:", err);
+        console.log("❌ Error fetching recommendations:", err);
         if (err.response?.data?.detail) {
           setError(err.response.data.detail);
         } else {

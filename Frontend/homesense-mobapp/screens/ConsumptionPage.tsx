@@ -48,6 +48,10 @@ interface ApplianceData {
   timestamp?: string;
 }
 
+interface TotalEntry {
+  label: string;
+  usage: string;
+}
 const screenWidth = Dimensions.get("window").width;
 
 const ConsumptionPage = () => {
@@ -66,7 +70,9 @@ const ConsumptionPage = () => {
   const [sortDropdownVisible, setSortDropdownVisible] = useState(false);
 
   // Filter
-  const [filterType, setFilterType] = useState<"all" | "individual">("all");
+  const [filterType, setFilterType] = useState<
+    "all" | "individual" | "household"
+  >("all");
   const [selectedAppliance, setSelectedAppliance] = useState<Appliance | null>(
     null
   );
@@ -79,9 +85,10 @@ const ConsumptionPage = () => {
   const [dailyStatus, setDailyStatus] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [totalsData, setTotalsData] = useState<TotalEntry[]>([]);
   const [selectedDataPoint, setSelectedDataPoint] = useState<{
     time: string;
-    location: string;
+    location?: string;
     usage: string;
     name: string;
     week_start?: string;
@@ -160,6 +167,14 @@ const ConsumptionPage = () => {
         } else if (selectedRange === "Monthly") {
           endpoint = "/energy/monthly/total?limit=1";
         }
+      } else if (filterType === "household") {
+        if (selectedRange === "Daily") {
+          endpoint = "/energy/daily/total";
+        } else if (selectedRange === "Weekly") {
+          endpoint = "/energy/weekly/total?limit=1";
+        } else if (selectedRange === "Monthly") {
+          endpoint = "/energy/monthly/total?limit=1";
+        }
       } else if (selectedAppliance) {
         // Total for individual appliance
         if (selectedRange === "Daily") {
@@ -170,7 +185,6 @@ const ConsumptionPage = () => {
           endpoint = `/energy/monthly/${selectedAppliance.device_id}?limit=1`;
         }
       }
-
       if (endpoint) {
         const res = await api.get(endpoint);
         console.log("Total Usage Response:", res.data); // Debug log
@@ -178,6 +192,33 @@ const ConsumptionPage = () => {
         // Parse response based on endpoint type
         let total = 0;
         if (filterType === "all") {
+          if (selectedRange === "Daily") {
+            // Response: { total_kwh: number, ... }
+            total =
+              typeof res.data.total_kwh === "number"
+                ? res.data.total_kwh
+                : parseFloat(res.data.total_kwh) || 0;
+          } else if (selectedRange === "Weekly") {
+            // Response: { data: [{ week_start, week_end, weekly_total_kwh }] }
+            const data = res.data.data || [];
+            if (data.length > 0) {
+              total =
+                typeof data[0].weekly_total_kwh === "number"
+                  ? data[0].weekly_total_kwh
+                  : parseFloat(data[0].weekly_total_kwh) || 0;
+            }
+          } else if (selectedRange === "Monthly") {
+            // Response: { data: [{ month, monthly_total_kwh }] }
+            const data = res.data.data || [];
+            if (data.length > 0) {
+              total =
+                typeof data[0].monthly_total_kwh === "number"
+                  ? data[0].monthly_total_kwh
+                  : parseFloat(data[0].monthly_total_kwh) || 0;
+            }
+          }
+        } else if (filterType === "household") {
+          setSelectedAppliance(null);
           if (selectedRange === "Daily") {
             // Response: { total_kwh: number, ... }
             total =
@@ -242,6 +283,38 @@ const ConsumptionPage = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
+      // 🏠 If user selected "Household"
+      if (filterType === "household") {
+        let endpoint = "";
+        if (selectedRange === "Daily") endpoint = "/energy/daily/total";
+        else if (selectedRange === "Weekly")
+          endpoint = "/energy/weekly/total?limit=4";
+        else if (selectedRange === "Monthly")
+          endpoint = "/energy/monthly/total";
+
+        const res = await api.get(endpoint);
+        const dataArr =
+          res.data.data || (Array.isArray(res.data) ? res.data : [res.data]);
+
+        const formatted = dataArr.map((d: any) => ({
+          label:
+            d.date ||
+            (d.week_start && d.week_end
+              ? `${d.week_start} - ${d.week_end}`
+              : d.month || "N/A"),
+          usage: d.total_kwh
+            ? `${d.total_kwh.toFixed(3)} kWh`
+            : d.weekly_total_kwh
+            ? `${d.weekly_total_kwh.toFixed(3)} kWh`
+            : d.monthly_total_kwh
+            ? `${d.monthly_total_kwh.toFixed(3)} kWh`
+            : "0 kWh",
+        }));
+
+        setTotalsData(formatted.reverse()); // newest last for better trend reading
+        setLoading(false);
+        return;
+      }
       const applianceList =
         filterType === "all"
           ? registeredAppliances
@@ -400,16 +473,29 @@ const ConsumptionPage = () => {
 
   // Chart data and handlers
   const handleChartItemPress = (index: number) => {
-    if (appliances[index]) {
+    if (filterType === "household") {
+      const total = totalsData[index];
+      if (total) {
+        setSelectedDataPoint({
+          time: total.label, // use label for household
+          usage: total.usage,
+          name: "Household Total",
+          location: "n/a", // optional, can show "Total" or leave blank
+          // Remove appliance-specific fields like location, week_start, etc.
+        });
+      }
+    } else {
       const appliance = appliances[index];
-      setSelectedDataPoint({
-        time: appliance.time,
-        location: appliance.location,
-        usage: appliance.usage,
-        name: appliance.name,
-        week_start: appliance.week_start,
-        week_end: appliance.week_end,
-      });
+      if (appliance) {
+        setSelectedDataPoint({
+          time: appliance.time,
+          location: appliance.location,
+          usage: appliance.usage,
+          name: appliance.name,
+          week_start: appliance.week_start,
+          week_end: appliance.week_end,
+        });
+      }
     }
   };
 
@@ -420,40 +506,67 @@ const ConsumptionPage = () => {
 
   // Prepare chart data with proper handling for zero values
   const getChartData = () => {
-    // Ensure we always have valid numeric values, default to 0 if invalid
-    const usageData = appliances.map((item) => {
-      const usageValue = parseFloat(item.usage.replace(" kWh", ""));
-      const safeValue = isNaN(usageValue) ? 0 : usageValue;
-      return parseFloat(safeValue.toFixed(2));
-    });
+    let usageData: number[] = [];
+    let labels: string[] = [];
 
-    const labels = appliances.map((item) =>
-      filterType === "all"
-        ? item.name.length > 8
-          ? item.name.slice(0, 8) + "…"
-          : item.name
-        : selectedRange === "Weekly" && item.week_start
-        ? item.time.split(" to ")[0] // Show only start date for chart labels to avoid clutter
-        : item.time
-    );
+    if (filterType === "household") {
+      // 🏠 Household total logic using totalsData
+      usageData = totalsData.map((item) => {
+        const value = parseFloat(item.usage.replace(" kWh", ""));
+        return isNaN(value) ? 0 : parseFloat(value.toFixed(2));
+      });
 
-    // If no data, create a default chart with zero values
-    if (appliances.length === 0) {
-      if (filterType === "all") {
-        return {
-          labels: ["No Data"],
-          datasets: [{ data: [0] }],
-        };
-      } else {
-        return {
-          labels: ["No Data"],
-          datasets: [{ data: [0] }],
-        };
+      labels = totalsData.map((item) => {
+        if (selectedRange === "Weekly") {
+          const parts = item.label.split(" - "); // split start and end
+          if (parts.length === 2) {
+            const start = new Date(parts[0]);
+            const end = new Date(parts[1]);
+            if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
+              // Format as MM/DD–DD
+              const startStr = `${start.getMonth() + 1}/${start.getDate()}`;
+              const endStr = `${end.getDate()}`; // only day for end
+              return `${startStr}–${endStr}`;
+            }
+          }
+        }
+        // Fallback for daily/monthly or invalid format
+        return item.label;
+      });
+
+      // Handle case when totalsData is empty
+      if (totalsData.length === 0) {
+        usageData = [0];
+        labels = ["No Data"];
+      }
+    } else {
+      // 🔹 Keep your original appliances logic for non-household filters
+      usageData = appliances.map((item) => {
+        const usageValue = parseFloat(item.usage.replace(" kWh", ""));
+        const safeValue = isNaN(usageValue) ? 0 : usageValue;
+        return parseFloat(safeValue.toFixed(2));
+      });
+
+      labels = appliances.map((item) =>
+        filterType === "all"
+          ? item.name.length > 8
+            ? item.name.slice(0, 8) + "…"
+            : item.name
+          : selectedRange === "Weekly" && item.week_start
+          ? item.time.split(" to ")[0]
+          : item.time
+      );
+
+      // Handle case when appliances is empty
+      if (appliances.length === 0) {
+        usageData = [0];
+        labels = ["No Data"];
       }
     }
-
+    console.log("Chart Labels:", labels);
+    console.log("Chart Usage:", usageData);
     return {
-      labels: labels,
+      labels,
       datasets: [{ data: usageData }],
     };
   };
@@ -554,67 +667,72 @@ const ConsumptionPage = () => {
               return (
                 <View>
                   {chartData.datasets[0].data.map((value, index) => {
-                    if (appliances[index]) {
-                      // Calculate x position for the dot
-                      const xPosition =
-                        (index * (screenWidth - 250)) /
-                          (chartData.labels.length - 1) +
-                        97;
+                    // Use the right source based on filterType
+                    const sourceItem =
+                      filterType === "household"
+                        ? totalsData[index]
+                        : appliances[index];
 
-                      // Calculate y position for the dot (inverted because chart coordinates start from top)
-                      const maxDataValue = Math.max(
-                        ...chartData.datasets[0].data
-                      );
-                      const chartHeight = 250; // Approximate chart drawing area height
-                      const paddingTop = 50; // Approximate top padding of chart
+                    if (!sourceItem) return null;
 
-                      let yPosition;
-                      if (maxDataValue === 0) {
-                        yPosition = paddingTop + chartHeight - 10; // Bottom of chart for zero values
-                      } else {
-                        yPosition =
-                          paddingTop +
-                          chartHeight -
-                          (value * chartHeight) / maxDataValue;
-                      }
+                    // Calculate x position for the dot
+                    const xPosition =
+                      (index * (screenWidth - 250)) /
+                        (chartData.labels.length - 1) +
+                      97;
 
-                      // Adjust y position for label placement (above the dot)
-                      const labelYPosition = yPosition - 63;
+                    // Calculate y position for the dot (inverted because chart coordinates start from top)
+                    const maxDataValue = Math.max(
+                      ...chartData.datasets[0].data
+                    );
+                    const chartHeight = 250;
+                    const paddingTop = 50;
 
-                      // Get the full usage value from the original data
-                      const fullUsage = appliances[index].usage;
+                    let yPosition;
+                    if (maxDataValue === 0) {
+                      yPosition = paddingTop + chartHeight - 10; // Bottom of chart for zero values
+                    } else {
+                      yPosition =
+                        paddingTop +
+                        chartHeight -
+                        (value * chartHeight) / maxDataValue;
+                    }
 
-                      return (
-                        <View
-                          key={index}
+                    // Adjust y position for label placement (above the dot)
+                    const labelYPosition = yPosition - 63;
+
+                    // Get the usage string from the correct data source
+                    const fullUsage = sourceItem.usage;
+
+                    return (
+                      <View
+                        key={index}
+                        style={{
+                          position: "absolute",
+                          left: xPosition - 25,
+                          top: labelYPosition,
+                          backgroundColor: "rgba(0, 0, 0, 0.8)",
+                          paddingHorizontal: 6,
+                          paddingVertical: 3,
+                          borderRadius: 4,
+                          minWidth: 50,
+                          alignItems: "center",
+                          zIndex: 1000,
+                        }}
+                      >
+                        <Text
                           style={{
-                            position: "absolute",
-                            left: xPosition - 25,
-                            top: labelYPosition,
-                            backgroundColor: "rgba(0, 0, 0, 0.8)",
-                            paddingHorizontal: 6,
-                            paddingVertical: 3,
-                            borderRadius: 4,
-                            minWidth: 50,
-                            alignItems: "center",
-                            zIndex: 1000,
+                            color: "white",
+                            fontSize: 10,
+                            fontWeight: "bold",
                           }}
                         >
-                          <Text
-                            style={{
-                              color: "white",
-                              fontSize: 10,
-                              fontWeight: "bold",
-                            }}
-                          >
-                            {`${parseFloat(
-                              fullUsage.replace(" kWh", "")
-                            ).toFixed(2)} kWh`}
-                          </Text>
-                        </View>
-                      );
-                    }
-                    return null;
+                          {`${parseFloat(fullUsage.replace(" kWh", "")).toFixed(
+                            2
+                          )} kWh`}
+                        </Text>
+                      </View>
+                    );
                   })}
                 </View>
               );
@@ -666,13 +784,16 @@ const ConsumptionPage = () => {
               <Text style={styles.dropdownText}>{selectedRange}</Text>
               <Icon name="arrow-drop-down" size={22} color="#000" />
             </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.sortButton}
-              onPress={() => setSortDropdownVisible(true)}
-            >
-              <Icon name="swap-vert" size={17} color="#000" />
-              <Text style={styles.sortButtonText}>Sort</Text>
-            </TouchableOpacity>
+            {/* Only show Sort button if filter is NOT household */}
+            {filterType !== "household" && (
+              <TouchableOpacity
+                style={styles.sortButton}
+                onPress={() => setSortDropdownVisible(true)}
+              >
+                <Icon name="swap-vert" size={17} color="#000" />
+                <Text style={styles.sortButtonText}>Sort</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
 
@@ -808,6 +929,17 @@ const ConsumptionPage = () => {
                 Show Individual Appliance
               </Text>
             </TouchableOpacity>
+            <TouchableOpacity
+              style={{ padding: 12 }}
+              onPress={() => {
+                setFilterType("household");
+                setFilterVisible(false);
+              }}
+            >
+              <Text style={{ fontSize: 16, color: "#000" }}>
+                Show Household Total
+              </Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -916,6 +1048,18 @@ const ConsumptionPage = () => {
           >
             All Appliances
           </Text>
+        ) : filterType === "household" ? (
+          // 🏠 Case 2: Household — no dropdown
+          <Text
+            style={{
+              fontSize: 16,
+              fontWeight: "bold",
+              marginBottom: 8,
+              color: "#000",
+            }}
+          >
+            Household Total
+          </Text>
         ) : (
           <View style={{ marginBottom: 8 }}>
             <TouchableOpacity
@@ -992,6 +1136,58 @@ const ConsumptionPage = () => {
               color="#000"
               style={{ marginTop: 20 }}
             />
+          ) : filterType === "household" ? (
+            <>
+              {/* 🏠 Household Total Table */}
+              <View
+                style={[
+                  styles.tableHeader,
+                  { borderBottomWidth: 1, borderBottomColor: "#ddd" },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.tableCell,
+                    styles.tableHeaderText,
+                    styles.tableCellBorder,
+                  ]}
+                >
+                  {selectedRange === "Weekly"
+                    ? "Week Range"
+                    : selectedRange === "Monthly"
+                    ? "Month"
+                    : "Date"}
+                </Text>
+                <Text style={[styles.tableCell, styles.tableHeaderText]}>
+                  Total Usage
+                </Text>
+              </View>
+
+              {totalsData.map((item, index) => {
+                return (
+                  <View
+                    key={index}
+                    style={[
+                      styles.tableRow,
+                      { borderBottomWidth: 1, borderBottomColor: "#eee" },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.tableCell,
+                        styles.tableCellBorder,
+                        { fontSize: 12 },
+                      ]}
+                    >
+                      {item.label}
+                    </Text>
+                    <Text style={[styles.tableCell, styles.tableCellBorder]}>
+                      {item.usage}
+                    </Text>
+                  </View>
+                );
+              })}
+            </>
           ) : (
             <>
               {/* Table with grid lines */}

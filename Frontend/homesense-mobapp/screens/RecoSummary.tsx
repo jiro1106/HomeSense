@@ -51,7 +51,7 @@ const RecoSummary = () => {
         }
         setSavingsMode(data.savings_mode || "");
       } catch (error) {
-        console.error("⚠️ Error fetching energy summary:", error);
+        console.log("⚠️ Error fetching energy summary (handled):", error);
       } finally {
         setLoading(false);
       }
