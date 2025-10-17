@@ -141,3 +141,106 @@
 .users-table tr:hover td {
   background-color: #f5f5f5;
 }
+
+/* =============== ADMIN ANALYTICS CARDS =============== */
+.analytics-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  justify-content: center;
+  margin-top: 30px;
+}
+
+.analytics-card {
+  background-color: #ffffff;
+  border-radius: 15px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  padding: 25px;
+  text-align: center;
+  width: 220px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.analytics-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+}
+
+.analytics-icon {
+  font-size: 35px;
+  margin-bottom: 10px;
+}
+
+.user-icon {
+  color: #007bff;
+}
+
+.device-icon {
+  color: #28a745;
+}
+
+.energy-icon {
+  color: #ffc107;
+}
+
+.avg-icon {
+  color: #17a2b8;
+}
+
+.analytics-card h3 {
+  font-size: 18px;
+  margin-bottom: 8px;
+  color: #333;
+}
+
+.analytics-card p {
+  font-size: 22px;
+  font-weight: bold;
+  color: #222;
+}
+
+/* Preview Tables Below Cards */
+.preview-table {
+  margin-top: 20px;
+  background: #fff;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  animation: fadeIn 0.3s ease;
+}
+
+.preview-table h2 {
+  margin-bottom: 12px;
+  color: #333;
+}
+
+.preview-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.preview-table th,
+.preview-table td {
+  border: 1px solid #ddd;
+  padding: 10px;
+  text-align: left;
+}
+
+.preview-table th {
+  background-color: #f5f5f5;
+}
+
+.preview-table tr:nth-child(even) {
+  background-color: #fafafa;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

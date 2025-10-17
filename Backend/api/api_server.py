@@ -1,6 +1,6 @@
 # api/api_server.py
 
-from fastapi import FastAPI, HTTPException, Query, Depends, Path
+from fastapi import FastAPI, HTTPException, Query, Depends, Path, APIRouter
 from pydantic import BaseModel
 from pymongo import MongoClient, errors
 from dotenv import load_dotenv
@@ -10,6 +10,7 @@ import datetime
 from typing import List
 from fastapi.middleware.cors import CORSMiddleware
 from api import api_recommendations
+from bson import ObjectId
 
 
 # ========================
@@ -330,6 +331,89 @@ def delete_user(email: str = Path(..., description="Email of the user to delete"
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
+
+
+# ========================
+# ADMIN ANALYTICS ENDPOINTS
+# ========================
+@app.get("/admin/analytics")
+def get_admin_analytics():
+    """Admin analytics summary with user/device/energy stats"""
+    try:
+        users = db["users"]
+        appliances = db["appliances"]
+        daily_totals = db["daily_totals"]
+
+        total_users = users.count_documents({})
+        total_devices = appliances.count_documents({})
+
+        # ✅ Sum total kWh from daily_totals collection
+        total_energy_pipeline = [
+            {"$group": {"_id": None, "total_kwh": {"$sum": "$total_kwh"}}}
+        ]
+        total_energy_result = list(daily_totals.aggregate(total_energy_pipeline))
+
+        total_energy = (
+            total_energy_result[0]["total_kwh"] if total_energy_result else 0
+        )
+
+        # ✅ Compute average kWh per user
+        avg_kwh_per_user = (
+            round(total_energy / total_users, 4) if total_users > 0 else 0
+        )
+
+        return {
+            "total_users": total_users,
+            "total_devices": total_devices,
+            "total_energy_kwh": round(total_energy, 4),
+            "average_kwh_per_user": avg_kwh_per_user,
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/admin/devices")
+def get_all_devices():
+    """
+    Admin: Fetch all devices from current_totals.
+    Includes device_name, device_id, appliance_name, household_id, and status.
+    """
+    try:
+        collection = db["current_totals"]
+
+        # Group by device_id to avoid duplicates if multiple entries exist
+        devices = list(collection.aggregate([
+            {
+                "$group": {
+                    "_id": "$device_id",
+                    "device_name": {"$first": "$device_name"},
+                    "appliance_name": {"$first": "$appliance_name"},
+                    "household_id": {"$first": "$household_id"},
+                    "status": {"$first": "$status"},
+                }
+            },
+            {
+                "$project": {
+                    "_id": 0,
+                    "device_id": "$_id",
+                    "device_name": 1,
+                    "appliance_name": 1,
+                    "household_id": 1,
+                    "status": 1,
+                }
+            }
+        ]))
+
+        print(f"DEBUG: Found {len(devices)} devices in current_totals")
+
+        return {
+            "devices": devices,
+            "total_devices": len(devices)
+        }
+
+    except Exception as e:
+        print(f"ERROR in /admin/devices: {e}")
+        raise HTTPException(status_code=500, detail=f"Error fetching devices: {str(e)}")
 
 # ========================
 # USER PROFILE ENDPOINTS
