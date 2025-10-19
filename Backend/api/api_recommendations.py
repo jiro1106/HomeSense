@@ -150,19 +150,23 @@ def generate_recommendations(appliances, mode):
 # ==========================
 @router.put("/household/{household_id}/mode")
 def set_savings_mode(household_id: str, mode: str):
-    from api.api_server import get_household_id
-
-    household_id = get_household_id()
 
     if mode not in ["low", "medium", "high"]:
         raise HTTPException(status_code=400, detail="Invalid mode. Choose from low, medium, or high.")
 
-    households_collection.update_one(
+    result = households_collection.update_one(
         {"household_id": household_id},
         {"$set": {"savings_mode": mode}},
         upsert=True
     )
-    return {"message": f"Savings mode set to {mode.upper()} for this household."}
+    if result.matched_count == 0:
+        return {
+            "message": f"Household not found. Created new entry with mode {mode.upper()}."
+        }
+
+    return {
+        "message": f"Savings mode set to {mode.upper()} for household {household_id}."
+    }
 
 
 @router.get("/recommendations/{household_id}")

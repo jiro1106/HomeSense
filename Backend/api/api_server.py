@@ -11,6 +11,7 @@ from typing import List
 from fastapi.middleware.cors import CORSMiddleware
 from api import api_recommendations
 from bson import ObjectId
+from typing import Optional
 
 
 # ========================
@@ -25,11 +26,6 @@ if not MONGO_URI:
 
 client = MongoClient(MONGO_URI)
 db = client["homesense_db"]
-
-# Load household from env
-HOUSEHOLD_ID = os.getenv("HOUSEHOLD_ID")
-if not HOUSEHOLD_ID:
-    raise RuntimeError("HOUSEHOLD_ID not set in secrets.env")
 
 app = FastAPI(title="HomeSense API", version="1.0")
 app.include_router(api_recommendations.router, prefix="/energy", tags=["Recommendations"])
@@ -147,9 +143,6 @@ def validate_device(household_id: str, device_id: str) -> str:
         raise HTTPException(status_code=404, detail=f"Device '{device_id}' not found")
     return device_id
 
-def get_household_id() -> str:
-    return HOUSEHOLD_ID
-
 def get_registered_device_ids(household_id: str):
     appliances = db["appliances"].find({"household_id": household_id, "registered": True}, {"device_id": 1})
     return [a["device_id"] for a in appliances]
@@ -176,6 +169,7 @@ class RegisterRequest(BaseModel):
     email: str
     password: str  # plain (will be hashed)
     username: str 
+    household_id: Optional[str] = None
 
 class LoginRequest(BaseModel):
     email: str
@@ -192,17 +186,17 @@ def register_user(req: RegisterRequest):
         # Normalize email
         email = req.email.strip().lower()
 
-        # Reject emails containing uppercase (before lowering) or emojis
+        # Reject uppercase or emojis
         import re
         emoji_regex = re.compile(
-            r"[\U0001F600-\U0001F64F]|"  # emoticons
-            r"[\U0001F300-\U0001F5FF]|"  # symbols & pictographs
-            r"[\U0001F680-\U0001F6FF]|"  # transport & map
-            r"[\U0001F1E0-\U0001F1FF]|"  # flags
-            r"[\U0001F900-\U0001F9FF]|"  # supplemental symbols & pictographs
-            r"[\U0001FA70-\U0001FAFF]|"  # symbols & pictographs extended-A
-            r"[\U00002702-\U000027B0]|"  # dingbats
-            r"[\U000024C2-\U0001F251]",  # enclosed characters
+            r"[\U0001F600-\U0001F64F]|"
+            r"[\U0001F300-\U0001F5FF]|"
+            r"[\U0001F680-\U0001F6FF]|"
+            r"[\U0001F1E0-\U0001F1FF]|"
+            r"[\U0001F900-\U0001F9FF]|"
+            r"[\U0001FA70-\U0001FAFF]|"
+            r"[\U00002702-\U000027B0]|"
+            r"[\U000024C2-\U0001F251]",
             flags=re.UNICODE
         )
 
@@ -211,34 +205,49 @@ def register_user(req: RegisterRequest):
         if emoji_regex.search(req.email):
             raise HTTPException(status_code=400, detail="Email must not contain emojis.")
 
-        # Check duplicate
+        # Check duplicate email
         if users.find_one({"email": email}):
             raise HTTPException(status_code=400, detail="Email already registered!")
 
+        # Handle household assignment
+        if req.household_id:  # joining an existing household
+            existing_household = users.find_one({"household_id": req.household_id})
+            if not existing_household:
+                raise HTTPException(status_code=400, detail="Household ID does not exist.")
+            household_id = req.household_id
+        else:
+            # Generate a new household
+            all_households = users.distinct("household_id")
+            next_number = 1
+            while f"household{next_number}" in all_households:
+                next_number += 1
+            household_id = f"household{next_number}"
+
         # Hash password
         hashed_pw = bcrypt.hash(req.password)
-
         username = req.username.strip()
 
+        # Insert user
         users.insert_one({
             "email": email,
             "username": username,
             "password": hashed_pw,
-            "household_id": HOUSEHOLD_ID,  # always use env household_id
-            "last_logged_in": None,        # initially none
+            "household_id": household_id,
+            "last_logged_in": None,
         })
 
         return {
             "message": "User registered successfully",
-            "household_id": HOUSEHOLD_ID,
+            "household_id": household_id,
         }
 
     except HTTPException as e:
         raise e
     except errors.PyMongoError:
         raise HTTPException(status_code=500, detail="Database error")
-    except Exception:
-        raise HTTPException(status_code=500, detail="Unexpected server error")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Unexpected server error: {e}")
+
 
 
 @app.post("/auth/login")
@@ -254,13 +263,17 @@ def login_user(req: LoginRequest):
         if not user or not bcrypt.verify(req.password, user["password"]):
             raise HTTPException(status_code=401, detail="Invalid email or password")
 
+        # Fetch household_id dynamically from user record
+        household_id = user.get("household_id")
+        if not household_id:
+            raise HTTPException(status_code=400, detail="User does not have an assigned household_id")
         # Update last login (store tz-aware UTC in DB)
         now = datetime.datetime.now(UTC)
         users.update_one({"email": email}, {"$set": {"last_logged_in": now}})
 
         return {
             "message": "Login successful",
-            "household_id": HOUSEHOLD_ID,
+            "household_id": household_id,
             "last_logged_in": format_datetime(now),
             "email": user["email"],  
             "username": user["username"]  
@@ -506,7 +519,7 @@ class ApplianceUpdate(BaseModel):
 # APPLIANCE ENDPOINTS (CRUD)
 # ========================
 @app.post("/appliances")
-def register_appliance(appliance: ApplianceCreate, household_id: str = Depends(get_household_id)):
+def register_appliance(appliance: ApplianceCreate, household_id: str = Query(...)):
     """Register a new appliance for this household"""
     try:
         # Validate device exists in appliances collection
@@ -548,7 +561,7 @@ def register_appliance(appliance: ApplianceCreate, household_id: str = Depends(g
 
 
 @app.get("/appliances")
-def list_appliances(household_id: str = Depends(get_household_id)):
+def list_appliances(household_id: str = Query(...)):
     """List all appliances for this household"""
     try:
         appliances = db["appliances"]
@@ -559,7 +572,7 @@ def list_appliances(household_id: str = Depends(get_household_id)):
 
 
 @app.put("/appliances/{device_id}")
-def update_appliance(device_id: str, updates: ApplianceUpdate, household_id: str = Depends(get_household_id)):
+def update_appliance(device_id: str, updates: ApplianceUpdate, household_id: str = Query(...)):
     """Update appliance name/type for this household"""
     try:
         appliances = db["appliances"]
@@ -580,7 +593,7 @@ def update_appliance(device_id: str, updates: ApplianceUpdate, household_id: str
 
 
 @app.delete("/appliances/{device_id}")
-def delete_appliance(device_id: str, household_id: str = Depends(get_household_id)):
+def delete_appliance(device_id: str, household_id: str = Query(...)):
     """Delete appliance registration from this household"""
     try:
         appliances = db["appliances"]
@@ -605,7 +618,7 @@ def root():
 # DEVICES ENDPOINT
 # ========================
 @app.get("/devices/unregistered")
-def list_unregistered_devices(household_id: str = Depends(get_household_id)):
+def list_unregistered_devices(household_id: str = Query(...)):
     """Return all unregistered devices for this household (for registration dropdown)."""
     try:
         devices = list(db["appliances"].find(
@@ -633,7 +646,7 @@ def list_unregistered_devices(household_id: str = Depends(get_household_id)):
 # 1️⃣ Current plug status (scoped by household), must be REGISTERED
 # ========================
 @app.get("/devices/status/{device_name}")
-def get_device_status(device_name: str, household_id: str = Depends(get_household_id)):
+def get_device_status(device_name: str, household_id: str = Query(...)):
     device_id = validate_device(household_id, device_name)
     ensure_registered(device_id, household_id)  # ✅ must be registered
     try:
@@ -663,7 +676,7 @@ def get_device_status(device_name: str, household_id: str = Depends(get_househol
 # 2️⃣ Daily household total (scoped by household)
 # ========================
 @app.get("/energy/daily/total")
-def get_household_daily_total(date: str = None, household_id: str = Depends(get_household_id)):
+def get_household_daily_total(date: str = None, household_id: str = Query(...)):
     start, end = get_utc_range_for_date(date)
 
     try:
@@ -703,7 +716,7 @@ def get_household_daily_total(date: str = None, household_id: str = Depends(get_
 # 3️⃣ Daily total per plug (scoped by household)
 # ========================
 @app.get("/dev/energy/daily/{device_name}")
-def get_daily_total(device_name: str, date: str = None, household_id: str = Depends(get_household_id)):
+def get_daily_total(device_name: str, date: str = None, household_id: str = Query(...)):
     device_id = validate_device(household_id, device_name)
     start, end = get_utc_range_for_date(date)
     try:
@@ -728,7 +741,7 @@ def get_daily_total(device_name: str, date: str = None, household_id: str = Depe
 # 3️⃣ Daily total per plug (scoped by household), must be REGISTERED
 # ========================
 @app.get("/energy/daily/{device_name}")
-def get_daily_total(device_name: str, date: str = None, household_id: str = Depends(get_household_id)):
+def get_daily_total(device_name: str, date: str = None, household_id: str = Query(...)):
     device_id = validate_device(household_id,device_name)
     ensure_registered(device_id, household_id)
     start, end = get_utc_range_for_date(date)
@@ -755,7 +768,7 @@ def get_daily_total(device_name: str, date: str = None, household_id: str = Depe
 # 4️⃣ Dashboard summary (scoped by household)
 # ========================
 @app.get("/energy/summary")
-def get_energy_summary(household_id: str = Depends(get_household_id)):
+def get_energy_summary(household_id: str = Query(...)):
     """Return summary of all registered appliances in the household,
     including status, daily consumption, and last update time.
     """
@@ -810,7 +823,7 @@ def get_energy_summary(household_id: str = Depends(get_household_id)):
 # 5️⃣ Historical daily totals per plug (scoped by household)
 # ========================
 @app.get("/energy/history/range/{device_name}")
-def get_daily_history(device_name: str,start: str = Query(...),end: str = Query(...),household_id: str = Depends(get_household_id)):
+def get_daily_history(device_name: str,start: str = Query(...),end: str = Query(...),household_id: str = Query(...)):
     device_id = validate_device(household_id,device_name)
     ensure_registered(device_id, household_id)
     start_date = parse_date(start)
@@ -832,7 +845,7 @@ def get_daily_history(device_name: str,start: str = Query(...),end: str = Query(
 # 6️⃣ Historical household totals (scoped by household)
 # ========================
 @app.get("/energy/history/total_range")
-def get_household_history(start: str = Query(...),end: str = Query(...),household_id: str = Depends(get_household_id)):
+def get_household_history(start: str = Query(...),end: str = Query(...),household_id: str = Query(...)):
     start_date = parse_date(start)
     end_date = parse_date(end)
     try:
@@ -859,7 +872,7 @@ def get_household_history(start: str = Query(...),end: str = Query(...),househol
 # 7. Weekly household total (Mon–Sun) with optional limit
 # ========================
 @app.get("/energy/weekly/total")
-def get_weekly_total_household(limit: int = Query(None, ge=1), household_id: str = Depends(get_household_id)):
+def get_weekly_total_household(limit: int = Query(None, ge=1), household_id: str = Query(...)):
     registered_devices = get_registered_device_ids(household_id)
     if not registered_devices:
         return {"data": "No data available"}
@@ -901,7 +914,7 @@ def get_weekly_total_household(limit: int = Query(None, ge=1), household_id: str
 # 8. Weekly total per plug (Mon–Sun) with optional limit
 # ========================
 @app.get("/energy/weekly/{device_name}")
-def get_weekly_total(device_name: str, limit: int = Query(None, ge=1), household_id: str = Depends(get_household_id)):
+def get_weekly_total(device_name: str, limit: int = Query(None, ge=1), household_id: str = Query(...)):
     device_id = validate_device(household_id, device_name)
     ensure_registered(device_id, household_id)
     try:
@@ -941,7 +954,7 @@ def get_weekly_total(device_name: str, limit: int = Query(None, ge=1), household
 # 9. Monthly household total (calendar month) with optional limit
 # ========================
 @app.get("/energy/monthly/total")
-def get_monthly_total_household(limit: int = Query(None, ge=1), household_id: str = Depends(get_household_id)):
+def get_monthly_total_household(limit: int = Query(None, ge=1), household_id: str = Query(...)):
     registered_devices = get_registered_device_ids(household_id)
     if not registered_devices:
         return {"data": "No data available"}
@@ -976,7 +989,7 @@ def get_monthly_total_household(limit: int = Query(None, ge=1), household_id: st
 # 10. Monthly total per plug (calendar month) with optional limit
 # ========================
 @app.get("/energy/monthly/{device_name}")
-def get_monthly_total(device_name: str, limit: int = Query(None, ge=1), household_id: str = Depends(get_household_id)):
+def get_monthly_total(device_name: str, limit: int = Query(None, ge=1), household_id: str = Query(...)):
     device_id = validate_device(household_id, device_name)
     ensure_registered(device_id, household_id)
     try:
@@ -1006,7 +1019,7 @@ def get_monthly_total(device_name: str, limit: int = Query(None, ge=1), househol
 # 11. Last 7 days for household total
 # ========================
 @app.get("/energy/weekly/recent/total")
-def get_recent_weekly_household(household_id: str = Depends(get_household_id)):
+def get_recent_weekly_household(household_id: str = Query(...)):
     end_date = today_utc_midnight()
     start_date = end_date - datetime.timedelta(days=6)  # last 7 days
     
@@ -1032,7 +1045,7 @@ def get_recent_weekly_household(household_id: str = Depends(get_household_id)):
 # 12. Last 7 days per device
 # ========================
 @app.get("/energy/weekly/recent/{device_name}")
-def get_recent_weekly(device_name: str, household_id: str = Depends(get_household_id)):
+def get_recent_weekly(device_name: str, household_id: str = Query(...)):
     device_id = validate_device(household_id, device_name)
     ensure_registered(device_id, household_id)
     end_date = today_utc_midnight()
@@ -1058,7 +1071,7 @@ def get_recent_weekly(device_name: str, household_id: str = Depends(get_househol
 # 13. Last 30 days for household total
 # ========================
 @app.get("/energy/monthly/recent/total")
-def get_recent_monthly_household(household_id: str = Depends(get_household_id)):
+def get_recent_monthly_household(household_id: str = Query(...)):
     end_date = today_utc_midnight()
     start_date = end_date - datetime.timedelta(days=30)
     try:
@@ -1083,7 +1096,7 @@ def get_recent_monthly_household(household_id: str = Depends(get_household_id)):
 # 14. Last 30 days per device
 # ========================
 @app.get("/energy/monthly/recent/{device_name}")
-def get_recent_monthly(device_name: str, household_id: str = Depends(get_household_id)):
+def get_recent_monthly(device_name: str, household_id: str = Query(...)):
     device_id = validate_device(household_id, device_name)
     ensure_registered(device_id, household_id)
     end_date = today_utc_midnight()
