@@ -17,6 +17,7 @@ import { useNavigation } from "@react-navigation/native";
 import { RootStackParamList } from "../App";
 import { styles } from "./styles/ConsumptionPageStyles";
 import { SafeAreaView } from "react-native-safe-area-context";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import api from "../utils/api";
 import { Swipeable } from "react-native-gesture-handler";
 import { LineChart, BarChart } from "react-native-chart-kit";
@@ -144,8 +145,15 @@ const ConsumptionPage = () => {
   // Fetch registered appliances
   const fetchRegisteredAppliances = async () => {
     try {
-      const res = await api.get("/appliances");
-      setRegisteredAppliances(res.data.appliances || []);
+      const storedUserData = await AsyncStorage.getItem("userData");
+      if (!storedUserData) return [];
+      const parsedUser = JSON.parse(storedUserData);
+      const household_id = parsedUser.household_id;
+
+      const response = await api.get(
+        `/appliances?household_id=${household_id}`
+      );
+      setRegisteredAppliances(response.data.appliances || []);
     } catch (err) {
       console.error("Failed to load appliances:", err);
       setRegisteredAppliances([]);
@@ -156,33 +164,39 @@ const ConsumptionPage = () => {
   const fetchTotalUsage = async () => {
     setLoadingTotal(true);
     try {
+      const storedUserData = await AsyncStorage.getItem("userData");
+      if (!storedUserData) return;
+      const parsedUser = JSON.parse(storedUserData);
+      const household_id = parsedUser.household_id;
+      console.log("Household logged in,", household_id);
+
       let endpoint = "";
 
       if (filterType === "all") {
         // Total for all appliances
         if (selectedRange === "Daily") {
-          endpoint = "/energy/daily/total";
+          endpoint = `/energy/daily/total?household_id=${household_id}`;
         } else if (selectedRange === "Weekly") {
-          endpoint = "/energy/weekly/total?limit=1";
+          endpoint = `/energy/weekly/total?household_id=${household_id}&limit=1`;
         } else if (selectedRange === "Monthly") {
-          endpoint = "/energy/monthly/total?limit=1";
+          endpoint = `/energy/monthly/total?household_id=${household_id}&limit=1`;
         }
       } else if (filterType === "household") {
         if (selectedRange === "Daily") {
-          endpoint = "/energy/daily/total";
+          endpoint = `/energy/daily/total?household_id=${household_id}`;
         } else if (selectedRange === "Weekly") {
-          endpoint = "/energy/weekly/total?limit=1";
+          endpoint = `/energy/weekly/total?household_id=${household_id}&limit=1`;
         } else if (selectedRange === "Monthly") {
-          endpoint = "/energy/monthly/total?limit=1";
+          endpoint = `/energy/monthly/total?household_id=${household_id}&limit=1`;
         }
       } else if (selectedAppliance) {
         // Total for individual appliance
         if (selectedRange === "Daily") {
-          endpoint = `/energy/daily/${selectedAppliance.device_id}`;
+          endpoint = `/energy/daily/${selectedAppliance.device_id}?household_id=${household_id}`;
         } else if (selectedRange === "Weekly") {
-          endpoint = `/energy/weekly/${selectedAppliance.device_id}?limit=1`;
+          endpoint = `/energy/weekly/${selectedAppliance.device_id}?household_id=${household_id}&limit=1`;
         } else if (selectedRange === "Monthly") {
-          endpoint = `/energy/monthly/${selectedAppliance.device_id}?limit=1`;
+          endpoint = `/energy/monthly/${selectedAppliance.device_id}?household_id=${household_id}&limit=1`;
         }
       }
       if (endpoint) {
@@ -283,14 +297,21 @@ const ConsumptionPage = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
+      const storedUserData = await AsyncStorage.getItem("userData");
+      if (!storedUserData) return;
+      const parsedUser = JSON.parse(storedUserData);
+      const household_id = parsedUser.household_id;
+      console.log("Household logged in,", household_id);
+
       // 🏠 If user selected "Household"
       if (filterType === "household") {
         let endpoint = "";
-        if (selectedRange === "Daily") endpoint = "/energy/daily/total";
+        if (selectedRange === "Daily")
+          endpoint = `/energy/daily/total?household_id=${household_id}`;
         else if (selectedRange === "Weekly")
-          endpoint = "/energy/weekly/total?limit=4";
+          endpoint = `/energy/weekly/total?household_id=${household_id}&limit=4`;
         else if (selectedRange === "Monthly")
-          endpoint = "/energy/monthly/total";
+          endpoint = `/energy/monthly/total?household_id=${household_id}`;
 
         const res = await api.get(endpoint);
         const dataArr =
@@ -325,11 +346,11 @@ const ConsumptionPage = () => {
       const requests = applianceList.map((appliance) => {
         let endpoint = "";
         if (selectedRange === "Daily")
-          endpoint = `/energy/daily/${appliance.device_id}`;
+          endpoint = `/energy/daily/${appliance.device_id}?household_id=${household_id}`;
         else if (selectedRange === "Weekly")
-          endpoint = `/energy/weekly/${appliance.device_id}?limit=2`;
+          endpoint = `/energy/weekly/${appliance.device_id}?household_id=${household_id}&limit=2`;
         else if (selectedRange === "Monthly")
-          endpoint = `/energy/monthly/${appliance.device_id}`;
+          endpoint = `/energy/monthly/${appliance.device_id}?household_id=${household_id}`;
         return api.get(endpoint);
       });
 
@@ -383,7 +404,9 @@ const ConsumptionPage = () => {
 
       // Fetch statuses if Daily
       if (selectedRange === "Daily") {
-        const statusRes = await api.get("/energy/summary");
+        const statusRes = await api.get(
+          `/energy/summary?household_id=${household_id}`
+        );
         const statusMap: Record<string, string> = {};
         statusRes.data.summary.forEach((item: any) => {
           statusMap[item.device_id] =
@@ -412,7 +435,13 @@ const ConsumptionPage = () => {
           style: "destructive",
           onPress: async () => {
             try {
-              await api.delete(`/appliances/${device_id}`);
+              const storedUserData = await AsyncStorage.getItem("userData");
+              if (!storedUserData) return [];
+              const parsedUser = JSON.parse(storedUserData);
+              const household_id = parsedUser.household_id;
+              await api.delete(
+                `/appliances/${device_id}?household_id=${household_id}`
+              );
               setRegisteredAppliances((prev) =>
                 prev.filter((item) => item.device_id !== device_id)
               );

@@ -64,7 +64,14 @@ const MainMenu = () => {
   // =========================
   const fetchRegisteredAppliances = useCallback(async (): Promise<any[]> => {
     try {
-      const response = await api.get("/appliances");
+      const storedUserData = await AsyncStorage.getItem("userData");
+      if (!storedUserData) return [];
+      const parsedUser = JSON.parse(storedUserData);
+      const household_id = parsedUser.household_id;
+
+      const response = await api.get(
+        `/appliances?household_id=${household_id}`
+      );
       return response.data.appliances || [];
     } catch (error) {
       console.error("Error fetching registered appliances:", error);
@@ -77,14 +84,19 @@ const MainMenu = () => {
   // =========================
   const fetchMonthlyConsumptionForDevices = useCallback(
     async (devices: any[]): Promise<TopDevice[]> => {
-      const deviceConsumptions: TopDevice[] = [];
-
       try {
         // Fetch consumption for each device in parallel
         const consumptionPromises = devices.map(async (device) => {
           try {
+            const storedUserData = await AsyncStorage.getItem("userData");
+            if (!storedUserData) return undefined; // Explicitly return undefined
+
+            const parsedUser = JSON.parse(storedUserData);
+            const household_id = parsedUser.household_id;
+            console.log("Household logged in,", household_id);
+
             const response = await api.get(
-              `/energy/monthly/recent/${device.device_id}`
+              `/energy/monthly/recent/${device.device_id}?household_id=${household_id}`
             );
             const consumptionData = response.data;
 
@@ -94,7 +106,7 @@ const MainMenu = () => {
               appliance_name: device.appliance_name || device.device_id,
               appliance_type: device.appliance_type || "Unknown",
               total_kwh: consumptionData.total_kwh || 0,
-            };
+            } as TopDevice;
           } catch (error) {
             console.error(
               `Error fetching consumption for ${device.device_id}:`,
@@ -106,14 +118,19 @@ const MainMenu = () => {
               appliance_name: device.appliance_name || device.device_id,
               appliance_type: device.appliance_type || "Unknown",
               total_kwh: 0,
-            };
+            } as TopDevice;
           }
         });
 
         const results = await Promise.all(consumptionPromises);
 
+        // ✅ Filter out undefined safely
+        const validResults = results.filter(
+          (device): device is TopDevice => device !== undefined
+        );
+
         // Filter out devices with 0 consumption and sort by consumption (descending)
-        return results
+        return validResults
           .filter((device) => device.total_kwh > 0)
           .sort((a, b) => b.total_kwh - a.total_kwh)
           .slice(0, 3); // Get top 3 devices
@@ -164,10 +181,17 @@ const MainMenu = () => {
     try {
       setLoadingUsage(true);
 
+      // Get household_id of logged-in user
+      const storedUserData = await AsyncStorage.getItem("userData");
+      if (!storedUserData) return;
+      const parsedUser = JSON.parse(storedUserData);
+      const household_id = parsedUser.household_id;
+      console.log("Household logged in,", household_id);
+
       const [todayRes, weekRes, monthRes] = await Promise.all([
-        api.get("/energy/daily/total"),
-        api.get("energy/weekly/total?limit=1"),
-        api.get("/energy/monthly/total"),
+        api.get(`/energy/daily/total?household_id=${household_id}`),
+        api.get(`energy/weekly/total?household_id=${household_id}&limit=1`),
+        api.get(`/energy/monthly/total?household_id=${household_id}`),
       ]);
 
       const safeFormat = (val: any) => {

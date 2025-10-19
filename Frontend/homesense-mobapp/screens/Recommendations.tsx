@@ -158,14 +158,14 @@ const Recommendations = () => {
       try {
         const storedUserData = await AsyncStorage.getItem("userData");
         if (!storedUserData) {
-          console.warn("⚠️ No user data found in storage");
+          console.log("⚠️ No user data found in storage");
           return;
         }
 
         const parsedUser = JSON.parse(storedUserData);
         const household_id = parsedUser.household_id;
         if (!household_id) {
-          console.warn("⚠️ No household_id found in user data");
+          console.log("⚠️ No household_id found in user data");
           return;
         }
 
@@ -202,8 +202,8 @@ const Recommendations = () => {
         }
         // 🆕 Fetch weekly and monthly totals
         const [weeklyRes, monthlyRes] = await Promise.all([
-          api.get(`/energy/weekly/total?limit=2`),
-          api.get(`/energy/monthly/total?limit=2`),
+          api.get(`/energy/weekly/total?household_id=${household_id}&limit=2`),
+          api.get(`/energy/monthly/total?household_id=${household_id}&limit=2`),
         ]);
 
         const weeklyData = weeklyRes.data;

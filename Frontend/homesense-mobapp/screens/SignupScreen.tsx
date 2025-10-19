@@ -39,6 +39,9 @@ const SignupScreen = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
+  const [joinExisting, setJoinExisting] = useState(false);
+  const [householdId, setHouseholdId] = useState("");
+
   const [passwordRules, setPasswordRules] = useState<PasswordValidation[]>([]);
 
   const validateEmail = (email: string) => {
@@ -94,11 +97,13 @@ const SignupScreen = () => {
     }
 
     try {
-      const res = await api.post(`/auth/register`, {
-        email,
-        username,
-        password,
-      });
+      // 📦 Build payload dynamically
+      const payload: any = { email, username, password };
+      if (joinExisting && householdId.trim() !== "") {
+        payload.household_id = householdId.trim();
+      }
+
+      const res = await api.post(`/auth/register`, payload);
 
       if (res.status === 200) {
         Alert.alert("Success", "Account created successfully!", [
@@ -172,7 +177,31 @@ const SignupScreen = () => {
                 onChangeText={setUsername}
               />
             </View>
+            {/* Optional: Join Existing Household */}
+            <View style={styles.joinContainer}>
+              <TouchableOpacity
+                onPress={() => setJoinExisting(!joinExisting)}
+                style={styles.joinToggleButton}
+              >
+                <Ionicons
+                  name={joinExisting ? "checkbox" : "square-outline"}
+                  size={20}
+                  color="#000"
+                  style={{ marginRight: 6 }}
+                />
+                <Text style={styles.joinText}>Join existing household?</Text>
+              </TouchableOpacity>
 
+              {joinExisting && (
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter Household ID (e.g. household3)"
+                  value={householdId}
+                  onChangeText={setHouseholdId}
+                  autoCapitalize="none"
+                />
+              )}
+            </View>
             {/* Password */}
             <View style={styles.field}>
               <Text style={styles.label}>Password</Text>

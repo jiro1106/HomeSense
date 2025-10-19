@@ -15,6 +15,7 @@ import {
 import { styles } from "./styles/RegisterAppliancePageStyles";
 import Icon from "react-native-vector-icons/MaterialIcons";
 import api from "../utils/api"; // ✅ axios instance
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 interface Device {
   device_id: string;
@@ -77,7 +78,13 @@ const RegisterAppliancePage: React.FC<RegisterAppliancePageProps> = ({
     const fetchDevices = async () => {
       setLoadingDevices(true);
       try {
-        const res = await api.get("/devices/unregistered");
+        const storedUserData = await AsyncStorage.getItem("userData");
+        if (!storedUserData) return;
+        const parsedUser = JSON.parse(storedUserData);
+        const household_id = parsedUser.household_id;
+        const res = await api.get(
+          `/devices/unregistered?household_id=${household_id}`
+        );
         // ✅ normalize to array of { device_id: string }
         const rawDevices = res.data.devices || [];
         const normalized: Device[] = rawDevices.map((d: any) => ({
@@ -124,8 +131,12 @@ const RegisterAppliancePage: React.FC<RegisterAppliancePageProps> = ({
         appliance_type: finalApplianceType, // ✅ align with backend
         location: finalLocation,
       };
+      const storedUserData = await AsyncStorage.getItem("userData");
+      if (!storedUserData) return [];
+      const parsedUser = JSON.parse(storedUserData);
+      const household_id = parsedUser.household_id;
 
-      await api.post("/appliances", payload);
+      await api.post(`/appliances?household_id=${household_id}`, payload);
 
       Alert.alert("Success", "Appliance registered successfully!", [
         {

@@ -1,9 +1,9 @@
-import { StyleSheet } from 'react-native';
+import { StyleSheet } from "react-native";
 
 export const signupStyles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
   },
 
   // Small logo row at top-left
@@ -13,24 +13,24 @@ export const signupStyles = StyleSheet.create({
     marginBottom: 10,
   },
   logoTextRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   logoTextH: {
     fontSize: 25,
-    fontWeight: '700',
-    color: '#FFD600',
+    fontWeight: "700",
+    color: "#FFD600",
   },
   logoIcon: {
     width: 25,
     height: 25,
-    resizeMode: 'contain',
+    resizeMode: "contain",
     marginHorizontal: -1,
   },
   logoText: {
     fontSize: 25,
-    fontWeight: '700',
-    color: '#FFD600',
+    fontWeight: "700",
+    color: "#FFD600",
   },
 
   // Main content
@@ -42,13 +42,13 @@ export const signupStyles = StyleSheet.create({
   title: {
     fontSize: 30,
     lineHeight: 36,
-    fontWeight: '800',
-    color: '#111827', // near-black
+    fontWeight: "800",
+    color: "#111827", // near-black
     marginBottom: 6,
   },
   subtitle: {
     fontSize: 14,
-    color: '#9CA3AF', // gray
+    color: "#9CA3AF", // gray
     marginBottom: 22,
   },
 
@@ -58,65 +58,83 @@ export const signupStyles = StyleSheet.create({
   },
   label: {
     fontSize: 13,
-    color: '#6B7280', // gray-500
+    color: "#6B7280", // gray-500
     marginBottom: 8,
   },
   input: {
     height: 50,
     borderWidth: 1,
-    borderColor: '#E5E7EB', // light gray border
+    borderColor: "#E5E7EB", // light gray border
     borderRadius: 12,
     paddingHorizontal: 14,
     fontSize: 16,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
   },
 
+  joinContainer: {
+    // backgroundColor: "red",
+    paddingVertical: 10,
+    color: "#6B7280",
+  },
+
+  joinToggleButton: {
+    flexDirection: "row",
+    textAlign: "center",
+    alignItems: "center",
+    color: "#6B7280",
+    marginBottom: 10,
+  },
+
+  joinText: {
+    color: "#6B7280",
+    fontSize: 15,
+  },
   // Password input with eye icon
   passwordContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: "#E5E7EB",
     borderRadius: 12,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     paddingHorizontal: 14,
     height: 50,
   },
   passwordInput: {
     flex: 1,
     fontSize: 16,
-    color: '#000',
+    color: "#000",
   },
 
   // Button
   button: {
     height: 52,
     borderRadius: 12,
-    backgroundColor: '#FFD600',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#FFD600",
+    alignItems: "center",
+    justifyContent: "center",
     marginTop: 6,
   },
   buttonText: {
     fontSize: 16,
-    fontWeight: '700',
-    color: '#000',
+    fontWeight: "700",
+    color: "#000",
   },
 
   // Footer link
   footerRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
+    flexDirection: "row",
+    justifyContent: "center",
     marginTop: 14,
   },
   footerText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: "#6B7280",
   },
   footerLink: {
     fontSize: 14,
-    color: '#1E40AF', // blue
-    fontWeight: '500',
+    color: "#1E40AF", // blue
+    fontWeight: "500",
     marginLeft: 4,
   },
 });
