@@ -335,11 +335,37 @@ def get_users():
 @app.delete("/admin/users/{email}")
 def delete_user(email: str = Path(..., description="Email of the user to delete")):
     try:
-        users = db["users"]
-        result = users.delete_one({"email": email.lower().strip()})
+        email = email.lower().strip()
+        users_col = db["users"]
+        households_col = db["households"]
+
+        # Find the user first
+        user = users_col.find_one({"email": email})
+        if not user:
+            raise HTTPException(status_code=404, detail=f"User '{email}' not found")
+
+        # Extract the user's household_id (if any)
+        household_id = user.get("household_id")
+
+        # Delete the user
+        result = users_col.delete_one({"email": email})
         if result.deleted_count == 0:
-            raise HTTPException(status_code=404, detail="User not found")
-        return {"message": f"User {email} deleted successfully"}
+            raise HTTPException(status_code=404, detail=f"User '{email}' not found or already deleted")
+
+        # If this household has no more users, delete it too
+        household_deleted = False
+        if household_id:
+            remaining_users = users_col.count_documents({"household_id": household_id})
+            if remaining_users == 0:
+                households_col.delete_one({"household_id": household_id})
+                household_deleted = True
+
+        # Return structured response
+        return {
+            "message": f"User '{email}' deleted successfully",
+            "household_deleted": household_deleted
+        }
+
     except errors.PyMongoError as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
     except Exception as e:
