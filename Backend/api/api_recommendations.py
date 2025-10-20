@@ -168,6 +168,15 @@ def set_savings_mode(household_id: str, mode: str):
         "message": f"Savings mode set to {mode.upper()} for household {household_id}."
     }
 
+@router.get("/household/{household_id}/mode")
+def get_savings_mode(household_id: str):
+    household = households_collection.find_one({"household_id": household_id})
+    if not household:
+        raise HTTPException(status_code=404, detail="Household not found.")
+
+    mode = household.get("savings_mode", "medium")  # default to 'medium' if not set
+    return {"mode": mode}
+
 
 @router.get("/recommendations/{household_id}")
 def get_recommendations(household_id: str, device_id: str = Query(None, description="Optional device_id to get single-appliance recommendations")):
