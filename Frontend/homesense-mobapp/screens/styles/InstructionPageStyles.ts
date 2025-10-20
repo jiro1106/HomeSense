@@ -110,6 +110,7 @@ export default StyleSheet.create({
     color: "#388E3C",
   },
   footer: {
+    marginTop: 10,
     alignItems: "center",
   },
   doneTitle: {
@@ -139,10 +140,11 @@ export default StyleSheet.create({
     padding: 5,
   },
   helpText: {
+    padding: 2,
     textAlign: "left",
     fontWeight: "bold",
     marginLeft: 10,
-    fontSize: 14,
+    fontSize: 16,
     color: "#2E7D32",
   },
   helpEmail: {

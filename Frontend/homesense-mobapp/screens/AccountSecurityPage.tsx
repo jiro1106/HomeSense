@@ -48,7 +48,7 @@ const AccountSecurityPage = () => {
   const [isSaveEnabled, setIsSaveEnabled] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [isLoading, setIsLoading] = useState(true);
-
+  const [householdId, setHouseholdId] = useState(null);
   // ✅ Inline success messages
   const [usernameSuccessMsg, setUsernameSuccessMsg] = useState("");
   const [passwordSuccessMsg, setPasswordSuccessMsg] = useState("");
@@ -65,6 +65,10 @@ const AccountSecurityPage = () => {
           const user = JSON.parse(userData);
           console.log("Parsed user object:", user);
 
+          if (user.household_id) {
+            setHouseholdId(user.household_id);
+            console.log("Household ID:", user.household_id);
+          }
           // Check if we have email and username directly in the stored data
           if (user.email && user.username) {
             // If login endpoint returns user data directly
@@ -307,23 +311,26 @@ const AccountSecurityPage = () => {
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
+        {/* Top Bar */}
+        <View style={styles.topBar}>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.backButton}
+          >
+            <Icon name="arrow-back" size={24} color="#ffffffff" />
+          </TouchableOpacity>
+          <Text style={styles.topBarTitle}>Account & Security</Text>
+          <View style={{ width: 24 }} />
+        </View>
         <ScrollView
           contentContainerStyle={{ flexGrow: 1, paddingBottom: 40 }}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* Top Bar */}
-          <View style={styles.topBar}>
-            <TouchableOpacity
-              onPress={() => navigation.goBack()}
-              style={styles.backButton}
-            >
-              <Icon name="arrow-back" size={24} color="#ffffffff" />
-            </TouchableOpacity>
-            <Text style={styles.topBarTitle}>Account & Security</Text>
-            <View style={{ width: 24 }} />
-          </View>
-
+          <Text style={styles.idTitle}>
+            HOUSEHOLD ID:{" "}
+            <Text style={styles.idText}>{householdId || "Not available"}</Text>
+          </Text>
           {/* Form */}
           <View style={styles.form}>
             {/* Username */}
@@ -507,6 +514,10 @@ const AccountSecurityPage = () => {
             >
               <Text style={styles.saveButtonText}>Save Changes</Text>
             </TouchableOpacity>
+            <Text style={styles.noticeText}>
+              <Text style={styles.noticeTitle}>NOTE:</Text> Please do not share
+              your personal account information with anyone you do not know.
+            </Text>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>

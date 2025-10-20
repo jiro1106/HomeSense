@@ -273,18 +273,22 @@ const Recommendations = () => {
       case "moderate":
         return "#eeb517b4"; // soft yellow-orange
       case "high":
-        return "#db0b20a8"; // light red
+        return "#db0b2046"; // light red
       default:
         return "#FFFFFF"; // fallback
     }
   };
 
-  const formatChange = (diffPercent: number, period: string) => {
-    const rounded = Math.abs(diffPercent).toFixed(1);
-    if (diffPercent < 0) {
-      return `You saved ${rounded}% compared to last ${period} 🔋`;
-    } else {
-      return `You used ${rounded}% more energy ⚡ than last ${period}`;
+  const getTextColor = (status: string | undefined) => {
+    switch (status) {
+      case "good":
+        return "#006400"; // dark green
+      case "moderate":
+        return "#8B8000"; // dark brownish yellow
+      case "high":
+        return "#4CAF50"; // neon green
+      default:
+        return "#000000"; // fallback (black)
     }
   };
   // =============================
@@ -357,7 +361,12 @@ const Recommendations = () => {
                     />
                   </View>
 
-                  <Text style={styles.usageKwh}>
+                  <Text
+                    style={[
+                      styles.usageKwh,
+                      { color: getTextColor(performanceSummary.status) },
+                    ]}
+                  >
                     {performanceSummary.efficiency_score.toFixed(0)}% Efficient
                   </Text>
 

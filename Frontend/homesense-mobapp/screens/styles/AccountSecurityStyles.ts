@@ -28,6 +28,27 @@ export default StyleSheet.create({
     fontSize: 18,
     fontWeight: "bold",
   },
+  idTitle: {
+    paddingTop: 20,
+    paddingHorizontal: 20,
+    fontSize: 15,
+    fontWeight: "bold",
+    textAlign: "right",
+    textDecorationLine: "none",
+  },
+  idText: {
+    fontWeight: "500",
+    textDecorationLine: "underline",
+  },
+  noticeTitle: {
+    fontWeight: "bold",
+  },
+  noticeText: {
+    textAlign: "justify",
+    paddingTop: 15,
+    fontWeight: "400",
+    fontSize: 14,
+  },
   form: {
     padding: 20,
   },
