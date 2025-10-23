@@ -58,10 +58,10 @@ const InstructionPage = () => {
               Step 1: Connect Your Smart Plugs
             </Text>
             <Text style={styles.stepText}>
-              Plug in your HomeSense{" "}
-              <Text style={styles.bold}>smart plugs</Text> and the developers
-              will set it up for you. Once linked, they’ll appear automatically
-              in the app.
+              For the initial setup, the HomeSense team will set and configure
+              everything for the household. After the setup, you can start
+              plugging in your <Text style={styles.bold}>smart plugs.</Text>{" "}
+              Once linked, you can start using the app.
             </Text>
             <Text style={styles.tip}>
               💡 Tip: Name your plugs after the appliance for easy tracking.
@@ -82,7 +82,8 @@ const InstructionPage = () => {
             <Text style={styles.stepText}>
               Go to the <Text style={styles.bold}>Appliances</Text> tab, tap{" "}
               <Text style={styles.bold}>Add Appliance</Text>, and select the
-              appliance type connected to your plug.
+              appliance type connected to your plug. We advise to register the
+              plugs one by one to avoid confusion for the smart plug ID.
             </Text>
           </View>
         </View>
@@ -100,7 +101,7 @@ const InstructionPage = () => {
             <Text style={styles.stepText}>
               Open the <Text style={styles.bold}>Dashboard</Text> to see your
               live and historical energy use. Tap any appliance to view detailed
-              graphs and cost estimates.
+              graphs about individual and total consumption.
             </Text>
           </View>
         </View>
@@ -163,7 +164,7 @@ const InstructionPage = () => {
           <Icon name="check-circle" size={36} color="#2E7D32" />
           <Text style={styles.doneTitle}>You're All Set!</Text>
           <Text style={styles.doneText}>
-            Enjoy a smarter, more efficient home with HomeSense.
+            Enjoy a smarter, more efficient home with HomeSense!
           </Text>
         </View>
 
@@ -174,7 +175,7 @@ const InstructionPage = () => {
             <Text style={styles.helpText}>Need more help?</Text>
             <Text style={styles.helpEmail}>
               Contact us at{" "}
-              <Text style={styles.boldEmail}>apphomesense@gmail.com</Text>
+              <Text style={styles.boldEmail}>app.homesense@gmail.com</Text>
             </Text>
           </View>
         </View>

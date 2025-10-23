@@ -46,8 +46,8 @@ export const styles = StyleSheet.create({
   usageKwh: {
     marginTop: 2,
     fontSize: 18,
-    fontWeight: "600",
-    color: "#53e725e7",
+    fontWeight: "bold",
+    color: "#4CAF50",
   },
   usageNote: {
     fontWeight: "600",

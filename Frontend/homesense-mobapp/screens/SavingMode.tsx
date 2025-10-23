@@ -38,11 +38,44 @@ const SavingMode = () => {
 
   // Load saved mode from AsyncStorage
   useEffect(() => {
-    const loadMode = async () => {
-      const savedMode = await AsyncStorage.getItem("savingMode");
-      if (savedMode) setSelectedMode(savedMode);
+    const fetchSavingMode = async () => {
+      try {
+        // Step 1: Get current user
+        const storedUser = await AsyncStorage.getItem("userData");
+        if (!storedUser) return;
+
+        const parsedUser = JSON.parse(storedUser);
+        const householdId = parsedUser.household_id;
+        if (!householdId) return;
+
+        // Step 2: Fetch mode from backend
+        const response = await api.get(`energy/household/${householdId}/mode`);
+        const backendMode = response.data.mode; // assuming API returns { mode: "low" }
+
+        // Step 3: Format for display
+        const formattedMode =
+          backendMode.charAt(0).toUpperCase() +
+          backendMode.slice(1).toLowerCase();
+
+        // Step 4: Update state + AsyncStorage
+        setSelectedMode(formattedMode);
+        await AsyncStorage.setItem("savingMode", backendMode);
+      } catch (error) {
+        console.error("Error fetching saving mode:", error);
+        // Fallback: use AsyncStorage if backend fetch fails
+        const savedMode = await AsyncStorage.getItem("savingMode");
+        if (savedMode) {
+          const formattedMode =
+            savedMode.charAt(0).toUpperCase() +
+            savedMode.slice(1).toLowerCase();
+          setSelectedMode(formattedMode);
+        } else {
+          setSelectedMode("Medium"); // default fallback
+        }
+      }
     };
-    loadMode();
+
+    fetchSavingMode();
   }, []);
 
   // Handle user selecting a mode
