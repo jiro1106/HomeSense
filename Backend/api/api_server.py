@@ -1,5 +1,3 @@
-# api/api_server.py
-
 from fastapi import FastAPI, HTTPException, Query, Depends, Path, APIRouter
 from pydantic import BaseModel
 from pymongo import MongoClient, errors
@@ -12,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from api import api_recommendations
 from bson import ObjectId
 from typing import Optional
-
+from api import email_verification
 
 # ========================
 # ENV + DB SETUP
@@ -28,12 +26,15 @@ client = MongoClient(MONGO_URI)
 db = client["homesense_db"]
 
 app = FastAPI(title="HomeSense API", version="1.0")
+
+# Include routers with correct prefixes
 app.include_router(api_recommendations.router, prefix="/energy", tags=["Recommendations"])
+app.include_router(email_verification.router, prefix="/auth", tags=["Email Verification"])
 
 # Allow frontend to talk to backend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # adjust if your frontend uses a different port
+    allow_origins=["http://localhost:3000", "http://localhost:8081"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -42,7 +43,7 @@ app.add_middleware(
 # ========================
 # TIMEZONE
 # ========================
-PH_TZ = datetime.timezone(datetime.timedelta(hours=8))  # Asia/Manila
+PH_TZ = datetime.timezone(datetime.timedelta(hours=8))
 UTC = datetime.timezone.utc
 
 # ========================
@@ -82,14 +83,11 @@ def format_date(d: datetime.datetime) -> str:
     if not isinstance(d, datetime.datetime):
         return str(d)
 
-    # If tz-naive, assume UTC
     if d.tzinfo is None:
         d = d.replace(tzinfo=UTC)
 
-    # Convert to PH time
     ph_date = d.astimezone(PH_TZ)
     return ph_date.strftime("%Y-%m-%d")
-
 
 def format_datetime(dt: datetime.datetime) -> str:
     """
@@ -100,20 +98,16 @@ def format_datetime(dt: datetime.datetime) -> str:
     if dt is None:
         return None
 
-    # If it's not a datetime for any reason, return None
     if not isinstance(dt, datetime.datetime):
         return None
 
-    # If dt is naive (no tzinfo), assume it is stored as UTC in DB and set tzinfo accordingly.
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=UTC)
 
-    # Convert to PH timezone and return ISO string (includes +08:00)
     try:
         ph_dt = dt.astimezone(PH_TZ)
         return ph_dt.isoformat()
     except Exception:
-        # fallback: try to force-convert by interpreting as UTC then convert
         try:
             dt2 = dt.replace(tzinfo=UTC)
             ph_dt = dt2.astimezone(PH_TZ)
@@ -147,30 +141,20 @@ def get_registered_device_ids(household_id: str):
     appliances = db["appliances"].find({"household_id": household_id, "registered": True}, {"device_id": 1})
     return [a["device_id"] for a in appliances]
 
-# ========================
-# HELPER: Check if registered
-# ========================
 def ensure_registered(device_id: str, household_id: str):
     appliances = db["appliances"]
     doc = appliances.find_one({
         "household_id": household_id,
         "device_id": device_id,
-        "registered": True  # ✅ check flag directly
+        "registered": True
     })
     if not doc:
         raise HTTPException(status_code=403, detail=f"Device {device_id} not registered in this household")
     return True
 
-
 # ========================
 # MODELS
 # ========================
-class RegisterRequest(BaseModel):
-    email: str
-    password: str  # plain (will be hashed)
-    username: str 
-    household_id: Optional[str] = None
-
 class LoginRequest(BaseModel):
     email: str
     password: str
@@ -178,95 +162,52 @@ class LoginRequest(BaseModel):
 # ========================
 # AUTH ENDPOINTS
 # ========================
-@app.post("/auth/register")
-def register_user(req: RegisterRequest):
-    try:
-        users = db["users"]
-
-        # Normalize email
-        email = req.email.strip().lower()
-
-        # Reject uppercase or emojis
-        import re
-        emoji_regex = re.compile(
-            r"[\U0001F600-\U0001F64F]|"
-            r"[\U0001F300-\U0001F5FF]|"
-            r"[\U0001F680-\U0001F6FF]|"
-            r"[\U0001F1E0-\U0001F1FF]|"
-            r"[\U0001F900-\U0001F9FF]|"
-            r"[\U0001FA70-\U0001FAFF]|"
-            r"[\U00002702-\U000027B0]|"
-            r"[\U000024C2-\U0001F251]",
-            flags=re.UNICODE
-        )
-
-        if any(c.isupper() for c in req.email):
-            raise HTTPException(status_code=400, detail="Email must not contain uppercase letters.")
-        if emoji_regex.search(req.email):
-            raise HTTPException(status_code=400, detail="Email must not contain emojis.")
-
-        # Check duplicate email
-        if users.find_one({"email": email}):
-            raise HTTPException(status_code=400, detail="Email already registered!")
-
-        # Handle household assignment
-        if req.household_id:  # joining an existing household
-            existing_household = users.find_one({"household_id": req.household_id})
-            if not existing_household:
-                raise HTTPException(status_code=400, detail="Household ID does not exist.")
-            household_id = req.household_id
-        else:
-            # Generate a new household
-            all_households = users.distinct("household_id")
-            next_number = 1
-            while f"household{next_number}" in all_households:
-                next_number += 1
-            household_id = f"household{next_number}"
-
-        # Hash password
-        hashed_pw = bcrypt.hash(req.password)
-        username = req.username.strip()
-
-        # Insert user
-        users.insert_one({
-            "email": email,
-            "username": username,
-            "password": hashed_pw,
-            "household_id": household_id,
-            "last_logged_in": None,
-        })
-
-        return {
-            "message": "User registered successfully",
-            "household_id": household_id,
-        }
-
-    except HTTPException as e:
-        raise e
-    except errors.PyMongoError:
-        raise HTTPException(status_code=500, detail="Database error")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Unexpected server error: {e}")
-
-
+# NOTE: Registration is handled by email_verification.py
+# Endpoints: POST /auth/send-verification, POST /auth/verify-code, POST /auth/register
 
 @app.post("/auth/login")
 def login_user(req: LoginRequest):
+    """
+    Login endpoint - user must be fully registered (is_completed=True)
+    """
     try:
         users = db["users"]
 
         # Normalize email
         email = req.email.strip().lower()
 
-        # Lookup user
-        user = users.find_one({"email": email})
-        if not user or not bcrypt.verify(req.password, user["password"]):
+        # Lookup user - must be fully registered
+        user = users.find_one({"email": email, "is_completed": True})
+        if not user:
             raise HTTPException(status_code=401, detail="Invalid email or password")
 
-        # Fetch household_id dynamically from user record
+        # Verify password (user.password should be hashed)
+        stored_password = user.get("password")
+        if not stored_password:
+            raise HTTPException(status_code=401, detail="Invalid email or password")
+
+        # Check if password is hashed or plaintext (for backwards compatibility)
+        is_hashed = stored_password.startswith("$2")  # bcrypt hashes start with $2
+        
+        try:
+            if is_hashed:
+                # Password is hashed, verify it
+                if not bcrypt.verify(req.password, stored_password):
+                    raise HTTPException(status_code=401, detail="Invalid email or password")
+            else:
+                # Password is plaintext (shouldn't happen, but handle it)
+                if req.password != stored_password:
+                    raise HTTPException(status_code=401, detail="Invalid email or password")
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=401, detail="Invalid email or password")
+
+        # Get household_id
         household_id = user.get("household_id")
         if not household_id:
             raise HTTPException(status_code=400, detail="User does not have an assigned household_id")
+
         # Update last login (store tz-aware UTC in DB)
         now = datetime.datetime.now(UTC)
         users.update_one({"email": email}, {"$set": {"last_logged_in": now}})
@@ -275,11 +216,11 @@ def login_user(req: LoginRequest):
             "message": "Login successful",
             "household_id": household_id,
             "last_logged_in": format_datetime(now),
-            "email": user["email"],  
-            "username": user["username"]  
+            "email": user["email"],
+            "username": user["username"]
         }
 
-    except HTTPException as e: 
+    except HTTPException as e:
         raise e
     except errors.PyMongoError as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
@@ -347,8 +288,9 @@ def delete_user(email: str = Path(..., description="Email of the user to delete"
 
 
 # ========================
-# ADMIN ANALYTICS ENDPOINTS
+# COMPLETE ADMIN ANALYTICS ENDPOINTS
 # ========================
+
 @app.get("/admin/analytics")
 def get_admin_analytics():
     """Admin analytics summary with user/device/energy stats"""
@@ -385,11 +327,12 @@ def get_admin_analytics():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @app.get("/admin/devices")
 def get_all_devices():
     """
     Admin: Fetch all devices from current_totals.
-    Includes device_name, device_id, appliance_name, household_id, and status.
+    Includes device_name, device_id, appliance_name, appliance_type, household_id, and status.
     """
     try:
         collection = db["current_totals"]
@@ -401,6 +344,7 @@ def get_all_devices():
                     "_id": "$device_id",
                     "device_name": {"$first": "$device_name"},
                     "appliance_name": {"$first": "$appliance_name"},
+                    "appliance_type": {"$first": "$appliance_type"},
                     "household_id": {"$first": "$household_id"},
                     "status": {"$first": "$status"},
                 }
@@ -411,6 +355,7 @@ def get_all_devices():
                     "device_id": "$_id",
                     "device_name": 1,
                     "appliance_name": 1,
+                    "appliance_type": 1,
                     "household_id": 1,
                     "status": 1,
                 }
@@ -427,6 +372,359 @@ def get_all_devices():
     except Exception as e:
         print(f"ERROR in /admin/devices: {e}")
         raise HTTPException(status_code=500, detail=f"Error fetching devices: {str(e)}")
+
+
+@app.get("/admin/energy-breakdown")
+def get_energy_breakdown_by_household():
+    """
+    Admin: Get detailed energy breakdown grouped by household.
+    Returns each household with its users and their individual energy consumption.
+    Aggregates directly from daily_totals using household_id.
+    """
+    try:
+        users_collection = db["users"]
+        daily_totals = db["daily_totals"]
+
+        # Get all users with their household_id
+        all_users = list(users_collection.find(
+            {}, 
+            {"_id": 0, "email": 1, "username": 1, "household_id": 1}
+        ))
+
+        print(f"DEBUG: Found {len(all_users)} users")
+
+        # Group users by household_id
+        households = {}
+        for user in all_users:
+            household_id = user.get("household_id", "Unknown")
+            if household_id not in households:
+                households[household_id] = []
+            households[household_id].append(user)
+
+        # Aggregate energy consumption directly by household_id from daily_totals
+        household_energy_pipeline = [
+            {
+                "$group": {
+                    "_id": "$household_id",
+                    "total_kwh": {"$sum": "$total_kwh"}
+                }
+            }
+        ]
+        household_energy_result = list(daily_totals.aggregate(household_energy_pipeline))
+        
+        # Create a dictionary for quick lookup
+        household_energy_map = {
+            h["_id"]: h["total_kwh"] 
+            for h in household_energy_result 
+            if h["_id"] is not None
+        }
+
+        print(f"DEBUG: Energy by household: {household_energy_map}")
+
+        # Build result with household energy data
+        result = []
+        for household_id, users in households.items():
+            # Get total energy for this household
+            total_household_kwh = household_energy_map.get(household_id, 0)
+            
+            household_data = {
+                "household_id": household_id,
+                "users": [],
+                "total_household_kwh": round(total_household_kwh, 4),
+                "user_count": len(users)
+            }
+
+            # For each user in the household, calculate their individual energy
+            for user in users:
+                user_email = user["email"]
+                
+                # Sum energy for this specific user in this household
+                user_energy_pipeline = [
+                    {
+                        "$match": {
+                            "household_id": household_id,
+                            "email": user_email
+                        }
+                    },
+                    {
+                        "$group": {
+                            "_id": None,
+                            "total_kwh": {"$sum": "$total_kwh"}
+                        }
+                    }
+                ]
+                user_energy_result = list(daily_totals.aggregate(user_energy_pipeline))
+                user_total_kwh = user_energy_result[0]["total_kwh"] if user_energy_result else 0
+
+                print(f"DEBUG: User {user_email} in household {household_id}: {user_total_kwh} kWh")
+
+                household_data["users"].append({
+                    "email": user["email"],
+                    "username": user.get("username", "N/A"),
+                    "total_kwh": round(user_total_kwh, 4)
+                })
+
+            # Calculate average per user in household
+            household_data["average_kwh_per_user"] = (
+                round(household_data["total_household_kwh"] / household_data["user_count"], 4)
+                if household_data["user_count"] > 0 else 0
+            )
+
+            result.append(household_data)
+
+        # Sort by household_id for consistent ordering
+        result.sort(key=lambda x: str(x["household_id"]))
+
+        print(f"DEBUG: Returning {len(result)} households")
+        for h in result:
+            print(f"  Household {h['household_id']}: {h['total_household_kwh']} kWh, {h['user_count']} users")
+
+        return {
+            "households": result,
+            "total_households": len(result)
+        }
+
+    except Exception as e:
+        import traceback
+        print(f"ERROR in /admin/energy-breakdown: {e}")
+        print(traceback.format_exc())
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Error fetching energy breakdown: {str(e)}"
+        )
+
+
+@app.get("/admin/household-energy-details")
+def get_household_energy_details(household_id: str):
+    """
+    Admin: Get detailed daily, weekly, and monthly energy breakdown for a specific household.
+    Shows ALL available data, not just recent periods.
+    """
+    try:
+        # Get registered devices for the household
+        registered_devices = get_registered_device_ids(household_id)
+        
+        if not registered_devices:
+            return {
+                "household_id": household_id,
+                "daily": [],
+                "weekly": [],
+                "monthly": [],
+                "message": "No registered devices found"
+            }
+
+        # Daily energy data (ALL days)
+        daily_pipeline = [
+            {
+                "$match": {
+                    "household_id": household_id,
+                    "device_id": {"$in": registered_devices}
+                }
+            },
+            {
+                "$group": {
+                    "_id": {"$dateToString": {"format": "%Y-%m-%d", "date": "$date"}},
+                    "total_kwh": {"$sum": "$total_kwh"}
+                }
+            },
+            {"$sort": {"_id": 1}}
+        ]
+        daily_result = list(db["daily_totals_per_plug"].aggregate(daily_pipeline))
+        daily_data = [{"date": item["_id"], "kwh": round(item["total_kwh"], 4)} for item in daily_result]
+
+        # Weekly energy data (ALL weeks)
+        weekly_pipeline = [
+            {
+                "$match": {
+                    "household_id": household_id,
+                    "device_id": {"$in": registered_devices}
+                }
+            },
+            {
+                "$group": {
+                    "_id": {
+                        "year": {"$isoWeekYear": "$date"},
+                        "week": {"$isoWeek": "$date"}
+                    },
+                    "total_kwh": {"$sum": "$total_kwh"}
+                }
+            },
+            {"$sort": {"_id.year": 1, "_id.week": 1}}
+        ]
+        weekly_result = list(db["daily_totals_per_plug"].aggregate(weekly_pipeline))
+        weekly_data = []
+        for item in weekly_result:
+            year, week = item["_id"]["year"], item["_id"]["week"]
+            try:
+                week_start = datetime.datetime.strptime(f"{year}-{week}-1", "%G-%V-%u").date()
+                week_end = week_start + datetime.timedelta(days=6)
+                weekly_data.append({
+                    "week_start": week_start.strftime("%Y-%m-%d"),
+                    "week_end": week_end.strftime("%Y-%m-%d"),
+                    "kwh": round(item["total_kwh"], 4)
+                })
+            except ValueError:
+                # Handle edge cases in week calculation
+                continue
+
+        # Monthly energy data (ALL months)
+        monthly_pipeline = [
+            {
+                "$match": {
+                    "household_id": household_id,
+                    "device_id": {"$in": registered_devices}
+                }
+            },
+            {
+                "$group": {
+                    "_id": {
+                        "year": {"$year": "$date"},
+                        "month": {"$month": "$date"}
+                    },
+                    "total_kwh": {"$sum": "$total_kwh"}
+                }
+            },
+            {"$sort": {"_id.year": 1, "_id.month": 1}}
+        ]
+        monthly_result = list(db["daily_totals_per_plug"].aggregate(monthly_pipeline))
+        monthly_data = [{
+            "month": f"{item['_id']['year']}-{item['_id']['month']:02d}",
+            "kwh": round(item["total_kwh"], 4)
+        } for item in monthly_result]
+
+        return {
+            "household_id": household_id,
+            "daily": daily_data,
+            "weekly": weekly_data,
+            "monthly": monthly_data,
+            "total_registered_devices": len(registered_devices),
+            "total_days": len(daily_data),
+            "total_weeks": len(weekly_data),
+            "total_months": len(monthly_data)
+        }
+
+    except Exception as e:
+        import traceback
+        print(f"ERROR in /admin/household-energy-details: {e}")
+        print(traceback.format_exc())
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Error fetching household energy details: {str(e)}"
+        )
+
+@app.get("/admin/all-households-energy-summary")
+def get_all_households_energy_summary():
+    """
+    Admin: Get comprehensive energy summary for all households including daily, weekly, monthly breakdowns.
+    """
+    try:
+        # First get the basic household breakdown
+        breakdown_response = get_energy_breakdown_by_household()
+        households = breakdown_response["households"]
+        
+        # Enhance each household with detailed energy breakdowns
+        enhanced_households = []
+        for household in households:
+            household_id = household["household_id"]
+            
+            # Get detailed energy data for this household
+            try:
+                details_response = get_household_energy_details(household_id)
+                household["energy_details"] = details_response
+            except Exception as e:
+                print(f"Warning: Could not fetch details for household {household_id}: {e}")
+                household["energy_details"] = {
+                    "daily": [],
+                    "weekly": [],
+                    "monthly": [],
+                    "error": str(e)
+                }
+            
+            enhanced_households.append(household)
+        
+        return {
+            "households": enhanced_households,
+            "total_households": len(enhanced_households)
+        }
+        
+    except Exception as e:
+        import traceback
+        print(f"ERROR in /admin/all-households-energy-summary: {e}")
+        print(traceback.format_exc())
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Error fetching all households energy summary: {str(e)}"
+        )
+
+# ========================
+# DEBUG ENDPOINTS (REMOVE IN PRODUCTION)
+# ========================
+
+@app.get("/admin/debug/daily-totals-sample")
+def get_daily_totals_sample():
+    """Debug endpoint: Get a sample document from daily_totals to understand structure"""
+    try:
+        daily_totals = db["daily_totals"]
+        sample = daily_totals.find_one({})
+        
+        if sample:
+            # Remove _id for cleaner output
+            sample.pop("_id", None)
+            
+        return {
+            "sample_document": sample,
+            "total_documents": daily_totals.count_documents({}),
+            "message": "Check what fields are available in your daily_totals collection"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/admin/debug/collections-info")
+def get_collections_info():
+    """Debug endpoint: Get information about all collections"""
+    try:
+        collections_info = {}
+        
+        # Check daily_totals
+        daily_totals = db["daily_totals"]
+        dt_sample = daily_totals.find_one({})
+        if dt_sample:
+            dt_sample.pop("_id", None)
+        collections_info["daily_totals"] = {
+            "count": daily_totals.count_documents({}),
+            "sample_fields": list(dt_sample.keys()) if dt_sample else [],
+            "sample_document": dt_sample
+        }
+        
+        # Check appliances
+        appliances = db["appliances"]
+        app_sample = appliances.find_one({})
+        if app_sample:
+            app_sample.pop("_id", None)
+        collections_info["appliances"] = {
+            "count": appliances.count_documents({}),
+            "sample_fields": list(app_sample.keys()) if app_sample else [],
+            "sample_document": app_sample
+        }
+        
+        # Check users
+        users = db["users"]
+        user_sample = users.find_one({})
+        if user_sample:
+            user_sample.pop("_id", None)
+            # Remove password for security
+            user_sample.pop("password", None)
+        collections_info["users"] = {
+            "count": users.count_documents({}),
+            "sample_fields": list(user_sample.keys()) if user_sample else [],
+            "sample_document": user_sample
+        }
+        
+        return collections_info
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 # ========================
 # USER PROFILE ENDPOINTS

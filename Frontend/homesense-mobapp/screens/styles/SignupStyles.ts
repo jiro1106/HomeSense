@@ -54,7 +54,7 @@ export const signupStyles = StyleSheet.create({
 
   // Fields
   field: {
-    marginBottom: 14,
+    marginBottom: 16,
   },
   label: {
     fontSize: 13,
@@ -72,7 +72,6 @@ export const signupStyles = StyleSheet.create({
   },
 
   joinContainer: {
-    // backgroundColor: "red",
     paddingVertical: 10,
     color: "#6B7280",
   },
@@ -137,4 +136,68 @@ export const signupStyles = StyleSheet.create({
     fontWeight: "500",
     marginLeft: 4,
   },
+    backButton: {
+    marginTop: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F9FAFB",
+  },
+
+  backButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#374151",
+    textAlign: "center",
+  },
+   // ===== CODE INPUT STYLES =====
+  codeInputContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8,
+    position: "relative",
+  },
+
+  codeInput: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    fontSize: 24,
+    fontWeight: "600",
+    borderWidth: 2,
+    borderColor: "#E5E7EB",
+    borderRadius: 8,
+    backgroundColor: "#FAFAFA",
+    letterSpacing: 8,
+    textAlign: "center",
+  },
+
+  codeCharCount: {
+    position: "absolute",
+    right: 12,
+    backgroundColor: "#F3F4F6",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+
+  codeCharCountText: {
+    fontSize: 12,
+    color: "#6B7280",
+    fontWeight: "600",
+  },
+
+  // ===== HELPER TEXT =====
+  helperText: {
+    fontSize: 13,
+    color: "#6B7280",
+    marginTop: 4,
+    fontStyle: "italic",
+  },
+
+ 
 });

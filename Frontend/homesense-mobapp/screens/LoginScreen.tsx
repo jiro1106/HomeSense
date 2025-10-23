@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  ActivityIndicator,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -29,19 +30,20 @@ const LoginScreen = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [secureText, setSecureText] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   const validateEmail = (email: string) => {
     const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return re.test(email.toLowerCase());
   };
 
-  // Matches most common emoji ranges
   const emojiRegex =
-    /[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/u;
+    /[\p{Emoji_Presentation}\p{Extended_Pictographic}]/u;
 
   const handleLogin = async () => {
-    if (!email || !password) {
-      Alert.alert("Error", "Please fill in both fields.");
+    // Validation
+    if (!email.trim() || !password.trim()) {
+      Alert.alert("Error", "Please fill in all fields.");
       return;
     }
 
@@ -55,10 +57,11 @@ const LoginScreen = () => {
       return;
     }
 
+    setLoading(true);
     try {
-      const response = await api.post(`/auth/login`, {
-        email,
-        password,
+      const response = await api.post("/auth/login", {
+        email: email.toLowerCase().trim(),
+        password: password,
       });
 
       const userData = response.data;
@@ -67,17 +70,31 @@ const LoginScreen = () => {
       await AsyncStorage.multiSet([
         ["isLoggedIn", "true"],
         ["userData", JSON.stringify(userData)],
+        ["householdId", userData.household_id],
+        ["email", userData.email],
+        ["username", userData.username],
       ]);
 
       Alert.alert("Success", "Login successful!", [
-        { text: "OK", onPress: () => navigation.replace("MainMenu") },
+        {
+          text: "OK",
+          onPress: () => navigation.replace("MainMenu"),
+        },
       ]);
     } catch (error: any) {
+      console.error("Login error:", error);
+
       if (error.response?.status === 401) {
         Alert.alert("Error", "Incorrect email or password.");
+      } else if (error.response?.status === 400) {
+        Alert.alert("Error", error.response.data.detail || "Bad request.");
+      } else if (error.response?.data?.detail) {
+        Alert.alert("Error", error.response.data.detail);
       } else {
         Alert.alert("Error", "Unable to login. Please try again.");
       }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -109,24 +126,28 @@ const LoginScreen = () => {
           <Text style={styles.title}>Login</Text>
           <View style={styles.subtitleContainer}>
             <Text style={styles.subtitle}>Don't have an account?</Text>
-            <TouchableOpacity onPress={() => navigation.navigate("Signup")}>
+            <TouchableOpacity
+              onPress={() => navigation.navigate("Signup")}
+              disabled={loading}
+            >
               <Text style={styles.signUpLink}> Sign Up</Text>
             </TouchableOpacity>
           </View>
 
           {/* Email */}
           <TextInput
-            style={styles.input}
+            style={[styles.input, loading && { opacity: 0.6 }]}
             placeholder="Email"
             placeholderTextColor="#999"
             value={email}
             onChangeText={setEmail}
             autoCapitalize="none"
             keyboardType="email-address"
+            editable={!loading}
           />
 
           {/* Password + Eye Icon */}
-          <View style={styles.passwordContainer}>
+          <View style={[styles.passwordContainer, loading && { opacity: 0.6 }]}>
             <TextInput
               style={styles.passwordInput}
               placeholder="Password"
@@ -134,8 +155,12 @@ const LoginScreen = () => {
               value={password}
               onChangeText={setPassword}
               secureTextEntry={secureText}
+              editable={!loading}
             />
-            <TouchableOpacity onPress={() => setSecureText(!secureText)}>
+            <TouchableOpacity
+              onPress={() => setSecureText(!secureText)}
+              disabled={loading}
+            >
               <Ionicons
                 name={secureText ? "eye-off" : "eye"}
                 size={20}
@@ -145,8 +170,16 @@ const LoginScreen = () => {
           </View>
 
           {/* Login Button */}
-          <TouchableOpacity style={styles.button} onPress={handleLogin}>
-            <Text style={styles.buttonText}>Log In</Text>
+          <TouchableOpacity
+            style={[styles.button, loading && { opacity: 0.6 }]}
+            onPress={handleLogin}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <Text style={styles.buttonText}>Log In</Text>
+            )}
           </TouchableOpacity>
         </View>
       </ScrollView>
