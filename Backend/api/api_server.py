@@ -159,6 +159,12 @@ class LoginRequest(BaseModel):
     email: str
     password: str
 
+class UnregisteredAppliance(BaseModel):
+    household_id: str
+    device_id: str
+    appliance_name: str | None = None
+    appliance_type: str | None = None
+    location: str | None = None
 # ========================
 # AUTH ENDPOINTS
 # ========================
@@ -269,6 +275,28 @@ def get_users():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
     
+# ========================
+# adding unregistered smart plugs to tuyaconnect.py
+# ========================
+@app.post("/admin/appliances/add-unregistered")
+def add_unregistered_appliance(data: UnregisteredAppliance):
+    appliances = db["appliances"]
+    existing = appliances.find_one({"device_id": data.device_id})
+
+    if existing:
+        raise HTTPException(status_code=400, detail="Device ID already exists in database")
+
+    appliances.insert_one({
+        "household_id": data.household_id,
+        "device_id": data.device_id,
+        "appliance_name": data.appliance_name,
+        "appliance_type": data.appliance_type,
+        "location": data.location,
+        "registered": False,
+        "created_at": datetime.datetime.now(datetime.timezone.utc)
+    })
+    return {"message": f"Unregistered appliance {data.device_id} added successfully"}
+
 # ========================
 # DELETING USERS
 # ========================
@@ -637,6 +665,22 @@ def get_household_energy_details(household_id: str):
             status_code=500, 
             detail=f"Error fetching household energy details: {str(e)}"
         )
+    
+@app.get("/admin/households")
+def get_all_households():
+    # --- Get distinct household IDs from both collections ---
+    users_collection = db["users"]
+    user_households = users_collection.distinct("household_id")
+
+    # --- Merge and clean up ---
+    all_households = set(user_households)
+    all_households = [h for h in all_households if h and isinstance(h, str)]
+
+    # --- Sort alphabetically for better dropdown UX ---
+    all_households.sort()
+
+    # --- Return consistent format ---
+    return {"households": [{"household_id": h} for h in all_households]}
 
 @app.get("/admin/all-households-energy-summary")
 def get_all_households_energy_summary():
