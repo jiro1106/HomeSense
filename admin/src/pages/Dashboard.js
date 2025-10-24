@@ -10,6 +10,7 @@ import {
   FaTrash,
   FaBolt,
   FaPlug,
+  FaPlus,
   FaUserAlt,
   FaSortAmountDown,
   FaSortAmountUp,
@@ -41,10 +42,15 @@ function Dashboard() {
   const [showUsersPreview, setShowUsersPreview] = useState(false);
   const [showDevicesPreview, setShowDevicesPreview] = useState(false);
   const [showEnergyPreview, setShowEnergyPreview] = useState(false);
+  const [showAddPlugPreview, setShowAddPlugPreview] = useState(false);
 
   // 📦 Device state
   const [devices, setDevices] = useState([]);
   const [previewLoading, setPreviewLoading] = useState(false);
+
+  //Get household id
+  const [households, setHouseholds] = useState([]);
+  const [selectedHousehold, setSelectedHousehold] = useState("");
 
   // 📊 Energy breakdown by household
   const [energyBreakdown, setEnergyBreakdown] = useState([]);
@@ -99,6 +105,20 @@ function Dashboard() {
     }
   }, [activePage]);
 
+  useEffect(() => {
+    const fetchHouseholds = async () => {
+      try {
+        const res = await fetch("http://localhost:8000/admin/households");
+        const data = await res.json();
+        setHouseholds(data.households || []);
+      } catch (err) {
+        console.error("Error fetching households:", err);
+        alert("⚠️ Failed to load households. Check server connection.");
+      }
+    };
+
+    fetchHouseholds();
+  }, []);
   // 📊 Fetch admin analytics
   const fetchAnalytics = () => {
     setAnalyticsLoading(true);
@@ -294,7 +314,7 @@ function Dashboard() {
     setShowUsersPreview(false);
     setShowDevicesPreview(false);
     setShowEnergyPreview(false);
-
+    setShowAddPlugPreview(false);
     // Set active card
     setActiveCard(type);
 
@@ -314,6 +334,10 @@ function Dashboard() {
         const newEnergyState = !showEnergyPreview;
         setShowEnergyPreview(newEnergyState);
         if (newEnergyState && !energyBreakdown.length) fetchEnergyBreakdown();
+        break;
+      case "addPlug":
+        const newAddPlugState = !showAddPlugPreview;
+        setShowAddPlugPreview(newAddPlugState);
         break;
       default:
         setActiveCard(null);
@@ -688,7 +712,7 @@ function Dashboard() {
         <div className="household-header">
           <div className="household-info">
             <FaHome className="household-icon" />
-            <div>
+            <div className="household-stats-container">
               <h3>Household: {householdId}</h3>
               <p className="household-stats">
                 {householdData?.user_count || 0} users • Total Energy:{" "}
@@ -961,8 +985,90 @@ function Dashboard() {
                       <div className="active-indicator"></div>
                     )}
                   </div>
+                  <div
+                    className={`analytics-card ${
+                      activeCard === "addPlug" ? "active" : ""
+                    }`}
+                    onClick={() => handleCardClick("addPlug")}
+                  >
+                    <FaPlus className="analytics-icon" />
+                    <h3>Add Unregistered Plug</h3>
+                    {activeCard === "addPlug" && (
+                      <div className="active-indicator"></div>
+                    )}
+                  </div>
                 </div>
+                {showAddPlugPreview && (
+                  <div className="preview-section">
+                    <h3 className="preview-title">
+                      Add Unregistered Smart Plug
+                    </h3>
 
+                    <form
+                      className="add-plug-form"
+                      onSubmit={async (e) => {
+                        e.preventDefault();
+
+                        const formData = new FormData(e.target);
+                        const data = {
+                          household_id: formData.get("household_id"),
+                          device_id: formData.get("device_id"),
+                          appliance_name: null, // default null
+                          appliance_type: null, // default null
+                          location: null, // default null
+                        };
+
+                        try {
+                          const res = await fetch(
+                            "http://localhost:8000/admin/appliances/add-unregistered",
+                            {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify(data),
+                            }
+                          );
+
+                          const result = await res.json();
+                          if (res.ok) {
+                            alert("✅ " + result.message);
+                            e.target.reset();
+                            setShowAddPlugPreview(false);
+                          } else {
+                            alert(
+                              "⚠️ " + (result.detail || "Failed to add plug.")
+                            );
+                          }
+                        } catch (err) {
+                          alert("❌ Network error: " + err.message);
+                        }
+                      }}
+                    >
+                      <div className="form-container">
+                        {/* Dropdown for Household */}
+                        <select
+                          name="household_id"
+                          required
+                          value={selectedHousehold}
+                          onChange={(e) => setSelectedHousehold(e.target.value)}
+                        >
+                          <option value="">Select Household</option>
+                          {households.map((h) => (
+                            <option key={h.household_id} value={h.household_id}>
+                              {h.household_id}
+                            </option>
+                          ))}
+                        </select>
+                        <input
+                          name="device_id"
+                          placeholder="Device ID"
+                          required
+                        />
+
+                        <button type="submit">Add Plug</button>
+                      </div>
+                    </form>
+                  </div>
+                )}
                 {/* 👇 USERS PREVIEW WITH SORTING */}
                 {showUsersPreview && (
                   <div className="preview-table">
