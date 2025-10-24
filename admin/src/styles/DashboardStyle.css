@@ -15,7 +15,7 @@
   justify-content: center;
   background-color: black;
   color: white;
-  height: 60px; 
+  height: 60px;
   padding: 0 20px;
   position: relative;
   overflow: hidden;
@@ -32,7 +32,7 @@
 }
 
 .logo-center img {
-  height: 250px;    
+  height: 250px;
   object-fit: contain;
 }
 
@@ -115,7 +115,7 @@
 }
 
 .logout-topbar:hover {
-  color: #ff6666; 
+  color: #ff6666;
 }
 
 /* ======================= */
@@ -130,7 +130,7 @@
   width: 100%;
   border-collapse: collapse;
   background: white;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   border-radius: 10px;
   overflow: hidden;
 }
@@ -190,7 +190,7 @@
 }
 
 .analytics-card.active::before {
-  content: '';
+  content: "";
   position: absolute;
   top: 0;
   left: 0;
@@ -412,7 +412,6 @@
   overflow: auto;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
-  
 }
 
 .table-info {
@@ -458,7 +457,8 @@
   border-bottom: 1px solid #e2e8f0;
 }
 
-.loading-state, .no-data-state {
+.loading-state,
+.no-data-state {
   display: flex;
   justify-content: center;
   align-items: center;
@@ -678,7 +678,7 @@
 }
 
 .energy-value {
-  font-family: 'Courier New', monospace;
+  font-family: "Courier New", monospace;
   font-weight: 600;
   color: #053896;
   text-align: right;
@@ -753,8 +753,9 @@
   text-align: center;
 }
 
-.energy-value-cell, .average-value-cell {
-  font-family: 'Courier New', monospace;
+.energy-value-cell,
+.average-value-cell {
+  font-family: "Courier New", monospace;
   font-weight: 600;
   color: #010248;
 }
@@ -1217,23 +1218,23 @@
     gap: 15px;
     align-items: stretch;
   }
-  
+
   .sort-button-container {
     align-self: stretch;
     justify-content: space-between;
   }
-  
+
   .modern-sort-dropdown {
     right: auto;
     left: 0;
     min-width: 100%;
   }
-  
+
   .modern-sort-button {
     flex: 1;
     justify-content: center;
   }
-  
+
   .sort-indicator-badge {
     font-size: 10px;
     padding: 6px 12px;
@@ -1246,12 +1247,12 @@
     gap: 8px;
     width: 100%;
   }
-  
+
   .sort-indicator-badge {
     text-align: center;
     width: 100%;
   }
-  
+
   .modern-sort-button {
     width: 100%;
   }
