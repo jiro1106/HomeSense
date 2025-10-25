@@ -118,6 +118,33 @@ export const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#000",
   },
+  rateColumn: {
+    flex: 1,
+  },
+  weekColumn: {
+    flex: 1.3, // Give week column more space
+  },
+  consumptionColumn: {
+    flex: 1.3, // Slightly more space for consumption
+  },
+  billColumn: {
+    flex: 1.1, // Slightly more space for bill
+  },
+  infoColumn: {
+    flex: 0.5, // Make info column narrower and push it right
+  },
+  infoButton: {
+    padding: 6,
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: 30,
+    minHeight: 30,
+    elevation: 0,
+    shadowOpacity: 0,
+    shadowColor: "transparent",
+    shadowOffset: { width: 0, height: 0 },
+    shadowRadius: 0,
+  },
   totalContainer: {
     marginTop: 10,
     alignItems: "flex-end",
