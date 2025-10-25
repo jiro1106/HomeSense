@@ -13,6 +13,8 @@ import logging
 from passlib.hash import bcrypt
 import sib_api_v3_sdk
 from sib_api_v3_sdk.rest import ApiException
+from requests.exceptions import RequestException
+import requests
 
 # Initialize router
 router = APIRouter()
@@ -56,37 +58,56 @@ class SignupRequest(BaseModel):
 # Helper function to send email
 # ==========================
 def send_email(to_email: str, verification_code: str) -> bool:
+    """
+    Send verification email using Brevo SMTP API (HTTP). Returns True on success.
+    This version logs Brevo response body to help debug 4xx/5xx errors.
+    """
+    api_key = os.getenv("BREVO_API_KEY")
+    if not api_key:
+        logger.error("BREVO_API_KEY not set")
+        raise HTTPException(status_code=500, detail="Email provider not configured")
+
+    url = "https://api.brevo.com/v3/smtp/email"
+    subject = "HomeSense Email Verification"
+    text_content = f"""Your HomeSense verification code is: {verification_code}
+
+This code will expire in 10 minutes.
+
+If you didn't request this, please ignore this email.
+"""
+    payload = {
+        "sender": {"name": "HomeSense", "email": "app.homesense@gmail.com"},
+        "to": [{"email": to_email}],
+        "subject": subject,
+        "textContent": text_content
+    }
+
+    headers = {
+        "api-key": api_key,
+        "Content-Type": "application/json"
+    }
+
     try:
-        configuration = sib_api_v3_sdk.Configuration()
-        configuration.api_key['api-key'] = os.getenv("BREVO_API_KEY")
+        resp = requests.post(url, headers=headers, json=payload, timeout=10)
+    except RequestException as e:
+        logger.error(f"❌ HTTP error when calling Brevo: {e}")
+        raise HTTPException(status_code=500, detail=f"Email provider request failed: {e}")
 
-        api_instance = sib_api_v3_sdk.TransactionalEmailsApi(
-            sib_api_v3_sdk.ApiClient(configuration)
-        )
+    # Log status and body for debugging
+    logger.info(f"Brevo response status: {resp.status_code}")
+    try:
+        logger.info(f"Brevo response body: {resp.text}")
+    except Exception:
+        logger.info("Brevo response body could not be read")
 
-        subject = "HomeSense Email Verification"
-        text_content = f"""
-        Your HomeSense verification code is: {verification_code}
-
-        This code will expire in 10 minutes.
-
-        If you didn't request this, please ignore this email.
-        """
-
-        send_smtp_email = sib_api_v3_sdk.SendSmtpEmail(
-            to=[{"email": to_email}],
-            sender={"email": "homesense@brevo.com", "name": "HomeSense"},
-            subject=subject,
-            text_content=text_content,
-        )
-
-        api_instance.send_transac_email(send_smtp_email)
-        logger.info(f"✅ Email sent successfully to {to_email} via Brevo")
+    if resp.status_code == 201 or resp.status_code == 200:
+        logger.info("✅ Email sent successfully via Brevo")
         return True
-
-    except ApiException as e:
-        logger.error(f"❌ Brevo API error: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to send email: {e}")
+    elif resp.status_code == 401:
+        raise HTTPException(status_code=500, detail="Email provider unauthorized (401). Check your API key.")
+    else:
+        # include body to assist debugging (it is logged above)
+        raise HTTPException(status_code=500, detail=f"Email sending failed: {resp.status_code}")
 
 
 # ==========================
