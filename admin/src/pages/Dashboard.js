@@ -10,8 +10,8 @@ import {
   FaTrash,
   FaBolt,
   FaPlug,
+  FaPlus,
   FaUserAlt,
-  FaChartLine,
   FaSortAmountDown,
   FaSortAmountUp,
   FaCalendarDay,
@@ -35,7 +35,6 @@ function Dashboard() {
     total_users: 0,
     total_devices: 0,
     total_energy_kwh: 0,
-    average_kwh_per_user: 0,
   });
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
 
@@ -43,11 +42,15 @@ function Dashboard() {
   const [showUsersPreview, setShowUsersPreview] = useState(false);
   const [showDevicesPreview, setShowDevicesPreview] = useState(false);
   const [showEnergyPreview, setShowEnergyPreview] = useState(false);
-  const [showAveragePreview, setShowAveragePreview] = useState(false);
+  const [showAddPlugPreview, setShowAddPlugPreview] = useState(false);
 
   // 📦 Device state
   const [devices, setDevices] = useState([]);
   const [previewLoading, setPreviewLoading] = useState(false);
+
+  //Get household id
+  const [households, setHouseholds] = useState([]);
+  const [selectedHousehold, setSelectedHousehold] = useState("");
 
   // 📊 Energy breakdown by household
   const [energyBreakdown, setEnergyBreakdown] = useState([]);
@@ -62,17 +65,28 @@ function Dashboard() {
   const [loadingDetails, setLoadingDetails] = useState({});
 
   // 🆕 Sorting states
-  const [usersSortConfig, setUsersSortConfig] = useState({ key: null, direction: 'asc' });
-  const [devicesSortConfig, setDevicesSortConfig] = useState({ key: null, direction: 'asc' });
-  const [energySortConfig, setEnergySortConfig] = useState({ key: null, direction: 'asc' });
-  const [averageSortConfig, setAverageSortConfig] = useState({ key: null, direction: 'asc' });
-  const [detailsSortConfig, setDetailsSortConfig] = useState({ period: 'daily', key: 'date', direction: 'desc' });
+  const [usersSortConfig, setUsersSortConfig] = useState({
+    key: null,
+    direction: "asc",
+  });
+  const [devicesSortConfig, setDevicesSortConfig] = useState({
+    key: null,
+    direction: "asc",
+  });
+  const [energySortConfig, setEnergySortConfig] = useState({
+    key: null,
+    direction: "asc",
+  });
+  const [detailsSortConfig, setDetailsSortConfig] = useState({
+    period: "daily",
+    key: "date",
+    direction: "desc",
+  });
 
   // 🆕 Dropdown visibility states
   const [showUsersSortDropdown, setShowUsersSortDropdown] = useState(false);
   const [showDevicesSortDropdown, setShowDevicesSortDropdown] = useState(false);
   const [showEnergySortDropdown, setShowEnergySortDropdown] = useState(false);
-  const [showAverageSortDropdown, setShowAverageSortDropdown] = useState(false);
 
   const handleLogout = () => {
     const confirmLogout = window.confirm("Are you sure you want to logout?");
@@ -91,6 +105,20 @@ function Dashboard() {
     }
   }, [activePage]);
 
+  useEffect(() => {
+    const fetchHouseholds = async () => {
+      try {
+        const res = await fetch("http://localhost:8000/admin/households");
+        const data = await res.json();
+        setHouseholds(data.households || []);
+      } catch (err) {
+        console.error("Error fetching households:", err);
+        alert("⚠️ Failed to load households. Check server connection.");
+      }
+    };
+
+    fetchHouseholds();
+  }, []);
   // 📊 Fetch admin analytics
   const fetchAnalytics = () => {
     setAnalyticsLoading(true);
@@ -105,7 +133,6 @@ function Dashboard() {
           total_users: data.total_users || 0,
           total_devices: data.total_devices || 0,
           total_energy_kwh: data.total_energy_kwh || 0,
-          average_kwh_per_user: data.average_kwh_per_user || 0,
         });
       })
       .catch((err) => {
@@ -162,7 +189,7 @@ function Dashboard() {
     fetch("http://localhost:8000/admin/all-households-energy-summary")
       .then((res) => {
         if (!res.ok) {
-          return res.text().then(text => {
+          return res.text().then((text) => {
             throw new Error(`Failed to fetch energy breakdown: ${text}`);
           });
         }
@@ -171,10 +198,10 @@ function Dashboard() {
       .then((data) => {
         console.log("Fetched comprehensive energy breakdown:", data);
         setEnergyBreakdown(data.households || []);
-        
+
         // Initialize energy details
         const details = {};
-        data.households.forEach(household => {
+        data.households.forEach((household) => {
           details[household.household_id] = household.energy_details || {};
         });
         setEnergyDetails(details);
@@ -198,12 +225,12 @@ function Dashboard() {
         setEnergyBreakdown(data.households || []);
         // Initialize empty details for basic breakdown
         const details = {};
-        data.households.forEach(household => {
+        data.households.forEach((household) => {
           details[household.household_id] = {
             daily: [],
             weekly: [],
             monthly: [],
-            message: "Detailed data not available"
+            message: "Detailed data not available",
           };
         });
         setEnergyDetails(details);
@@ -216,33 +243,38 @@ function Dashboard() {
 
   // 🆕 Fetch detailed energy data for a specific household
   const fetchHouseholdEnergyDetails = (householdId) => {
-    setLoadingDetails(prev => ({ ...prev, [householdId]: true }));
-    
-    fetch(`http://localhost:8000/admin/household-energy-details?household_id=${householdId}`)
+    setLoadingDetails((prev) => ({ ...prev, [householdId]: true }));
+
+    fetch(
+      `http://localhost:8000/admin/household-energy-details?household_id=${householdId}`
+    )
       .then((res) => {
         if (!res.ok) throw new Error("Failed to fetch household details");
         return res.json();
       })
       .then((data) => {
-        setEnergyDetails(prev => ({
+        setEnergyDetails((prev) => ({
           ...prev,
-          [householdId]: data
+          [householdId]: data,
         }));
       })
       .catch((err) => {
-        console.error(`Error fetching details for household ${householdId}:`, err);
-        setEnergyDetails(prev => ({
+        console.error(
+          `Error fetching details for household ${householdId}:`,
+          err
+        );
+        setEnergyDetails((prev) => ({
           ...prev,
           [householdId]: {
             daily: [],
             weekly: [],
             monthly: [],
-            error: err.message
-          }
+            error: err.message,
+          },
         }));
       })
       .finally(() => {
-        setLoadingDetails(prev => ({ ...prev, [householdId]: false }));
+        setLoadingDetails((prev) => ({ ...prev, [householdId]: false }));
       });
   };
 
@@ -282,8 +314,7 @@ function Dashboard() {
     setShowUsersPreview(false);
     setShowDevicesPreview(false);
     setShowEnergyPreview(false);
-    setShowAveragePreview(false);
-
+    setShowAddPlugPreview(false);
     // Set active card
     setActiveCard(type);
 
@@ -304,10 +335,9 @@ function Dashboard() {
         setShowEnergyPreview(newEnergyState);
         if (newEnergyState && !energyBreakdown.length) fetchEnergyBreakdown();
         break;
-      case "average":
-        const newAverageState = !showAveragePreview;
-        setShowAveragePreview(newAverageState);
-        if (newAverageState && !energyBreakdown.length) fetchEnergyBreakdown();
+      case "addPlug":
+        const newAddPlugState = !showAddPlugPreview;
+        setShowAddPlugPreview(newAddPlugState);
         break;
       default:
         setActiveCard(null);
@@ -316,9 +346,9 @@ function Dashboard() {
 
   // 🆕 Toggle household expansion
   const toggleHouseholdExpansion = (householdId) => {
-    setExpandedHouseholds(prev => ({
+    setExpandedHouseholds((prev) => ({
       ...prev,
-      [householdId]: !prev[householdId]
+      [householdId]: !prev[householdId],
     }));
 
     // Fetch details if not already loaded
@@ -334,15 +364,15 @@ function Dashboard() {
       let bValue = b[key];
 
       // Handle null/undefined values
-      if (aValue === null || aValue === undefined) aValue = '';
-      if (bValue === null || bValue === undefined) bValue = '';
+      if (aValue === null || aValue === undefined) aValue = "";
+      if (bValue === null || bValue === undefined) bValue = "";
 
       // Convert to lowercase for string comparison
-      if (typeof aValue === 'string') aValue = aValue.toLowerCase();
-      if (typeof bValue === 'string') bValue = bValue.toLowerCase();
+      if (typeof aValue === "string") aValue = aValue.toLowerCase();
+      if (typeof bValue === "string") bValue = bValue.toLowerCase();
 
-      if (aValue < bValue) return direction === 'asc' ? -1 : 1;
-      if (aValue > bValue) return direction === 'asc' ? 1 : -1;
+      if (aValue < bValue) return direction === "asc" ? -1 : 1;
+      if (aValue > bValue) return direction === "asc" ? 1 : -1;
       return 0;
     });
   };
@@ -350,49 +380,60 @@ function Dashboard() {
   // 🆕 Sort energy details data
   const sortEnergyDetails = (data, period, key, direction) => {
     if (!data || !data[period]) return [];
-    
+
     return [...data[period]].sort((a, b) => {
       let aValue = a[key];
       let bValue = b[key];
 
       // Handle date sorting
-      if (key === 'date' || key === 'week_start' || key === 'week_end' || key === 'month') {
+      if (
+        key === "date" ||
+        key === "week_start" ||
+        key === "week_end" ||
+        key === "month"
+      ) {
         aValue = new Date(aValue);
         bValue = new Date(bValue);
       }
 
-      if (aValue < bValue) return direction === 'asc' ? -1 : 1;
-      if (aValue > bValue) return direction === 'asc' ? 1 : -1;
+      if (aValue < bValue) return direction === "asc" ? -1 : 1;
+      if (aValue > bValue) return direction === "asc" ? 1 : -1;
       return 0;
     });
   };
 
   const handleUsersSort = (key) => {
-    const direction = usersSortConfig.key === key && usersSortConfig.direction === 'asc' ? 'desc' : 'asc';
+    const direction =
+      usersSortConfig.key === key && usersSortConfig.direction === "asc"
+        ? "desc"
+        : "asc";
     setUsersSortConfig({ key, direction });
     setShowUsersSortDropdown(false);
   };
 
   const handleDevicesSort = (key) => {
-    const direction = devicesSortConfig.key === key && devicesSortConfig.direction === 'asc' ? 'desc' : 'asc';
+    const direction =
+      devicesSortConfig.key === key && devicesSortConfig.direction === "asc"
+        ? "desc"
+        : "asc";
     setDevicesSortConfig({ key, direction });
     setShowDevicesSortDropdown(false);
   };
 
   const handleEnergySort = (key) => {
-    const direction = energySortConfig.key === key && energySortConfig.direction === 'asc' ? 'desc' : 'asc';
+    const direction =
+      energySortConfig.key === key && energySortConfig.direction === "asc"
+        ? "desc"
+        : "asc";
     setEnergySortConfig({ key, direction });
     setShowEnergySortDropdown(false);
   };
 
-  const handleAverageSort = (key) => {
-    const direction = averageSortConfig.key === key && averageSortConfig.direction === 'asc' ? 'desc' : 'asc';
-    setAverageSortConfig({ key, direction });
-    setShowAverageSortDropdown(false);
-  };
-
   const handleDetailsSort = (period, key) => {
-    const direction = detailsSortConfig.key === key && detailsSortConfig.direction === 'asc' ? 'desc' : 'asc';
+    const direction =
+      detailsSortConfig.key === key && detailsSortConfig.direction === "asc"
+        ? "desc"
+        : "asc";
     setDetailsSortConfig({ period, key, direction });
   };
 
@@ -404,81 +445,92 @@ function Dashboard() {
 
   const getSortedDevices = () => {
     if (!devicesSortConfig.key) return devices;
-    return sortData(devices, devicesSortConfig.key, devicesSortConfig.direction);
+    return sortData(
+      devices,
+      devicesSortConfig.key,
+      devicesSortConfig.direction
+    );
   };
 
   const getSortedEnergy = () => {
     if (!energySortConfig.key) return energyBreakdown;
-    return sortData(energyBreakdown, energySortConfig.key, energySortConfig.direction);
-  };
-
-  const getSortedAverage = () => {
-    if (!averageSortConfig.key) return energyBreakdown;
-    return sortData(energyBreakdown, averageSortConfig.key, averageSortConfig.direction);
+    return sortData(
+      energyBreakdown,
+      energySortConfig.key,
+      energySortConfig.direction
+    );
   };
 
   const getSortedEnergyDetails = (details, period) => {
-    return sortEnergyDetails(details, period, detailsSortConfig.key, detailsSortConfig.direction);
+    return sortEnergyDetails(
+      details,
+      period,
+      detailsSortConfig.key,
+      detailsSortConfig.direction
+    );
   };
 
   // 🆕 Helper function to get field display name
   const getFieldDisplayName = (key) => {
     const fieldNames = {
-      'household_id': 'Household ID',
-      'username': 'Username',
-      'email': 'Email',
-      'device_name': 'Device Name',
-      'appliance_name': 'Appliance Name',
-      'appliance_type': 'Appliance Type',
-      'device_id': 'Device ID',
-      'user_count': 'Number of Users',
-      'total_household_kwh': 'Total Energy',
-      'average_kwh_per_user': 'Average kWh',
-      'date': 'Date',
-      'kwh': 'Energy Usage'
+      household_id: "Household ID",
+      username: "Username",
+      email: "Email",
+      device_name: "Device Name",
+      appliance_name: "Appliance Name",
+      appliance_type: "Appliance Type",
+      device_id: "Device ID",
+      user_count: "Number of Users",
+      total_household_kwh: "Total Energy",
+      date: "Date",
+      kwh: "Energy Usage",
     };
     return fieldNames[key] || key;
   };
 
   // 🆕 Sort button component
-  const SortButton = ({ 
-    sortConfig, 
-    showDropdown, 
-    setShowDropdown, 
-    handleSort, 
+  const SortButton = ({
+    sortConfig,
+    showDropdown,
+    setShowDropdown,
+    handleSort,
     sortOptions,
-    type 
+    type,
   }) => (
     <div className="sort-button-container">
       <div className="sort-controls">
         {sortConfig.key && (
           <div className="sort-indicator-badge">
-            Sorted by: {getFieldDisplayName(sortConfig.key)} {sortConfig.direction === 'asc' ? '↑' : '↓'}
+            Sorted by: {getFieldDisplayName(sortConfig.key)}{" "}
+            {sortConfig.direction === "asc" ? "↑" : "↓"}
           </div>
         )}
-        <button 
+        <button
           className="modern-sort-button"
           onClick={() => setShowDropdown(!showDropdown)}
         >
           <span className="sort-button-text">SORT</span>
-          {sortConfig.direction === 'asc' ? 
-            <FaSortAmountDown className="sort-icon" /> : 
+          {sortConfig.direction === "asc" ? (
+            <FaSortAmountDown className="sort-icon" />
+          ) : (
             <FaSortAmountUp className="sort-icon" />
-          }
+          )}
         </button>
       </div>
       {showDropdown && (
         <div className="modern-sort-dropdown">
           {sortOptions.map((option) => (
-            <div 
+            <div
               key={option.key}
-              className={`modern-sort-option ${sortConfig.key === option.key ? 'active' : ''}`}
+              className={`modern-sort-option ${
+                sortConfig.key === option.key ? "active" : ""
+              }`}
               onClick={() => handleSort(option.key)}
             >
               <span>{option.label}</span>
               {sortConfig.key === option.key && (
                 <span className="sort-arrow">
-                  {sortConfig.direction === 'asc' ? '↑' : '↓'}
+                  {sortConfig.direction === "asc" ? "↑" : "↓"}
                 </span>
               )}
             </div>
@@ -494,24 +546,24 @@ function Dashboard() {
 
     return (
       <div className="details-sort-container">
-        <button 
+        <button
           className="details-sort-button"
-          onClick={() => onSort(period, 'date')}
+          onClick={() => onSort(period, "date")}
         >
           <FaSortAmountDown className="sort-icon" />
           Sort by Date
         </button>
-        <button 
+        <button
           className="details-sort-button"
-          onClick={() => onSort(period, 'kwh')}
+          onClick={() => onSort(period, "kwh")}
         >
           <FaSortAmountDown className="sort-icon" />
           Sort by Usage
         </button>
         {detailsSortConfig.key && (
           <span className="sort-indicator">
-            Sorted by: {getFieldDisplayName(detailsSortConfig.key)} 
-            {detailsSortConfig.direction === 'asc' ? ' ↑' : ' ↓'}
+            Sorted by: {getFieldDisplayName(detailsSortConfig.key)}
+            {detailsSortConfig.direction === "asc" ? " ↑" : " ↓"}
           </span>
         )}
       </div>
@@ -521,104 +573,123 @@ function Dashboard() {
   const generateHouseholdPDF = (householdId, details, householdData) => {
     try {
       const doc = new jsPDF();
-    const title = "HomeSense Energy Report";
-    const dateStr = new Date().toLocaleString("en-PH", { timeZone: "Asia/Manila" });
-    doc.setFontSize(18);
-    doc.text(title, 14, 20);
-    doc.setFontSize(11);
-    doc.text(`Generated: ${dateStr}`, 14, 28);
-    doc.text(`Household ID: ${householdId}`, 14, 36);
-    doc.text(`Number of Users: ${householdData?.user_count ?? 0}`, 14, 44);
+      const title = "HomeSense Energy Report";
+      const dateStr = new Date().toLocaleString("en-PH", {
+        timeZone: "Asia/Manila",
+      });
+      doc.setFontSize(18);
+      doc.text(title, 14, 20);
+      doc.setFontSize(11);
+      doc.text(`Generated: ${dateStr}`, 14, 28);
+      doc.text(`Household ID: ${householdId}`, 14, 36);
+      doc.text(`Number of Users: ${householdData?.user_count ?? 0}`, 14, 44);
 
-    const safeDetails = details || {};
-    const daily = safeDetails.daily || [];
-    const weekly = safeDetails.weekly || [];
-    const monthly = safeDetails.monthly || [];
+      const safeDetails = details || {};
+      const daily = safeDetails.daily || [];
+      const weekly = safeDetails.weekly || [];
+      const monthly = safeDetails.monthly || [];
 
-    let startY = 52;
+      let startY = 52;
 
-    doc.setFontSize(14);
-    doc.text("Daily Consumption", 14, startY);
-    startY += 4;
-    autoTable(doc, {
-      startY,
-      head: [["Date", "Energy (kWh)"]],
-      body: daily.map(d => [d.date || "-", d.kwh != null ? String(d.kwh) : "-"]),
-      styles: { fontSize: 10 },
-      headStyles: { fillColor: [0, 0, 0] },
-      theme: "striped",
-      margin: { left: 14, right: 14 }
-    });
-    startY = doc.lastAutoTable?.finalY ? doc.lastAutoTable.finalY + 10 : startY + 20;
+      doc.setFontSize(14);
+      doc.text("Daily Consumption", 14, startY);
+      startY += 4;
+      autoTable(doc, {
+        startY,
+        head: [["Date", "Energy (kWh)"]],
+        body: daily.map((d) => [
+          d.date || "-",
+          d.kwh != null ? String(d.kwh) : "-",
+        ]),
+        styles: { fontSize: 10 },
+        headStyles: { fillColor: [0, 0, 0] },
+        theme: "striped",
+        margin: { left: 14, right: 14 },
+      });
+      startY = doc.lastAutoTable?.finalY
+        ? doc.lastAutoTable.finalY + 10
+        : startY + 20;
 
-    doc.text("Weekly Consumption", 14, startY);
-    startY += 4;
-    autoTable(doc, {
-      startY,
-      head: [["Week Start", "Week End", "Energy (kWh)"]],
-      body: weekly.map(w => [w.week_start || "-", w.week_end || "-", w.kwh != null ? String(w.kwh) : "-"]),
-      styles: { fontSize: 10 },
-      headStyles: { fillColor: [0, 0, 0] },
-      theme: "striped",
-      margin: { left: 14, right: 14 }
-    });
-    startY = doc.lastAutoTable?.finalY ? doc.lastAutoTable.finalY + 10 : startY + 20;
+      doc.text("Weekly Consumption", 14, startY);
+      startY += 4;
+      autoTable(doc, {
+        startY,
+        head: [["Week Start", "Week End", "Energy (kWh)"]],
+        body: weekly.map((w) => [
+          w.week_start || "-",
+          w.week_end || "-",
+          w.kwh != null ? String(w.kwh) : "-",
+        ]),
+        styles: { fontSize: 10 },
+        headStyles: { fillColor: [0, 0, 0] },
+        theme: "striped",
+        margin: { left: 14, right: 14 },
+      });
+      startY = doc.lastAutoTable?.finalY
+        ? doc.lastAutoTable.finalY + 10
+        : startY + 20;
 
-    doc.text("Monthly Consumption", 14, startY);
-    startY += 4;
-    autoTable(doc, {
-      startY,
-      head: [["Month", "Energy (kWh)"]],
-      body: monthly.map(m => [m.month || "-", m.kwh != null ? String(m.kwh) : "-"]),
-      styles: { fontSize: 10 },
-      headStyles: { fillColor: [0, 0, 0] },
-      theme: "striped",
-      margin: { left: 14, right: 14 }
-    });
+      doc.text("Monthly Consumption", 14, startY);
+      startY += 4;
+      autoTable(doc, {
+        startY,
+        head: [["Month", "Energy (kWh)"]],
+        body: monthly.map((m) => [
+          m.month || "-",
+          m.kwh != null ? String(m.kwh) : "-",
+        ]),
+        styles: { fontSize: 10 },
+        headStyles: { fillColor: [0, 0, 0] },
+        theme: "striped",
+        margin: { left: 14, right: 14 },
+      });
 
-    // Total consumption summary at bottom
-    const pageHeight = doc.internal.pageSize.getHeight();
-    let y = doc.lastAutoTable?.finalY ? doc.lastAutoTable.finalY + 12 : 280;
-    if (y > pageHeight - 20) {
-      doc.addPage();
-      y = 20;
-    }
+      // Total consumption summary at bottom
+      const pageHeight = doc.internal.pageSize.getHeight();
+      let y = doc.lastAutoTable?.finalY ? doc.lastAutoTable.finalY + 12 : 280;
+      if (y > pageHeight - 20) {
+        doc.addPage();
+        y = 20;
+      }
 
-    const sumDaily = (daily || []).reduce((acc, d) => acc + (Number(d.kwh) || 0), 0);
-    const totalKwh = (typeof householdData?.total_household_kwh === 'number' ? householdData.total_household_kwh : sumDaily);
+      const sumDaily = (daily || []).reduce(
+        (acc, d) => acc + (Number(d.kwh) || 0),
+        0
+      );
+      const totalKwh =
+        typeof householdData?.total_household_kwh === "number"
+          ? householdData.total_household_kwh
+          : sumDaily;
 
-    doc.setFontSize(12);
-    doc.setFont(undefined, 'bold');
-    doc.text(`Total Consumption: ${Number(totalKwh || 0).toFixed(4)} kWh`, 14, y);
-    doc.setFont(undefined, 'normal');
+      doc.setFontSize(12);
+      doc.setFont(undefined, "bold");
+      doc.text(
+        `Total Consumption: ${Number(totalKwh || 0).toFixed(4)} kWh`,
+        14,
+        y
+      );
+      doc.setFont(undefined, "normal");
 
-    // Average per User below total
-    const userCount = Number(householdData?.user_count) || 0;
-    const avgFromData = typeof householdData?.average_kwh_per_user === 'number' ? householdData.average_kwh_per_user : null;
-    const avgPerUser = avgFromData != null ? avgFromData : (userCount > 0 ? (Number(totalKwh || 0) / userCount) : 0);
-    const nextY = y + 7 > pageHeight - 20 ? (doc.addPage(), 20) : y + 7;
-    doc.setFont(undefined, 'bold');
-    doc.text(`Average per Household: ${Number(avgPerUser).toFixed(4)} kWh`, 14, nextY);
-    doc.setFont(undefined, 'normal');
+      doc.setFont(undefined, "normal");
 
       doc.save(`homesense_report_${householdId}.pdf`);
     } catch (err) {
-      console.error('Failed to generate PDF:', err);
+      console.error("Failed to generate PDF:", err);
       alert(`Failed to generate PDF: ${err?.message || err}`);
     }
   };
 
   // 🆕 Energy Details Component - IMPROVED WITH BETTER DESIGN
-  const EnergyDetailsPanel = ({ householdId, details, householdData, onGeneratePDF }) => {
-    if (!details) return <div className="loading-details">Loading details...</div>;
+  const EnergyDetailsPanel = ({
+    householdId,
+    details,
+    householdData,
+    onGeneratePDF,
+  }) => {
+    if (!details)
+      return <div className="loading-details">Loading details...</div>;
 
-    const { 
-      daily = [], 
-      weekly = [], 
-      monthly = [], 
-      error, 
-      message
-    } = details;
+    const { daily = [], weekly = [], monthly = [], error, message } = details;
 
     if (error) {
       return (
@@ -631,9 +702,9 @@ function Dashboard() {
     // If only a message is provided (e.g., basic data), still render header and PDF button,
     // but show the message banner within the panel.
 
-    const sortedDaily = getSortedEnergyDetails(details, 'daily');
-    const sortedWeekly = getSortedEnergyDetails(details, 'weekly');
-    const sortedMonthly = getSortedEnergyDetails(details, 'monthly');
+    const sortedDaily = getSortedEnergyDetails(details, "daily");
+    const sortedWeekly = getSortedEnergyDetails(details, "weekly");
+    const sortedMonthly = getSortedEnergyDetails(details, "monthly");
 
     return (
       <div className="energy-details-panel">
@@ -641,11 +712,11 @@ function Dashboard() {
         <div className="household-header">
           <div className="household-info">
             <FaHome className="household-icon" />
-            <div>
+            <div className="household-stats-container">
               <h3>Household: {householdId}</h3>
               <p className="household-stats">
-                {householdData?.user_count || 0} users • 
-                Total Energy: {householdData?.total_household_kwh?.toFixed(4) || '0.0000'} kWh
+                {householdData?.user_count || 0} users • Total Energy:{" "}
+                {householdData?.total_household_kwh?.toFixed(4) || "0.0000"} kWh
               </p>
             </div>
           </div>
@@ -653,7 +724,11 @@ function Dashboard() {
             <button
               type="button"
               className="pdf-button"
-              onClick={(e) => { e.stopPropagation(); onGeneratePDF && onGeneratePDF(householdId, details, householdData); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onGeneratePDF &&
+                  onGeneratePDF(householdId, details, householdData);
+              }}
             >
               Generate PDF Report
             </button>
@@ -701,12 +776,12 @@ function Dashboard() {
         <div className="energy-breakdown-section">
           <div className="breakdown-header">
             <h4>
-              <FaCalendarDay className="breakdown-icon" /> 
+              <FaCalendarDay className="breakdown-icon" />
               Daily Energy Consumption
             </h4>
-            <DetailsSortButton 
-              period="daily" 
-              data={daily} 
+            <DetailsSortButton
+              period="daily"
+              data={daily}
               onSort={handleDetailsSort}
             />
           </div>
@@ -740,12 +815,12 @@ function Dashboard() {
         <div className="energy-breakdown-section">
           <div className="breakdown-header">
             <h4>
-              <FaCalendarWeek className="breakdown-icon" /> 
+              <FaCalendarWeek className="breakdown-icon" />
               Weekly Energy Consumption
             </h4>
-            <DetailsSortButton 
-              period="weekly" 
-              data={weekly} 
+            <DetailsSortButton
+              period="weekly"
+              data={weekly}
               onSort={handleDetailsSort}
             />
           </div>
@@ -781,12 +856,12 @@ function Dashboard() {
         <div className="energy-breakdown-section">
           <div className="breakdown-header">
             <h4>
-              <FaCalendarAlt className="breakdown-icon" /> 
+              <FaCalendarAlt className="breakdown-icon" />
               Monthly Energy Consumption
             </h4>
-            <DetailsSortButton 
-              period="monthly" 
-              data={monthly} 
+            <DetailsSortButton
+              period="monthly"
+              data={monthly}
               onSort={handleDetailsSort}
             />
           </div>
@@ -870,46 +945,130 @@ function Dashboard() {
                 {/* 📊 Analytics Cards */}
                 <div className="analytics-container">
                   <div
-                    className={`analytics-card ${activeCard === "users" ? "active" : ""}`}
+                    className={`analytics-card ${
+                      activeCard === "users" ? "active" : ""
+                    }`}
                     onClick={() => handleCardClick("users")}
                   >
                     <FaUserAlt className="analytics-icon user-icon" />
                     <h3>Total Users</h3>
                     <p>{analytics.total_users}</p>
-                    {activeCard === "users" && <div className="active-indicator"></div>}
+                    {activeCard === "users" && (
+                      <div className="active-indicator"></div>
+                    )}
                   </div>
 
                   <div
-                    className={`analytics-card ${activeCard === "devices" ? "active" : ""}`}
+                    className={`analytics-card ${
+                      activeCard === "devices" ? "active" : ""
+                    }`}
                     onClick={() => handleCardClick("devices")}
                   >
                     <FaPlug className="analytics-icon device-icon" />
                     <h3>Total Devices</h3>
                     <p>{analytics.total_devices}</p>
-                    {activeCard === "devices" && <div className="active-indicator"></div>}
+                    {activeCard === "devices" && (
+                      <div className="active-indicator"></div>
+                    )}
                   </div>
 
                   <div
-                    className={`analytics-card ${activeCard === "energy" ? "active" : ""}`}
+                    className={`analytics-card ${
+                      activeCard === "energy" ? "active" : ""
+                    }`}
                     onClick={() => handleCardClick("energy")}
                   >
                     <FaBolt className="analytics-icon energy-icon" />
                     <h3>Total Energy (kWh)</h3>
                     <p>{analytics.total_energy_kwh.toFixed(4)}</p>
-                    {activeCard === "energy" && <div className="active-indicator"></div>}
+                    {activeCard === "energy" && (
+                      <div className="active-indicator"></div>
+                    )}
                   </div>
-
                   <div
-                    className={`analytics-card ${activeCard === "average" ? "active" : ""}`}
-                    onClick={() => handleCardClick("average")}
+                    className={`analytics-card ${
+                      activeCard === "addPlug" ? "active" : ""
+                    }`}
+                    onClick={() => handleCardClick("addPlug")}
                   >
-                    <FaChartLine className="analytics-icon avg-icon" />
-                    <h3>Avg. kWh per Household</h3>
-                    <p>{analytics.average_kwh_per_user.toFixed(4)}</p>
-                    {activeCard === "average" && <div className="active-indicator"></div>}
+                    <FaPlus className="analytics-icon" />
+                    <h3>Add Unregistered Plug</h3>
+                    {activeCard === "addPlug" && (
+                      <div className="active-indicator"></div>
+                    )}
                   </div>
                 </div>
+                {showAddPlugPreview && (
+                  <div className="preview-section">
+                    <h3 className="preview-title">
+                      Add Unregistered Smart Plug
+                    </h3>
 
+                    <form
+                      className="add-plug-form"
+                      onSubmit={async (e) => {
+                        e.preventDefault();
+
+                        const formData = new FormData(e.target);
+                        const data = {
+                          household_id: formData.get("household_id"),
+                          device_id: formData.get("device_id"),
+                          appliance_name: null, // default null
+                          appliance_type: null, // default null
+                          location: null, // default null
+                        };
+
+                        try {
+                          const res = await fetch(
+                            "http://localhost:8000/admin/appliances/add-unregistered",
+                            {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify(data),
+                            }
+                          );
+
+                          const result = await res.json();
+                          if (res.ok) {
+                            alert("✅ " + result.message);
+                            e.target.reset();
+                            setShowAddPlugPreview(false);
+                          } else {
+                            alert(
+                              "⚠️ " + (result.detail || "Failed to add plug.")
+                            );
+                          }
+                        } catch (err) {
+                          alert("❌ Network error: " + err.message);
+                        }
+                      }}
+                    >
+                      <div className="form-container">
+                        {/* Dropdown for Household */}
+                        <select
+                          name="household_id"
+                          required
+                          value={selectedHousehold}
+                          onChange={(e) => setSelectedHousehold(e.target.value)}
+                        >
+                          <option value="">Select Household</option>
+                          {households.map((h) => (
+                            <option key={h.household_id} value={h.household_id}>
+                              {h.household_id}
+                            </option>
+                          ))}
+                        </select>
+                        <input
+                          name="device_id"
+                          placeholder="Device ID"
+                          required
+                        />
+
+                        <button type="submit">Add Plug</button>
+                      </div>
+                    </form>
+                  </div>
+                )}
                 {/* 👇 USERS PREVIEW WITH SORTING */}
                 {showUsersPreview && (
                   <div className="preview-table">
@@ -921,9 +1080,9 @@ function Dashboard() {
                         setShowDropdown={setShowUsersSortDropdown}
                         handleSort={handleUsersSort}
                         sortOptions={[
-                          { key: 'household_id', label: 'Household ID' },
-                          { key: 'username', label: 'Username' },
-                          { key: 'email', label: 'Email' }
+                          { key: "household_id", label: "Household ID" },
+                          { key: "username", label: "Username" },
+                          { key: "email", label: "Email" },
                         ]}
                         type="users"
                       />
@@ -968,11 +1127,11 @@ function Dashboard() {
                         setShowDropdown={setShowDevicesSortDropdown}
                         handleSort={handleDevicesSort}
                         sortOptions={[
-                          { key: 'household_id', label: 'Household ID' },
-                          { key: 'device_name', label: 'Device Name' },
-                          { key: 'appliance_name', label: 'Appliance Name' },
-                          { key: 'appliance_type', label: 'Appliance Type' },
-                          { key: 'device_id', label: 'Device ID' }
+                          { key: "household_id", label: "Household ID" },
+                          { key: "device_name", label: "Device Name" },
+                          { key: "appliance_name", label: "Appliance Name" },
+                          { key: "appliance_type", label: "Appliance Type" },
+                          { key: "device_id", label: "Device ID" },
                         ]}
                         type="devices"
                       />
@@ -999,8 +1158,14 @@ function Dashboard() {
                                 : "unknown";
                               const badgeStyle = {
                                 active: { color: "#22c55e", fontWeight: "600" },
-                                inactive: { color: "#9ca3af", fontWeight: "600" },
-                                unknown: { color: "#f59e0b", fontWeight: "600" },
+                                inactive: {
+                                  color: "#9ca3af",
+                                  fontWeight: "600",
+                                },
+                                unknown: {
+                                  color: "#f59e0b",
+                                  fontWeight: "600",
+                                },
                               };
                               return (
                                 <tr key={i}>
@@ -1011,7 +1176,11 @@ function Dashboard() {
                                   </td>
                                   <td>{d.appliance_type || "N/A"}</td>
                                   <td>{d.household_id || "N/A"}</td>
-                                  <td style={badgeStyle[status] || badgeStyle.unknown}>
+                                  <td
+                                    style={
+                                      badgeStyle[status] || badgeStyle.unknown
+                                    }
+                                  >
                                     {status === "active" && "🟢 Active"}
                                     {status === "inactive" && "🔴 Inactive"}
                                     {status === "unknown" && "🟠 Unknown"}
@@ -1040,13 +1209,16 @@ function Dashboard() {
                           setShowDropdown={setShowEnergySortDropdown}
                           handleSort={handleEnergySort}
                           sortOptions={[
-                            { key: 'household_id', label: 'Household ID' },
-                            { key: 'user_count', label: 'Number of Users' },
-                            { key: 'total_household_kwh', label: 'Total Energy' }
+                            { key: "household_id", label: "Household ID" },
+                            { key: "user_count", label: "Number of Users" },
+                            {
+                              key: "total_household_kwh",
+                              label: "Total Energy",
+                            },
                           ]}
                           type="energy"
                         />
-                        <button 
+                        <button
                           className="close-preview-btn"
                           onClick={() => setShowEnergyPreview(false)}
                         >
@@ -1054,7 +1226,7 @@ function Dashboard() {
                         </button>
                       </div>
                     </div>
-                    
+
                     <div className="energy-preview-content">
                       {breakdownLoading ? (
                         <div className="loading-state">
@@ -1063,12 +1235,16 @@ function Dashboard() {
                       ) : getSortedEnergy().length > 0 ? (
                         <div className="energy-table-container">
                           <div className="table-info">
-                            <p>Showing {getSortedEnergy().length} households • Click on any household to view detailed energy consumption</p>
+                            <p>
+                              Showing {getSortedEnergy().length} households •
+                              Click on any household to view detailed energy
+                              consumption
+                            </p>
                           </div>
                           <table className="energy-breakdown-table">
                             <thead>
                               <tr>
-                                <th style={{width: '60px'}}></th>
+                                <th style={{ width: "60px" }}></th>
                                 <th>Household ID</th>
                                 <th>Number of Users</th>
                                 <th>Total Energy (kWh)</th>
@@ -1077,144 +1253,65 @@ function Dashboard() {
                             <tbody>
                               {getSortedEnergy().map((household, idx) => (
                                 <React.Fragment key={idx}>
-                                  <tr 
-                                    className={`expandable-row ${expandedHouseholds[household.household_id] ? 'expanded' : ''}`}
-                                    onClick={() => toggleHouseholdExpansion(household.household_id)}
+                                  <tr
+                                    className={`expandable-row ${
+                                      expandedHouseholds[household.household_id]
+                                        ? "expanded"
+                                        : ""
+                                    }`}
+                                    onClick={() =>
+                                      toggleHouseholdExpansion(
+                                        household.household_id
+                                      )
+                                    }
                                   >
                                     <td className="expand-icon">
-                                      {expandedHouseholds[household.household_id] ? 
-                                        <FaChevronUp /> : <FaChevronDown />
-                                      }
+                                      {expandedHouseholds[
+                                        household.household_id
+                                      ] ? (
+                                        <FaChevronUp />
+                                      ) : (
+                                        <FaChevronDown />
+                                      )}
                                     </td>
                                     <td className="household-id-cell">
                                       <FaHome className="household-icon-small" />
                                       {household.household_id || "Unknown"}
                                     </td>
                                     <td className="center-align">
-                                      <span className="user-count-badge">{household.user_count}</span>
+                                      <span className="user-count-badge">
+                                        {household.user_count}
+                                      </span>
                                     </td>
                                     <td className="energy-value-cell">
-                                      {household.total_household_kwh.toFixed(4)} kWh
+                                      {household.total_household_kwh.toFixed(4)}{" "}
+                                      kWh
                                     </td>
                                   </tr>
-                                  {expandedHouseholds[household.household_id] && (
+                                  {expandedHouseholds[
+                                    household.household_id
+                                  ] && (
                                     <tr className="details-row">
                                       <td colSpan="4">
-                                        {loadingDetails[household.household_id] ? (
+                                        {loadingDetails[
+                                          household.household_id
+                                        ] ? (
                                           <div className="loading-details">
-                                            <p>Loading detailed energy consumption data...</p>
+                                            <p>
+                                              Loading detailed energy
+                                              consumption data...
+                                            </p>
                                           </div>
                                         ) : (
-                                          <EnergyDetailsPanel 
+                                          <EnergyDetailsPanel
                                             householdId={household.household_id}
-                                            details={energyDetails[household.household_id]}
+                                            details={
+                                              energyDetails[
+                                                household.household_id
+                                              ]
+                                            }
                                             householdData={household}
                                             onGeneratePDF={generateHouseholdPDF}
-                                          />
-                                        )}
-                                      </td>
-                                    </tr>
-                                  )}
-                                </React.Fragment>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      ) : (
-                        <div className="no-data-state">
-                          <p>No energy consumption data available</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* 👇 AVERAGE PREVIEW WITH IMPROVED DESIGN */}
-                {showAveragePreview && (
-                  <div className="preview-table fullscreen-energy-preview">
-                    <div className="preview-header">
-                      <h2>📈 Average Energy Consumption by Household</h2>
-                      <div className="preview-controls">
-                        <SortButton
-                          sortConfig={averageSortConfig}
-                          showDropdown={showAverageSortDropdown}
-                          setShowDropdown={setShowAverageSortDropdown}
-                          handleSort={handleAverageSort}
-                          sortOptions={[
-                            { key: 'household_id', label: 'Household ID' },
-                            { key: 'user_count', label: 'Number of Users' },
-                            { key: 'total_household_kwh', label: 'Total Energy' },
-                            { key: 'average_kwh_per_user', label: 'Average kWh' }
-                          ]}
-                          type="average"
-                        />
-                        <button 
-                          className="close-preview-btn"
-                          onClick={() => setShowAveragePreview(false)}
-                        >
-                          Close Preview
-                        </button>
-                      </div>
-                    </div>
-                    
-                    <div className="energy-preview-content">
-                      {breakdownLoading ? (
-                        <div className="loading-state">
-                          <p>Loading energy consumption data...</p>
-                        </div>
-                      ) : getSortedAverage().length > 0 ? (
-                        <div className="energy-table-container">
-                          <div className="table-info">
-                            <p>Showing {getSortedAverage().length} households • Click on any household to view detailed energy consumption</p>
-                          </div>
-                          <table className="energy-breakdown-table">
-                            <thead>
-                              <tr>
-                                <th style={{width: '60px'}}></th>
-                                <th>Household ID</th>
-                                <th>Number of Users</th>
-                                <th>Total Energy (kWh)</th>
-                                <th>Avg kWh per Household</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {getSortedAverage().map((household, idx) => (
-                                <React.Fragment key={idx}>
-                                  <tr 
-                                    className={`expandable-row ${expandedHouseholds[household.household_id] ? 'expanded' : ''}`}
-                                    onClick={() => toggleHouseholdExpansion(household.household_id)}
-                                  >
-                                    <td className="expand-icon">
-                                      {expandedHouseholds[household.household_id] ? 
-                                        <FaChevronUp /> : <FaChevronDown />
-                                      }
-                                    </td>
-                                    <td className="household-id-cell">
-                                      <FaHome className="household-icon-small" />
-                                      {household.household_id || "Unknown"}
-                                    </td>
-                                    <td className="center-align">
-                                      <span className="user-count-badge">{household.user_count}</span>
-                                    </td>
-                                    <td className="energy-value-cell">
-                                      {household.total_household_kwh.toFixed(4)} kWh
-                                    </td>
-                                    <td className="average-value-cell">
-                                      {household.average_kwh_per_user.toFixed(4)} kWh
-                                    </td>
-                                  </tr>
-                                  {expandedHouseholds[household.household_id] && (
-                                    <tr className="details-row">
-                                      <td colSpan="5">
-                                        {loadingDetails[household.household_id] ? (
-                                          <div className="loading-details">
-                                            <p>Loading detailed energy consumption data...</p>
-                                          </div>
-                                        ) : (
-                                          <EnergyDetailsPanel 
-                                            householdId={household.household_id}
-                                            details={energyDetails[household.household_id]}
-                                            householdData={household}
                                           />
                                         )}
                                       </td>

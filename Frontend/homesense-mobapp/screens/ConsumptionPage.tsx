@@ -1350,10 +1350,10 @@ const ConsumptionPage = () => {
             <View>
               <Text style={{ fontSize: 14, color: "#666", marginBottom: 8 }}>
                 {filterType === "all"
-                  ? `Total ${selectedRange} Consumption (All Appliances)`
-                  : `Total ${selectedRange} Consumption${
+                  ? `Current Total ${selectedRange} Consumption \n(All Appliances)`
+                  : `Current Total ${selectedRange} Consumption${
                       selectedAppliance
-                        ? ` (${selectedAppliance.appliance_name})`
+                        ? ` \n(${selectedAppliance.appliance_name})`
                         : ""
                     }`}
               </Text>
