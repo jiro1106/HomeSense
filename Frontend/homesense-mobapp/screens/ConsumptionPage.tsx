@@ -155,7 +155,7 @@ const ConsumptionPage = () => {
       );
       setRegisteredAppliances(response.data.appliances || []);
     } catch (err) {
-      console.error("Failed to load appliances:", err);
+      console.warn("Failed to load appliances:", err);
       setRegisteredAppliances([]);
     }
   };
@@ -450,7 +450,7 @@ const ConsumptionPage = () => {
               );
               Alert.alert("Success", "Appliance unregistered successfully");
             } catch (error) {
-              console.error("Error unregistering appliance:", error);
+              console.warn("Error unregistering appliance:", error);
               Alert.alert("Error", "Failed to unregister appliance");
             }
           },

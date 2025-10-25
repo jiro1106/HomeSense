@@ -61,7 +61,7 @@ const SavingMode = () => {
         setSelectedMode(formattedMode);
         await AsyncStorage.setItem("savingMode", backendMode);
       } catch (error) {
-        console.error("Error fetching saving mode:", error);
+        console.warn("Error fetching saving mode:", error);
         // Fallback: use AsyncStorage if backend fetch fails
         const savedMode = await AsyncStorage.getItem("savingMode");
         if (savedMode) {
@@ -100,7 +100,7 @@ const SavingMode = () => {
       Alert.alert("Success", response.data.message);
       // navigation.goBack();
     } catch (error: any) {
-      console.error("Error updating savings mode:", error);
+      console.warn("Error updating savings mode:", error);
       Alert.alert(
         "Error",
         error.response?.data?.detail ||

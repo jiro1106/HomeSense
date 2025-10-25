@@ -92,7 +92,7 @@ const RegisterAppliancePage: React.FC<RegisterAppliancePageProps> = ({
         }));
         setAvailableDevices(normalized);
       } catch (err) {
-        console.error("Failed to fetch devices:", err);
+        console.warn("Failed to fetch devices:", err);
         Alert.alert("Error", "Failed to load available devices.");
       } finally {
         setLoadingDevices(false);
@@ -155,7 +155,7 @@ const RegisterAppliancePage: React.FC<RegisterAppliancePageProps> = ({
         },
       ]);
     } catch (error: any) {
-      console.error("Error registering appliance:", error);
+      console.warn("Error registering appliance:", error);
       Alert.alert(
         "Error",
         error?.response?.data?.detail || "Failed to register appliance."

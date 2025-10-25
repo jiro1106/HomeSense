@@ -37,8 +37,7 @@ const LoginScreen = () => {
     return re.test(email.toLowerCase());
   };
 
-  const emojiRegex =
-    /[\p{Emoji_Presentation}\p{Extended_Pictographic}]/u;
+  const emojiRegex = /[\p{Emoji_Presentation}\p{Extended_Pictographic}]/u;
 
   const handleLogin = async () => {
     // Validation
@@ -82,7 +81,7 @@ const LoginScreen = () => {
         },
       ]);
     } catch (error: any) {
-      console.error("Login error:", error);
+      console.warn("Login error:", error);
 
       if (error.response?.status === 401) {
         Alert.alert("Error", "Incorrect email or password.");

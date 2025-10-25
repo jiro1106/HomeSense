@@ -74,7 +74,7 @@ const MainMenu = () => {
       );
       return response.data.appliances || [];
     } catch (error) {
-      console.error("Error fetching registered appliances:", error);
+      console.warn("Error fetching registered appliances:", error);
       return [];
     }
   }, []);
@@ -108,7 +108,7 @@ const MainMenu = () => {
               total_kwh: consumptionData.total_kwh || 0,
             } as TopDevice;
           } catch (error) {
-            console.error(
+            console.log(
               `Error fetching consumption for ${device.device_id}:`,
               error
             );
@@ -135,7 +135,7 @@ const MainMenu = () => {
           .sort((a, b) => b.total_kwh - a.total_kwh)
           .slice(0, 3); // Get top 3 devices
       } catch (error) {
-        console.error("Error fetching device consumptions:", error);
+        console.warn("Error fetching device consumptions:", error);
         return [];
       }
     },
@@ -166,7 +166,7 @@ const MainMenu = () => {
       );
       setTopDevices(topDevicesData);
     } catch (error) {
-      console.error("Error fetching top energy devices:", error);
+      console.warn("Error fetching top energy devices:", error);
       setTopDevices([]);
       setHasRegisteredAppliances(false);
     } finally {
@@ -221,7 +221,7 @@ const MainMenu = () => {
         setMonthUsage("0.00 kWh");
       }
     } catch (error) {
-      console.error("Error fetching usage summary:", error);
+      console.warn("Error fetching usage summary:", error);
       setTodayUsage("Error");
       setWeekUsage("Error");
       setMonthUsage("Error");
@@ -238,7 +238,7 @@ const MainMenu = () => {
       setRefreshing(true);
       await Promise.all([fetchUsageSummary(), fetchTopEnergyDevices()]);
     } catch (error) {
-      console.error("Error refreshing data:", error);
+      console.warn("Error refreshing data:", error);
     } finally {
       setRefreshing(false);
     }
