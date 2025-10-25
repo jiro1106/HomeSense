@@ -11,6 +11,7 @@ import {
   Platform,
   Alert,
   ActivityIndicator,
+  Modal,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -54,6 +55,10 @@ const SignupScreen = () => {
   const [householdId, setHouseholdId] = useState("");
 
   const [passwordRules, setPasswordRules] = useState<PasswordValidation[]>([]);
+
+  // ===== TERMS & CONDITIONS =====
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [termsVisible, setTermsVisible] = useState(false);
 
   // ===== LOADING & ERROR STATES =====
   const [loading, setLoading] = useState(false);
@@ -165,6 +170,10 @@ const SignupScreen = () => {
 
   // ===== STEP 3: COMPLETE SIGNUP =====
   const handleCompleteSignup = async () => {
+    if (!agreedToTerms) {
+      Alert.alert("Terms Required", "You must agree to the Terms and Conditions to continue.");
+      return;
+    }
     if (!username || !password || !confirmPassword) {
       Alert.alert("Error", "Please fill in all fields.");
       return;
@@ -517,11 +526,33 @@ const SignupScreen = () => {
                   ))}
                 </View>
 
+                {/* Terms and Conditions Agreement */}
+                <View style={styles.termsRow}>
+                  <TouchableOpacity
+                    onPress={() => setAgreedToTerms(!agreedToTerms)}
+                    disabled={loading}
+                    style={{ marginRight: 8 }}
+                  >
+                    <Ionicons
+                      name={agreedToTerms ? "checkbox" : "square-outline"}
+                      size={20}
+                      color="#000"
+                    />
+                  </TouchableOpacity>
+                  <Text style={styles.termsText}>I agree to the</Text>
+                  <TouchableOpacity onPress={() => setTermsVisible(true)} disabled={loading}>
+                    <Text style={styles.termsLink}> Terms and Conditions</Text>
+                  </TouchableOpacity>
+                </View>
+
                 {/* Create Account Button */}
                 <TouchableOpacity
-                  style={[styles.button, loading && { opacity: 0.6 }]}
+                  style={[
+                    styles.button,
+                    (loading || !agreedToTerms) && { opacity: 0.6 },
+                  ]}
                   onPress={handleCompleteSignup}
-                  disabled={loading}
+                  disabled={loading || !agreedToTerms}
                 >
                   {loading ? (
                     <ActivityIndicator color="#fff" />
@@ -543,6 +574,60 @@ const SignupScreen = () => {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+      {/* Terms & Conditions Modal */}
+      <Modal visible={termsVisible} transparent animationType="slide" onRequestClose={() => setTermsVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Terms and Conditions</Text>
+              <TouchableOpacity onPress={() => setTermsVisible(false)}>
+                <Ionicons name="close" size={22} color="#fff" />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.modalBody}>
+              <ScrollView
+                style={{ flex: 1 }}
+                showsVerticalScrollIndicator
+                contentContainerStyle={{ paddingBottom: 80, flexGrow: 1 }}
+              >
+                <Text style={styles.modalSectionTitle}>1. Data Collection and Usage</Text>
+                <Text style={styles.modalParagraph}>
+                  HomeSense collects data from your connected smart plugs to monitor and analyze household energy consumption. The data is used solely for providing insights, bill predictions, and recommendations.
+                </Text>
+                <Text style={styles.modalSectionTitle}>2. Privacy</Text>
+                <Text style={styles.modalParagraph}>
+                  User data is stored securely in the HomeSense system and is not shared with third parties without consent.
+                </Text>
+                <Text style={styles.modalSectionTitle}>3. Device Connectivity</Text>
+                <Text style={styles.modalParagraph}>
+                  Developers are responsible for connecting the user's smart plugs. HomeSense is not liable for issues arising from hardware malfunctions or network connectivity errors.
+                </Text>
+                <Text style={styles.modalSectionTitle}>4. Predictions and Recommendations</Text>
+                <Text style={styles.modalParagraph}>
+                  All energy predictions and recommendations are based on available data and algorithms. They are estimates and may not always reflect actual usage or costs.
+                </Text>
+                <Text style={styles.modalSectionTitle}>5. Account and Household Management</Text>
+                <Text style={styles.modalParagraph}>
+                  Each user belongs to a household. The household owner or admin may have access to shared energy data for monitoring and reporting.
+                </Text>
+                <Text style={styles.modalSectionTitle}>6. Limitation of Liability</Text>
+                <Text style={styles.modalParagraph}>
+                  HomeSense is not responsible for data loss, device issues, or inaccuracies resulting from user error or third-party services.
+                </Text>
+                <Text style={styles.modalSectionTitle}>7. Agreement</Text>
+                <Text style={styles.modalParagraph}>
+                  By creating an account, you acknowledge that you have read, understood, and agreed to these Terms and Conditions.
+                </Text>
+              </ScrollView>
+            </View>
+            <View style={styles.modalFooter}>
+              <TouchableOpacity style={styles.button} onPress={() => setTermsVisible(false)}>
+                <Text style={styles.buttonText}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
