@@ -1,8 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, EmailStr
 import random
-import smtplib
-import socket
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from pymongo import MongoClient
@@ -11,8 +9,6 @@ from dotenv import load_dotenv
 from datetime import datetime, timedelta
 import logging
 from passlib.hash import bcrypt
-import sib_api_v3_sdk
-from sib_api_v3_sdk.rest import ApiException
 from requests.exceptions import RequestException
 import requests
 
