@@ -984,7 +984,7 @@ function Dashboard() {
       <div className={`content ${isOpen ? "shift" : ""}`}>
         {activePage === "dashboard" && (
           <>
-            <h1>Welcome to the Admin Dashboard 🎉</h1>
+            <h1>Admin Dashboard</h1>
 
             {analyticsLoading ? (
               <p>Loading analytics...</p>
