@@ -376,8 +376,14 @@ while not stop_flag:
                 response = openapi.get(f"/v1.0/devices/{device_id}/status")
                 response = try_reconnect_if_invalid(response, device_id)
 
+                #expired tokens  
                 if isinstance(response, dict) and (not response.get("success", True)) and response.get("code") == 1010:
                     print(f"❌ [{household_id}] Invalid token for {device_label} ({device_id}). Skipping...")
+                    continue
+                
+                #spot fake device IDs that are not linked
+                if isinstance(response, dict) and (not response.get("success", True)) and response.get("code") in [2406, 1106, 1107]:
+                    print(f"❌ [{household_id}] Device ID not found or not linked in Tuya Cloud: {device_label} ({device_id}). Skipping.")
                     continue
 
                 timestamp_ms = response.get("t")

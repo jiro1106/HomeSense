@@ -7,6 +7,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from pymongo import MongoClient
 import os
+import resend
 from dotenv import load_dotenv
 from datetime import datetime, timedelta
 import logging
@@ -14,6 +15,8 @@ from passlib.hash import bcrypt
 
 # Initialize router
 router = APIRouter()
+
+resend.api_key = os.getenv("RESEND_API_KEY")
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -26,16 +29,6 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 load_dotenv(os.path.join(BASE_DIR, "secrets.env"))
 
 MONGO_URI = os.getenv("MONGO_URI")
-SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com").strip()
-SMTP_PORT = int(os.getenv("SMTP_PORT", 587))
-SMTP_USER = os.getenv("SMTP_USER", "").strip()
-SMTP_PASS = os.getenv("SMTP_PASS", "").strip()
-
-logger.info(f"SMTP Config - Server: {SMTP_SERVER}, Port: {SMTP_PORT}, User: {SMTP_USER}")
-
-# Validate credentials exist
-if not SMTP_USER or not SMTP_PASS:
-    logger.error("⚠️ SMTP_USER or SMTP_PASS not set in secrets.env")
 
 # ==========================
 # MongoDB setup
@@ -65,124 +58,40 @@ class SignupRequest(BaseModel):
 # ==========================
 def send_email(to_email: str, verification_code: str) -> bool:
     """
-    Send verification email with robust SMTP handling
+    Send verification email using Resend API (no SMTP required)
     """
-    server = None
     try:
-        logger.info(f"📧 Attempting to send email to {to_email}")
-        
-        # Create message with proper headers
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = "HomeSense Email Verification"
-        msg["From"] = SMTP_USER
-        msg["To"] = to_email
-        
-        # Create plain text version
-        text = f"""
-Your HomeSense verification code is: {verification_code}
+        logger.info(f"📧 Sending verification email to {to_email} via Resend")
 
-This code will expire in 10 minutes.
+        # Format email content
+        subject = "HomeSense Email Verification"
+        text_content = f"""
+                Your HomeSense verification code is: {verification_code}
 
-If you didn't request this, please ignore this email.
-"""
-        
-        part = MIMEText(text, "plain")
-        msg.attach(part)
-        
-        # Create SMTP connection with explicit error handling
-        logger.info(f"🔌 Creating SMTP connection to {SMTP_SERVER}:{SMTP_PORT}")
-        
-        try:
-            server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=10)
-            logger.info("✅ SMTP connection established")
-        except socket.timeout:
-            logger.error("❌ SMTP connection timeout - server not responding")
-            raise HTTPException(
-                status_code=500, 
-                detail="Email server timeout. Please try again later."
-            )
-        except socket.gaierror:
-            logger.error("❌ Cannot resolve SMTP server hostname")
-            raise HTTPException(
-                status_code=500, 
-                detail="Email server configuration error."
-            )
-        except ConnectionRefusedError:
-            logger.error("❌ SMTP server refused connection")
-            raise HTTPException(
-                status_code=500, 
-                detail="Cannot connect to email server."
-            )
-        
-        # Initiate SMTP handshake
-        logger.info("🤝 Sending initial EHLO")
-        server.ehlo()
-        
-        # Start TLS encryption
-        logger.info("🔒 Starting TLS encryption")
-        try:
-            server.starttls()
-        except smtplib.SMTPNotSupportedError:
-            logger.error("❌ TLS not supported by server")
-            raise HTTPException(
-                status_code=500, 
-                detail="Email server doesn't support encryption."
-            )
-        
-        # Reidentify after TLS
-        logger.info("🤝 Sending EHLO after TLS")
-        server.ehlo()
-        
-        # Login with credentials
-        logger.info(f"🔑 Attempting login as {SMTP_USER}")
-        try:
-            server.login(SMTP_USER, SMTP_PASS)
-            logger.info("✅ Login successful")
-        except smtplib.SMTPAuthenticationError as auth_err:
-            logger.error(f"❌ Authentication failed: {str(auth_err)}")
-            raise HTTPException(
-                status_code=500, 
-                detail="SMTP authentication failed. Check your email credentials and app password."
-            )
-        except smtplib.SMTPException as smtp_err:
-            logger.error(f"❌ SMTP error during login: {str(smtp_err)}")
-            raise HTTPException(
-                status_code=500, 
-                detail=f"SMTP error: {str(smtp_err)}"
-            )
-        
-        # Send email
-        logger.info(f"📤 Sending email to {to_email}")
-        server.send_message(msg)
-        logger.info("✅ Email sent successfully")
-        
+                This code will expire in 10 minutes.
+
+                If you didn't request this, please ignore this email.
+                """
+
+        # Send email via Resend
+        params = {
+            "from": "HomeSense <noreply@resend.dev>",
+            "to": [to_email],
+            "subject": subject,
+            "text": text_content,
+        }
+
+        response = resend.Emails.send(params)
+        logger.info(f"✅ Email sent successfully via Resend: {response}")
+
         return True
-        
-    except HTTPException:
-        raise
-    except smtplib.SMTPException as e:
-        logger.error(f"❌ SMTP Error: {str(e)}")
-        raise HTTPException(
-            status_code=500, 
-            detail=f"Failed to send email: {str(e)}"
-        )
+
     except Exception as e:
-        logger.error(f"❌ Unexpected error: {type(e).__name__}: {str(e)}")
+        logger.error(f"❌ Failed to send email via Resend: {str(e)}")
         raise HTTPException(
-            status_code=500, 
-            detail=f"Failed to send email: {str(e)}"
+            status_code=500,
+            detail=f"Failed to send verification email: {str(e)}"
         )
-    finally:
-        if server is not None:
-            try:
-                logger.info("🔌 Closing SMTP connection")
-                server.quit()
-            except Exception as e:
-                logger.warning(f"Warning closing connection: {str(e)}")
-                try:
-                    server.close()
-                except:
-                    pass
 
 
 # ==========================
