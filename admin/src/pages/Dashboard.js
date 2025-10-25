@@ -83,6 +83,14 @@ function Dashboard() {
     direction: "desc",
   });
 
+  //Sort for users page
+  const [usersPageSortConfig, setUsersPageSortConfig] = useState({
+    key: null,
+    direction: "asc",
+  });
+  const [showUsersPageSortDropdown, setShowUsersPageSortDropdown] =
+    useState(false);
+
   // 🆕 Dropdown visibility states
   const [showUsersSortDropdown, setShowUsersSortDropdown] = useState(false);
   const [showDevicesSortDropdown, setShowDevicesSortDropdown] = useState(false);
@@ -411,6 +419,46 @@ function Dashboard() {
     setShowUsersSortDropdown(false);
   };
 
+  const handleUsersPageSort = (key) => {
+    let direction = "asc";
+    if (
+      usersPageSortConfig.key === key &&
+      usersPageSortConfig.direction === "asc"
+    ) {
+      direction = "desc";
+    }
+    setUsersPageSortConfig({ key, direction });
+  };
+
+  const getUsersPageSortedData = () => {
+    if (!Array.isArray(users) || users.length === 0) return [];
+
+    const sorted = [...users];
+
+    if (usersPageSortConfig.key) {
+      sorted.sort((a, b) => {
+        const key = usersPageSortConfig.key;
+        const aVal = a[key] ?? "";
+        const bVal = b[key] ?? "";
+
+        // Handle date sorting for "last_logged_in"
+        if (key === "last_logged_in") {
+          const aTime = new Date(aVal).getTime() || 0;
+          const bTime = new Date(bVal).getTime() || 0;
+          return usersPageSortConfig.direction === "asc"
+            ? aTime - bTime
+            : bTime - aTime;
+        }
+
+        // String comparison fallback
+        return usersPageSortConfig.direction === "asc"
+          ? String(aVal).localeCompare(String(bVal))
+          : String(bVal).localeCompare(String(aVal));
+      });
+    }
+
+    return sorted;
+  };
   const handleDevicesSort = (key) => {
     const direction =
       devicesSortConfig.key === key && devicesSortConfig.direction === "asc"
@@ -1337,7 +1385,21 @@ function Dashboard() {
 
         {activePage === "users" && (
           <>
-            <h1>USERS</h1>
+            <div className="users-container">
+              <h1>USERS</h1>
+              <SortButton
+                sortConfig={usersPageSortConfig}
+                showDropdown={showUsersPageSortDropdown}
+                setShowDropdown={setShowUsersPageSortDropdown}
+                handleSort={handleUsersPageSort}
+                sortOptions={[
+                  { key: "household_id", label: "Household ID" },
+                  { key: "username", label: "Username" },
+                  { key: "email", label: "Email" },
+                ]}
+                type="users"
+              />
+            </div>
             <div className="table-container">
               {loading ? (
                 <p>Loading users...</p>
@@ -1353,8 +1415,8 @@ function Dashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {users.length > 0 ? (
-                      users.map((user, index) => (
+                    {getUsersPageSortedData().length > 0 ? (
+                      getUsersPageSortedData().map((user, index) => (
                         <tr key={index}>
                           <td>{user.email}</td>
                           <td>{user.username || "N/A"}</td>
