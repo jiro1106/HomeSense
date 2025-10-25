@@ -7,16 +7,15 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from pymongo import MongoClient
 import os
-import resend
 from dotenv import load_dotenv
 from datetime import datetime, timedelta
 import logging
 from passlib.hash import bcrypt
+import sib_api_v3_sdk
+from sib_api_v3_sdk.rest import ApiException
 
 # Initialize router
 router = APIRouter()
-
-resend.api_key = os.getenv("RESEND_API_KEY")
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -57,41 +56,37 @@ class SignupRequest(BaseModel):
 # Helper function to send email
 # ==========================
 def send_email(to_email: str, verification_code: str) -> bool:
-    """
-    Send verification email using Resend API (no SMTP required)
-    """
     try:
-        logger.info(f"📧 Sending verification email to {to_email} via Resend")
+        configuration = sib_api_v3_sdk.Configuration()
+        configuration.api_key['api-key'] = os.getenv("BREVO_API_KEY")
 
-        # Format email content
+        api_instance = sib_api_v3_sdk.TransactionalEmailsApi(
+            sib_api_v3_sdk.ApiClient(configuration)
+        )
+
         subject = "HomeSense Email Verification"
         text_content = f"""
-                Your HomeSense verification code is: {verification_code}
+        Your HomeSense verification code is: {verification_code}
 
-                This code will expire in 10 minutes.
+        This code will expire in 10 minutes.
 
-                If you didn't request this, please ignore this email.
-                """
+        If you didn't request this, please ignore this email.
+        """
 
-        # Send email via Resend
-        params = {
-            "from": "HomeSense <noreply@resend.dev>",
-            "to": [to_email],
-            "subject": subject,
-            "text": text_content,
-        }
+        send_smtp_email = sib_api_v3_sdk.SendSmtpEmail(
+            to=[{"email": to_email}],
+            sender={"email": "homesense@brevo.com", "name": "HomeSense"},
+            subject=subject,
+            text_content=text_content,
+        )
 
-        response = resend.Emails.send(params)
-        logger.info(f"✅ Email sent successfully via Resend: {response}")
-
+        api_instance.send_transac_email(send_smtp_email)
+        logger.info(f"✅ Email sent successfully to {to_email} via Brevo")
         return True
 
-    except Exception as e:
-        logger.error(f"❌ Failed to send email via Resend: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to send verification email: {str(e)}"
-        )
+    except ApiException as e:
+        logger.error(f"❌ Brevo API error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to send email: {e}")
 
 
 # ==========================
