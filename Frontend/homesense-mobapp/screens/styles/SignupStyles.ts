@@ -199,5 +199,81 @@ export const signupStyles = StyleSheet.create({
     fontStyle: "italic",
   },
 
- 
+  // ===== TERMS & CONDITIONS =====
+  termsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 4,
+    marginBottom: 10,
+    flexWrap: "wrap",
+  },
+  termsText: {
+    fontSize: 14,
+    color: "#374151",
+  },
+  termsLink: {
+    fontSize: 14,
+    color: "#1E40AF",
+    fontWeight: "600",
+  },
+
+  // ===== MODAL =====
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  modalContainer: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    overflow: "hidden",
+    height: "85%",
+    width: "100%",
+    minHeight: 0,
+    alignSelf: "stretch",
+  },
+  modalHeader: {
+    backgroundColor: "#111827",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  modalTitle: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  modalBody: {
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    backgroundColor: "#fff",
+    flex: 1,
+    flexShrink: 1,
+    minHeight: 0,
+  },
+  modalSectionTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#111827",
+    marginTop: 6,
+    marginBottom: 6,
+  },
+  modalParagraph: {
+    fontSize: 14,
+    color: "#374151",
+    lineHeight: 20,
+    marginBottom: 8,
+    textAlign: 'justify',
+  },
+  modalFooter: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: "#fff",
+    borderTopWidth: 1,
+    borderTopColor: "#E5E7EB",
+  },
 });
