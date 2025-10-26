@@ -124,7 +124,9 @@ function Dashboard() {
   useEffect(() => {
     const fetchHouseholds = async () => {
       try {
-        const res = await fetch("http://localhost:8000/admin/households");
+        const res = await fetch(
+          `${process.env.REACT_APP_API_URL}/admin/households`
+        );
         const data = await res.json();
         setHouseholds(data.households || []);
       } catch (err) {
@@ -138,7 +140,7 @@ function Dashboard() {
   // 📊 Fetch admin analytics
   const fetchAnalytics = () => {
     setAnalyticsLoading(true);
-    fetch("http://localhost:8000/admin/analytics")
+    fetch(`${process.env.REACT_APP_API_URL}/admin/analytics`)
       .then((res) => {
         if (!res.ok) throw new Error("Failed to fetch analytics");
         return res.json();
@@ -161,7 +163,7 @@ function Dashboard() {
   // Fetch users
   const fetchUsers = () => {
     setLoading(true);
-    fetch("http://localhost:8000/admin/users")
+    fetch(`${process.env.REACT_APP_API_URL}/admin/users`)
       .then((res) => {
         if (!res.ok) throw new Error("Failed to fetch users");
         return res.json();
@@ -178,7 +180,7 @@ function Dashboard() {
   // Fetch devices (for preview)
   const fetchDevices = () => {
     setPreviewLoading(true);
-    fetch("http://localhost:8000/admin/devices")
+    fetch(`${process.env.REACT_APP_API_URL}/admin/devices`)
       .then((res) => {
         if (!res.ok) throw new Error("Failed to fetch devices");
         return res.json();
@@ -202,7 +204,9 @@ function Dashboard() {
   const fetchEnergyBreakdown = () => {
     setBreakdownLoading(true);
     console.log("Fetching comprehensive energy breakdown...");
-    fetch("http://localhost:8000/admin/all-households-energy-summary")
+    fetch(
+      `${process.env.REACT_APP_API_URL}/admin/all-households-energy-summary`
+    )
       .then((res) => {
         if (!res.ok) {
           return res.text().then((text) => {
@@ -232,7 +236,7 @@ function Dashboard() {
 
   // Fallback to basic energy breakdown
   const fetchBasicEnergyBreakdown = () => {
-    fetch("http://localhost:8000/admin/energy-breakdown")
+    fetch(`${process.env.REACT_APP_API_URL}/admin/energy-breakdown`)
       .then((res) => {
         if (!res.ok) throw new Error("Failed to fetch basic energy breakdown");
         return res.json();
@@ -262,7 +266,7 @@ function Dashboard() {
     setLoadingDetails((prev) => ({ ...prev, [householdId]: true }));
 
     fetch(
-      `http://localhost:8000/admin/household-energy-details?household_id=${householdId}`
+      `${process.env.REACT_APP_API_URL}/admin/household-energy-details?household_id=${householdId}`
     )
       .then((res) => {
         if (!res.ok) throw new Error("Failed to fetch household details");
@@ -301,7 +305,7 @@ function Dashboard() {
     );
     if (!confirmDelete) return;
 
-    fetch(`http://localhost:8000/admin/users/${email}`, {
+    fetch(`${process.env.REACT_APP_API_URL}/admin/users/${email}`, {
       method: "DELETE",
     })
       .then((res) => {
@@ -738,7 +742,7 @@ function Dashboard() {
   const handleEditDevice = async (deviceId, updates) => {
     try {
       const res = await fetch(
-        `http://localhost:8000/admin/appliances/${deviceId}`,
+        `${process.env.REACT_APP_API_URL}/admin/appliances/${deviceId}`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -765,7 +769,7 @@ function Dashboard() {
 
     try {
       const res = await fetch(
-        `http://localhost:8000/admin/appliances/${deviceId}`,
+        `${process.env.REACT_APP_API_URL}/admin/appliances/${deviceId}`,
         { method: "DELETE" }
       );
 
@@ -1121,7 +1125,7 @@ function Dashboard() {
 
                         try {
                           const res = await fetch(
-                            "http://localhost:8000/admin/appliances/add-unregistered",
+                            `${process.env.REACT_APP_API_URL}/admin/appliances/add-unregistered`,
                             {
                               method: "POST",
                               headers: { "Content-Type": "application/json" },
