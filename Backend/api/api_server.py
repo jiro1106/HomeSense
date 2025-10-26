@@ -34,7 +34,7 @@ app.include_router(email_verification.router, prefix="/auth", tags=["Email Verif
 # Allow frontend to talk to backend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:8081", "https://homesense-admin.onrender.com/"],
+    allow_origins=["http://localhost:3000", "http://localhost:8081", "https://homesense-admin.onrender.com"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
