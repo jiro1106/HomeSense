@@ -1334,3 +1334,184 @@
 .add-plug-form button:hover {
   background-color: #010308c7;
 }
+
+/* ===== Smart Plug Table Buttons ===== */
+.edit-device-btn,
+.delete-device-btn {
+  border: none;
+  padding: 6px 12px;
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+/* Edit Button: Blue tone */
+.edit-device-btn {
+  background-color: #3b82f6; /* Tailwind blue-500 */
+  color: white;
+}
+
+.edit-device-btn:hover {
+  background-color: #2563eb; /* blue-600 */
+  transform: translateY(-1px);
+}
+
+/* Delete Button: Red tone */
+.delete-device-btn {
+  background-color: #ef4444; /* red-500 */
+  color: white;
+  margin-left: 6px;
+}
+
+.delete-device-btn:hover {
+  background-color: #dc2626; /* red-600 */
+  transform: translateY(-1px);
+}
+
+/* Optional subtle shadow for better depth */
+.edit-device-btn:active,
+.delete-device-btn:active {
+  transform: translateY(0);
+  opacity: 0.9;
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal {
+  background: white;
+  padding: 20px;
+  border-radius: 12px;
+  width: 400px;
+}
+
+.modal label {
+  display: block;
+  margin-bottom: 10px;
+}
+
+.modal input {
+  width: 100%;
+  padding: 6px;
+  margin-top: 4px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+}
+
+.modal-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 15px;
+}
+
+/* ===== Delete Confirmation Modal ===== */
+.delete-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+}
+
+.delete-modal {
+  background: #fff;
+  padding: 24px;
+  border-radius: 12px;
+  width: 400px;
+  text-align: center;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+}
+
+.delete-modal-title {
+  color: #ef4444;
+  margin-bottom: 10px;
+  font-weight: 700;
+}
+
+.delete-modal-warning {
+  color: #374151;
+  margin-bottom: 8px;
+}
+
+.delete-modal-instruction {
+  margin-top: 10px;
+  font-weight: 500;
+  color: #1f2937;
+}
+
+.delete-modal-deviceid {
+  display: inline-block;
+  background: #f3f4f6;
+  border-radius: 6px;
+  padding: 4px 8px;
+  margin: 8px 0;
+  font-family: monospace;
+  color: #1f2937;
+  user-select: all;
+}
+
+.delete-modal-input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  margin-top: 8px;
+  font-size: 14px;
+}
+
+.delete-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+  gap: 8px;
+}
+
+.delete-modal-cancel {
+  background: #9ca3af;
+  color: white;
+  padding: 8px 14px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.delete-modal-cancel:hover {
+  background: #6b7280;
+}
+
+.delete-modal-confirm {
+  background: #ef4444;
+  color: white;
+  padding: 8px 14px;
+  border: none;
+  border-radius: 8px;
+  cursor: not-allowed;
+  opacity: 0.6;
+  transition: all 0.2s ease;
+}
+
+.delete-modal-confirm.active {
+  cursor: pointer;
+  opacity: 1;
+  background: #dc2626;
+}
+
+.delete-modal-confirm.active:hover {
+  background: #b91c1c;
+}

@@ -83,6 +83,14 @@ function Dashboard() {
     direction: "desc",
   });
 
+  //for editing and deleting smart plugs
+  const [editingDevice, setEditingDevice] = useState(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+
+  //for delete modals for smart plugs
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletingDevice, setDeletingDevice] = useState(null);
+  const [confirmText, setConfirmText] = useState("");
   //Sort for users page
   const [usersPageSortConfig, setUsersPageSortConfig] = useState({
     key: null,
@@ -727,6 +735,51 @@ function Dashboard() {
     }
   };
 
+  const handleEditDevice = async (deviceId, updates) => {
+    try {
+      const res = await fetch(
+        `http://localhost:8000/admin/appliances/${deviceId}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(updates),
+        }
+      );
+
+      if (!res.ok) throw new Error("Failed to update device");
+
+      const data = await res.json();
+      alert(data.message || "Smart plug updated successfully.");
+      fetchDevices(); // refresh table
+    } catch (err) {
+      console.error("Error updating device:", err);
+      alert("Failed to update device.");
+    }
+  };
+
+  const handleDeleteDevice = async (deviceId) => {
+    const confirmDelete = window.confirm(
+      "Are you sure you want to delete this smart plug?"
+    );
+    if (!confirmDelete) return;
+
+    try {
+      const res = await fetch(
+        `http://localhost:8000/admin/appliances/${deviceId}`,
+        { method: "DELETE" }
+      );
+
+      if (!res.ok) throw new Error("Failed to delete device");
+
+      const data = await res.json();
+      alert(data.message || "Smart plug deleted successfully.");
+      fetchDevices(); // refresh table
+    } catch (err) {
+      console.error("Error deleting device:", err);
+      alert("Failed to delete device.");
+    }
+  };
+
   // 🆕 Energy Details Component - IMPROVED WITH BETTER DESIGN
   const EnergyDetailsPanel = ({
     householdId,
@@ -1197,6 +1250,7 @@ function Dashboard() {
                               <th>Appliance Type</th>
                               <th>Household ID</th>
                               <th>Status</th>
+                              <th>Actions</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -1233,6 +1287,27 @@ function Dashboard() {
                                     {status === "inactive" && "🔴 Inactive"}
                                     {status === "unknown" && "🟠 Unknown"}
                                   </td>
+                                  <td>
+                                    <button
+                                      onClick={() => {
+                                        setEditingDevice(d);
+                                        setShowEditModal(true);
+                                      }}
+                                      className="edit-device-btn"
+                                    >
+                                      ✏️ Edit
+                                    </button>
+
+                                    <button
+                                      onClick={() => {
+                                        setDeletingDevice(d);
+                                        setShowDeleteModal(true);
+                                      }}
+                                      className="delete-device-btn"
+                                    >
+                                      🗑️ Delete
+                                    </button>
+                                  </td>
                                 </tr>
                               );
                             })}
@@ -1242,6 +1317,130 @@ function Dashboard() {
                     ) : (
                       <p>No devices found</p>
                     )}
+                  </div>
+                )}
+                {/* 👇 edit modal */}
+                {showEditModal && editingDevice && (
+                  <div className="modal-overlay">
+                    <div className="modal">
+                      <h3>Edit Smart Plug</h3>
+                      <label>
+                        Appliance Name:
+                        <input
+                          type="text"
+                          value={editingDevice.appliance_name || ""}
+                          onChange={(e) =>
+                            setEditingDevice({
+                              ...editingDevice,
+                              appliance_name: e.target.value,
+                            })
+                          }
+                        />
+                      </label>
+                      <label>
+                        Appliance Type:
+                        <input
+                          type="text"
+                          value={editingDevice.appliance_type || ""}
+                          onChange={(e) =>
+                            setEditingDevice({
+                              ...editingDevice,
+                              appliance_type: e.target.value,
+                            })
+                          }
+                        />
+                      </label>
+                      <label>
+                        Household ID:
+                        <input
+                          type="text"
+                          value={editingDevice.household_id || ""}
+                          onChange={(e) =>
+                            setEditingDevice({
+                              ...editingDevice,
+                              household_id: e.target.value,
+                            })
+                          }
+                        />
+                      </label>
+
+                      <div className="modal-buttons">
+                        <button
+                          onClick={async () => {
+                            await handleEditDevice(
+                              editingDevice.device_id,
+                              editingDevice
+                            );
+                            setShowEditModal(false);
+                          }}
+                          className="save-btn"
+                        >
+                          Save
+                        </button>
+                        <button
+                          onClick={() => setShowEditModal(false)}
+                          className="cancel-btn"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ===== Delete Confirmation Modal ===== */}
+                {showDeleteModal && (
+                  <div className="delete-modal-overlay">
+                    <div className="delete-modal">
+                      <h3 className="delete-modal-title">⚠️ Confirm Delete</h3>
+                      <p className="delete-modal-warning">
+                        You are about to delete this smart plug. This action
+                        cannot be undone.
+                      </p>
+                      <p className="delete-modal-instruction">
+                        To confirm, please type the Device ID below:
+                      </p>
+
+                      <code className="delete-modal-deviceid">
+                        {deletingDevice?.device_id}
+                      </code>
+
+                      <input
+                        type="text"
+                        value={confirmText}
+                        onChange={(e) => setConfirmText(e.target.value)}
+                        placeholder="Type the Device ID here..."
+                        className="delete-modal-input"
+                      />
+
+                      <div className="delete-modal-actions">
+                        <button
+                          onClick={() => {
+                            setShowDeleteModal(false);
+                            setConfirmText("");
+                          }}
+                          className="delete-modal-cancel"
+                        >
+                          Cancel
+                        </button>
+
+                        <button
+                          disabled={confirmText !== deletingDevice?.device_id}
+                          onClick={() => {
+                            handleDeleteDevice(deletingDevice.device_id);
+                            setShowDeleteModal(false);
+                            setConfirmText("");
+                          }}
+                          className={`delete-modal-confirm ${
+                            confirmText === deletingDevice?.device_id
+                              ? "active"
+                              : ""
+                          }`}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 )}
 
