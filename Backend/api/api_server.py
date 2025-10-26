@@ -298,6 +298,47 @@ def add_unregistered_appliance(data: UnregisteredAppliance):
     return {"message": f"Unregistered appliance {data.device_id} added successfully"}
 
 # ========================
+# Update registered/unregistered smart plug
+# ========================
+@app.put("/admin/appliances/{device_id}")
+def admin_update_appliance(device_id: str, data: UnregisteredAppliance):
+    appliances = db["appliances"]
+
+    update_fields = {
+        k: v for k, v in data.dict().items() if v is not None and k != "device_id"
+    }
+
+    if not update_fields:
+        raise HTTPException(status_code=400, detail="No fields provided for update")
+
+    update_fields["updated_at"] = datetime.datetime.now(datetime.timezone.utc)
+
+    result = appliances.update_one(
+        {"device_id": device_id},
+        {"$set": update_fields}
+    )
+
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Smart plug not found")
+
+    return {"message": f"Smart plug {device_id} updated successfully"}
+
+
+# ========================
+# Delete registered/unregistered smart plug
+# ========================
+@app.delete("/admin/appliances/{device_id}")
+def admin_delete_appliance(device_id: str):
+    appliances = db["appliances"]
+
+    result = appliances.delete_one({"device_id": device_id})
+
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Smart plug not found")
+
+    return {"message": f"Smart plug {device_id} deleted successfully"}
+
+# ========================
 # DELETING USERS
 # ========================
 
@@ -385,38 +426,46 @@ def get_admin_analytics():
 @app.get("/admin/devices")
 def get_all_devices():
     """
-    Admin: Fetch all devices from current_totals.
-    Includes device_name, device_id, appliance_name, appliance_type, household_id, and status.
+    Admin: Fetch all devices from appliances and merge with current_totals for their active/inactive status.
     """
     try:
-        collection = db["current_totals"]
+        appliances_col = db["appliances"]
 
-        # Group by device_id to avoid duplicates if multiple entries exist
-        devices = list(collection.aggregate([
+        devices = list(appliances_col.aggregate([
             {
-                "$group": {
-                    "_id": "$device_id",
-                    "device_name": {"$first": "$device_name"},
-                    "appliance_name": {"$first": "$appliance_name"},
-                    "appliance_type": {"$first": "$appliance_type"},
-                    "household_id": {"$first": "$household_id"},
-                    "status": {"$first": "$status"},
+                "$lookup": {
+                    "from": "current_totals",      # Join with current_totals
+                    "localField": "device_id",     # Match by device_id
+                    "foreignField": "device_id",
+                    "as": "status_info"
+                }
+            },
+            {
+                "$addFields": {
+                    "status": {
+                        "$ifNull": [
+                            {"$arrayElemAt": ["$status_info.status", 0]},  # take the first match
+                            "unknown"  # default if not found
+                        ]
+                    }
                 }
             },
             {
                 "$project": {
                     "_id": 0,
-                    "device_id": "$_id",
+                    "device_id": 1,
                     "device_name": 1,
                     "appliance_name": 1,
                     "appliance_type": 1,
                     "household_id": 1,
-                    "status": 1,
+                    "location": 1,
+                    "registered": 1,
+                    "status": 1
                 }
             }
         ]))
 
-        print(f"DEBUG: Found {len(devices)} devices in current_totals")
+        print(f"DEBUG: Found {len(devices)} devices (joined with status)")
 
         return {
             "devices": devices,
@@ -426,6 +475,7 @@ def get_all_devices():
     except Exception as e:
         print(f"ERROR in /admin/devices: {e}")
         raise HTTPException(status_code=500, detail=f"Error fetching devices: {str(e)}")
+
 
 
 @app.get("/admin/energy-breakdown")
