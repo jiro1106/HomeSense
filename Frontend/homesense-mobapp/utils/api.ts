@@ -2,7 +2,7 @@
 import axios from "axios";
 
 // Put your backend IP here
-const BASE_URL = "https://homesense-dgdp.onrender.com";
+const BASE_URL = "http://192.168.100.98:8000";
 
 // Create an Axios instance
 const api = axios.create({
