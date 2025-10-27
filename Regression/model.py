@@ -46,7 +46,7 @@ Y_meralco = df_meralco['Consumption Price'].values
 
 # Split
 X_train_m, X_test_m, Y_train_m, Y_test_m = train_test_split(
-    X_meralco, Y_meralco, test_size=0.51, random_state=0
+    X_meralco, Y_meralco, test_size=0.2, random_state=9
 )
 
 # Train model
