@@ -422,6 +422,23 @@ const Bills = () => {
       computeTotal(weeklyRows);
       setHasFetchedData(true);
       setFetchError(null);
+      
+       // Save bill data to AsyncStorage for MainMenu
+       const billData = {
+         totalBill: weeklyRows.reduce((sum, row) => sum + row.bill, 0),
+         totalKwh: weeklyRows.reduce((sum, row) => sum + row.kwh, 0),
+         ratePerKwh: providerRate,
+         company: company,
+         month: selectedMonth,
+         timestamp: new Date().toISOString(),
+         rows: weeklyRows
+       };
+       await AsyncStorage.setItem("monthlyBillData", JSON.stringify(billData));
+       // Set flag to notify MainMenu that bill data has been updated
+       await AsyncStorage.setItem("billDataUpdated", new Date().toISOString());
+       // Also set a specific flag for immediate MainMenu refresh
+       await AsyncStorage.setItem("mainMenuRefreshNeeded", "true");
+       console.log("💾 Bill data saved to AsyncStorage:", billData);
     } catch (err: any) {
       console.log("fetchMonthlyAndEstimate error", err);
       console.log("Error details:", JSON.stringify(err, null, 2));
@@ -481,6 +498,10 @@ const Bills = () => {
       await new Promise(resolve => setTimeout(resolve, 100));
       
       await fetchMonthlyAndEstimate();
+      
+      // Immediately notify MainMenu of the update
+      await AsyncStorage.setItem("mainMenuRefreshNeeded", "true");
+      console.log("🔄 Notified MainMenu of bill data update");
     } catch (err) {
       console.log("Manual fetch error", err);
     }
@@ -491,6 +512,9 @@ const Bills = () => {
     setRefreshing(true);
     await loadProviderRate();
     await fetchMonthlyAndEstimate();
+    // Notify MainMenu of the update
+    await AsyncStorage.setItem("mainMenuRefreshNeeded", "true");
+    console.log("🔄 Notified MainMenu of bill data update (refresh)");
     setRefreshing(false);
   };
 
