@@ -96,6 +96,7 @@ const Bills = () => {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [ratePerKwh, setRatePerKwh] = useState<number>(0);
+  const [modelAvailable, setModelAvailable] = useState<boolean | null>(null);
   const [monthDaily, setMonthDaily] = useState<MonthDayKwh[]>([]);
   const [weekBounds, setWeekBounds] = useState<WeekBoundary[]>([]);
   const [breakdownVisible, setBreakdownVisible] = useState(false);
@@ -105,7 +106,11 @@ const Bills = () => {
   const [fetchError, setFetchError] = useState<string | null>(null);
 
   const computeTotal = (items: WeeklyRow[]) => {
-    const sumBill = items.reduce((acc, r) => acc + r.bill, 0);
+    const sumBill = items.reduce((acc, r) => {
+      const billVal = typeof r.bill === "number" && isFinite(r.bill) ? r.bill : 0;
+      return acc + billVal;
+    }, 0);
+  
     const sumKwh = items.reduce(
       (acc, r) => acc + (typeof r.kwh === "number" ? r.kwh : 0),
       0
@@ -370,50 +375,74 @@ const Bills = () => {
       const weeklyRows: WeeklyRow[] = [];
       console.log(`📊 Starting bill prediction for ${company.toUpperCase()} with rate: ₱${providerRate}`);
       console.log(`🔗 Regression API URL: ${regressionBase}/predict-bill`);
+
+      // Connectivity check: 10s limit to determine if model is reachable
+      const checkModelConnectivity = async (url: string, timeoutMs: number) => {
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+          // Try OPTIONS on predict-bill; any response indicates connectivity
+          const resp = await fetch(`${url}/predict-bill`, {
+            method: "OPTIONS",
+            signal: controller.signal,
+          });
+          clearTimeout(timeoutId);
+          return true; // Any response means we reached the server
+        } catch (e) {
+          console.log("Model connectivity check failed", e);
+          return false;
+        }
+      };
+
+      const modelConnected = await checkModelConnectivity(regressionBase, 10000);
+      setModelAvailable(modelConnected);
+      console.log("🧪 Model connectivity:", modelConnected ? "reachable" : "unreachable (10s)");
       
       for (const w of weekCalcs) {
         const weekKwh = Number(w.kwh.toFixed(6));
-        
-        const requestBody = {
-          company,
-          total_kwh: weekKwh,
-          rate: providerRate,
-        };
-        
-        console.log(`📤 Requesting prediction for ${w.label}: ${JSON.stringify(requestBody)}`);
-        
-        // Fetch with 10-second timeout
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000);
-        
-        const resp = await fetch(`${regressionBase}/predict-bill`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(requestBody),
-          signal: controller.signal,
-        });
-        
-        clearTimeout(timeoutId);
-        
-        console.log(`📥 Response status: ${resp.status}`);
-        const dataPred = await resp.json();
-        console.log(`📥 Response data:`, dataPred);
-        const modelBill =
-          typeof dataPred?.predicted_consumption_price === "number"
-            ? dataPred.predicted_consumption_price
-            : parseFloat(String(dataPred?.predicted_consumption_price));
-        
-        if (isNaN(modelBill) || modelBill < 0) {
-          throw new Error("Invalid model prediction");
+        let predictedBill: number | null = null;
+        if (modelConnected) {
+          try {
+            const requestBody = {
+              company,
+              total_kwh: weekKwh,
+              rate: providerRate,
+            };
+            console.log(`📤 Requesting prediction for ${w.label}: ${JSON.stringify(requestBody)}`);
+
+            // No strict timeout here; if connected within 10s, allow slow predictions
+            const resp = await fetch(`${regressionBase}/predict-bill`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(requestBody),
+            });
+
+            console.log(`📥 Response status: ${resp.status}`);
+            const dataPred = await resp.json();
+            console.log(`📥 Response data:`, dataPred);
+            const modelBill =
+              typeof dataPred?.predicted_consumption_price === "number"
+                ? dataPred.predicted_consumption_price
+                : parseFloat(String(dataPred?.predicted_consumption_price));
+            if (isFinite(modelBill) && modelBill >= 0) {
+              predictedBill = Number(modelBill.toFixed(2));
+            } else {
+              predictedBill = null; // mark as unavailable
+            }
+          } catch (e) {
+            console.log(`⚠️ Prediction failed for ${w.label}, showing no prediction`, e);
+            predictedBill = null; // mark as unavailable
+          }
+        } else {
+          // No model reachable within 10s; skip prediction
+          predictedBill = null;
         }
-        
-        const weekBill = modelBill;
 
         weeklyRows.push({
           weekLabel: w.extrapolated ? `${w.label} (Extrapolated)` : w.label,
           rate: providerRate,
           kwh: Number((isFinite(weekKwh) ? weekKwh : 0).toFixed(3)),
-          bill: Number(weekBill.toFixed(2)),
+          bill: typeof predictedBill === "number" ? predictedBill : NaN,
           extrapolated: w.extrapolated,
         });
       }
@@ -444,18 +473,9 @@ const Bills = () => {
       console.log("Error details:", JSON.stringify(err, null, 2));
       console.log("Error name:", err.name);
       console.log("Error message:", err.message);
-      setRows([]);
-      setTotalBill(0);
-      setHasFetchedData(false);
-      if (err.name === 'AbortError') {
-        setFetchError("Request timeout after 10 seconds. The model API is not responding.");
-      } else if (err.message && err.message.includes("Network request failed")) {
-        setFetchError("Network error: Cannot connect to model API. Is the server running on port 5000?");
-      } else if (err.message && err.message.includes("Invalid model prediction")) {
-        setFetchError("Model returned invalid data. Check if MERALCO model is properly trained.");
-      } else {
-        setFetchError(`Failed to fetch: ${err.message || "Unknown error"}. Check console for details.`);
-      }
+      // Keep table visible if earlier steps succeeded; otherwise show generic error
+      setModelAvailable(false);
+      setFetchError(`Model unavailable or failed. Showing consumption without predictions.`);
     }
     setLoading(false);
   };
@@ -529,7 +549,9 @@ const Bills = () => {
       };
     }
 
-    const billData = rows.map((row) => parseFloat(row.bill.toFixed(2)));
+    const billData = rows.map((row) =>
+      isFinite(row.bill) ? parseFloat(row.bill.toFixed(2)) : 0
+    );
     const labels = rows.map((row) => {
       // Clean up the week label for chart display
       const cleanLabel = row.weekLabel.replace(" (Extrapolated)", "");
@@ -672,56 +694,57 @@ const Bills = () => {
           </TouchableOpacity>
         </View>
 
-        {/* Table button */}
-        <TouchableOpacity
-          style={[
-            styles.toggleButton,
-            { backgroundColor: viewType === "table" ? "#000" : "#f1f1f1" },
-          ]}
-          onPress={() => setViewType("table")}
-        >
-          <Icon
-            name="table-chart"
-            size={22}
-            color={viewType === "table" ? "#fff" : "#000"}
-          />
-          <Text
+        {/* Toggle buttons group aligned right */}
+        <View style={styles.toggleGroup}>
+          {/* Table button */}
+          <TouchableOpacity
             style={[
-              styles.toggleText,
-              { color: viewType === "table" ? "#fff" : "#000" },
+              styles.toggleButton,
+              { backgroundColor: viewType === "table" ? "#000" : "#f1f1f1" },
             ]}
+            onPress={() => setViewType("table")}
           >
-            Table
-          </Text>
-        </TouchableOpacity>
+            <Icon
+              name="table-chart"
+              size={22}
+              color={viewType === "table" ? "#fff" : "#000"}
+            />
+            <Text
+              style={[
+                styles.toggleText,
+                { color: viewType === "table" ? "#fff" : "#000" },
+              ]}
+            >
+              Table
+            </Text>
+          </TouchableOpacity>
 
-        {/* Chart button */}
-        <TouchableOpacity
-          style={[
-            styles.toggleButton,
-            { backgroundColor: viewType === "chart" ? "#000" : "#f1f1f1" },
-          ]}
-          onPress={() => setViewType("chart")}
-        >
-          <Icon
-            name="bar-chart"
-            size={22}
-            color={viewType === "chart" ? "#fff" : "#000"}
-          />
-          <Text
+          {/* Chart button */}
+          <TouchableOpacity
             style={[
-              styles.toggleText,
-              { color: viewType === "chart" ? "#fff" : "#000" },
+              styles.toggleButton,
+              styles.lastToggleButton,
+              { backgroundColor: viewType === "chart" ? "#000" : "#f1f1f1" },
             ]}
+            onPress={() => setViewType("chart")}
           >
-            Chart
-          </Text>
-        </TouchableOpacity>
+            <Icon
+              name="bar-chart"
+              size={22}
+              color={viewType === "chart" ? "#fff" : "#000"}
+            />
+            <Text
+              style={[
+                styles.toggleText,
+                { color: viewType === "chart" ? "#fff" : "#000" },
+              ]}
+            >
+              Chart
+            </Text>
+          </TouchableOpacity>
+        </View>
 
-        {/* Filter */}
-        <TouchableOpacity style={styles.filterButton}>
-          <Icon name="filter-list" size={17} color="#000" />
-        </TouchableOpacity>
+     
       </View>
 
       {/* Dropdown Modal */}
@@ -779,10 +802,10 @@ const Bills = () => {
             <View style={{ alignItems: "center", marginTop: 50, paddingHorizontal: 20 }}>
               <Icon name="receipt" size={80} color="#ccc" />
               <Text style={{ fontSize: 18, color: "#666", marginTop: 20, textAlign: "center" }}>
-                No model loaded yet
+                No electricity bill loaded yet
               </Text>
               <Text style={{ fontSize: 14, color: "#999", marginTop: 10, textAlign: "center" }}>
-                {fetchError || "Click the button below to feed your bill consumption to the model"}
+                {fetchError || "Click the button below to generate your bill consumption to the model"}
               </Text>
               <TouchableOpacity
                 style={{
@@ -798,7 +821,7 @@ const Bills = () => {
               >
                 <Icon name="play-arrow" size={24} color="#000" />
                 <Text style={{ color: "#000", fontSize: 16, fontWeight: "bold", marginLeft: 8 }}>
-                  {fetchError ? "Try Again" : "Start Fetching Model"}
+                  {fetchError ? "Try Again" : "Start Fetching Bills"}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -891,7 +914,7 @@ const Bills = () => {
                       styles.tableCellBorder,
                       styles.billColumn,
                     ]}
-                  >{`₱${r.bill.toFixed(2)}`}</Text>
+                  >{isFinite(r.bill) ? `₱${r.bill.toFixed(2)}` : "—"}</Text>
                   <View style={[styles.tableCell, styles.infoColumn]}>
                     <TouchableOpacity
                       style={styles.infoButton}
@@ -1016,23 +1039,32 @@ const Bills = () => {
             Estimated Bill for {selectedMonth}
           </Text>
           <Text style={styles.highlightAmount}>
-            {hasFetchedData ? `₱${totalBill.toFixed(2)}` : "No data available"}
+            {hasFetchedData ? (modelAvailable === false ? "No model detected" : `₱${totalBill.toFixed(2)}`) : "No data available"}
           </Text>
         </View>
 
-        {/* Forecast */}
+        {/* Forecast / Retry */}
         <View style={styles.forecastBox}>
-          <Icon name="trending-up" size={28} color="#2ecc71" />
-          <Text style={styles.forecastText}>
-            {hasFetchedData ? (
-              <>
-                If you keep this up, next month's bill will be{" "}
-                <Text style={styles.forecastAmount}>{`₱${(totalBill * 1.03).toFixed(2)}`}</Text>
-              </>
-            ) : (
-              "Fetch your bill data to see next month's forecast"
-            )}
-          </Text>
+          {modelAvailable === false ? (
+            <TouchableOpacity onPress={handleManualFetch} style={{ flexDirection: "row", alignItems: "center"}}>
+              <Icon name="refresh" size={28} color="#E67E22" />
+              <Text style={[styles.forecastText, { marginLeft: 8 }]}>Retry fetching model</Text>
+            </TouchableOpacity>
+          ) : (
+            <>
+              <Icon name="trending-up" size={28} color="#2ecc71" />
+              <Text style={styles.forecastText}>
+                {hasFetchedData ? (
+                  <>
+                    If you keep this up, next month's bill will be{" "}
+                    <Text style={styles.forecastAmount}>{`₱${(totalBill * 1.03).toFixed(2)}`}</Text>
+                  </>
+                ) : (
+                  "Fetch your bill data to see next month's forecast"
+                )}
+              </Text>
+            </>
+          )}
         </View>
       </ScrollView>
 
