@@ -481,13 +481,13 @@ def get_all_devices():
 @app.get("/admin/energy-breakdown")
 def get_energy_breakdown_by_household():
     """
-    Admin: Get detailed energy breakdown grouped by household.
-    Returns each household with its users and their individual energy consumption.
-    Aggregates directly from daily_totals using household_id.
+    Admin: Get detailed energy breakdown grouped by household,
+    now includes electricity provider from the households collection.
     """
     try:
         users_collection = db["users"]
         daily_totals = db["daily_totals"]
+        households_collection = db["households"]
 
         # Get all users with their household_id
         all_users = list(users_collection.find(
@@ -525,24 +525,36 @@ def get_energy_breakdown_by_household():
 
         print(f"DEBUG: Energy by household: {household_energy_map}")
 
+        # 🔹 Fetch all household documents to get electricity provider
+        all_households_info = list(households_collection.find(
+            {}, 
+            {"_id": 0, "household_id": 1, "electricity_provider": 1}
+        ))
+        household_provider_map = {
+            h["household_id"]: h.get("electricity_provider", "Unknown")
+            for h in all_households_info
+        }
+
+        print(f"DEBUG: Providers map: {household_provider_map}")
+
         # Build result with household energy data
         result = []
         for household_id, users in households.items():
-            # Get total energy for this household
             total_household_kwh = household_energy_map.get(household_id, 0)
+            electricity_provider = household_provider_map.get(household_id, "Unknown")
             
             household_data = {
                 "household_id": household_id,
+                "electricity_provider": electricity_provider, 
                 "users": [],
                 "total_household_kwh": round(total_household_kwh, 4),
                 "user_count": len(users)
             }
 
-            # For each user in the household, calculate their individual energy
+            # Calculate each user's total energy
             for user in users:
                 user_email = user["email"]
                 
-                # Sum energy for this specific user in this household
                 user_energy_pipeline = [
                     {
                         "$match": {
@@ -560,15 +572,13 @@ def get_energy_breakdown_by_household():
                 user_energy_result = list(daily_totals.aggregate(user_energy_pipeline))
                 user_total_kwh = user_energy_result[0]["total_kwh"] if user_energy_result else 0
 
-                print(f"DEBUG: User {user_email} in household {household_id}: {user_total_kwh} kWh")
-
                 household_data["users"].append({
                     "email": user["email"],
                     "username": user.get("username", "N/A"),
                     "total_kwh": round(user_total_kwh, 4)
                 })
 
-            # Calculate average per user in household
+            # Compute average per user
             household_data["average_kwh_per_user"] = (
                 round(household_data["total_household_kwh"] / household_data["user_count"], 4)
                 if household_data["user_count"] > 0 else 0
@@ -576,13 +586,10 @@ def get_energy_breakdown_by_household():
 
             result.append(household_data)
 
-        # Sort by household_id for consistent ordering
+        # Sort by household_id
         result.sort(key=lambda x: str(x["household_id"]))
 
         print(f"DEBUG: Returning {len(result)} households")
-        for h in result:
-            print(f"  Household {h['household_id']}: {h['total_household_kwh']} kWh, {h['user_count']} users")
-
         return {
             "households": result,
             "total_households": len(result)
@@ -596,6 +603,7 @@ def get_energy_breakdown_by_household():
             status_code=500, 
             detail=f"Error fetching energy breakdown: {str(e)}"
         )
+
 
 
 @app.get("/admin/household-energy-details")
