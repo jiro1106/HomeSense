@@ -148,6 +148,66 @@ def generate_recommendations(appliances, mode):
 # ==========================
 # API ROUTES
 # ==========================
+
+@router.put("/household/{household_id}/provider")
+def set_electricity_provider(household_id: str, provider: str):
+    """
+    Updates or creates a household's electricity provider in MongoDB.
+    Example: PUT /household/household1/provider?provider=BATELEC
+    """
+
+    try:
+        valid_providers = ["BATELEC", "MERALCO"]
+
+        # 🧩 Validate input
+        if provider not in valid_providers:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid provider. Choose from {', '.join(valid_providers)}."
+            )
+
+        # 🧩 Update or create entry
+        result = households_collection.update_one(
+            {"household_id": household_id},
+            {"$set": {"electricity_provider": provider}},
+            upsert=True
+        )
+
+        # 🧩 Response depending on whether it existed before
+        if result.matched_count == 0:
+            return {
+                "message": f"Household not found. Created new entry with provider {provider.upper()}."
+            }
+
+        return {
+            "message": f"Electricity provider set to {provider.upper()} for Household ID: {household_id}"
+        }
+
+    except Exception as e:
+        # 🧩 Handle any other unexpected errors
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
+
+
+@router.get("/household/{household_id}/provider")
+def get_electricity_provider(household_id: str):
+    """
+    Retrieves the saved electricity provider for a specific household.
+    Example: GET /household/household1/provider
+    """
+
+    try:
+        household = households_collection.find_one({"household_id": household_id})
+        if not household:
+            raise HTTPException(status_code=404, detail="Household not found.")
+
+        # 🧩 Default to None if provider not yet set
+        provider = household.get("electricity_provider", None)
+
+        return {"provider": provider}
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
+    
 @router.put("/household/{household_id}/mode")
 def set_savings_mode(household_id: str, mode: str):
 
