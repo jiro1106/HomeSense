@@ -36,6 +36,7 @@ export default StyleSheet.create({
     color: "#555",
     marginBottom: 20,
     lineHeight: 20,
+    textAlign: "justify",
   },
   optionButton: {
     padding: 15,
