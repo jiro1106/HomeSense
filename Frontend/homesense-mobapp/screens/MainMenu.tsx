@@ -14,7 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import Icon from "react-native-vector-icons/MaterialIcons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { RootStackParamList } from "../App";
 import { styles } from "./styles/MainMenuStyles";
 import RegisterAppliancePage from "./RegisterAppliancePage";
@@ -50,6 +50,13 @@ const MainMenu = () => {
   const [weekUsage, setWeekUsage] = useState<string | null>(null);
   const [monthUsage, setMonthUsage] = useState<string | null>(null);
   const [loadingUsage, setLoadingUsage] = useState(true);
+
+  // =========================
+  // Bill Estimation state
+  // =========================
+  const [monthlyBill, setMonthlyBill] = useState<string | null>(null);
+  const [billLoading, setBillLoading] = useState(false);
+  const [billTimestamp, setBillTimestamp] = useState<string | null>(null);
 
   // =========================
   // Top Devices state
@@ -231,22 +238,91 @@ const MainMenu = () => {
   }, []);
 
   // =========================
+  // =========================
+  // Load bill estimation data
+  // =========================
+  const loadBillData = useCallback(async () => {
+    try {
+      setBillLoading(true);
+      const billData = await AsyncStorage.getItem("monthlyBillData");
+      if (billData) {
+        const parsed = JSON.parse(billData);
+        setMonthlyBill(parsed.totalBill ? `₱${parsed.totalBill.toFixed(2)}` : null);
+        setBillTimestamp(parsed.timestamp || null);
+      } else {
+        setMonthlyBill(null);
+        setBillTimestamp(null);
+      }
+    } catch (error) {
+      console.warn("Error loading bill data:", error);
+      setMonthlyBill(null);
+    } finally {
+      setBillLoading(false);
+    }
+  }, []);
+
   // Combined refresh function
   // =========================
   const refreshAllData = useCallback(async () => {
     try {
       setRefreshing(true);
-      await Promise.all([fetchUsageSummary(), fetchTopEnergyDevices()]);
+      await Promise.all([fetchUsageSummary(), fetchTopEnergyDevices(), loadBillData()]);
     } catch (error) {
       console.warn("Error refreshing data:", error);
     } finally {
       setRefreshing(false);
     }
-  }, [fetchUsageSummary, fetchTopEnergyDevices]);
+  }, [fetchUsageSummary, fetchTopEnergyDevices, loadBillData]);
 
   useEffect(() => {
     refreshAllData();
   }, [refreshAllData]);
+
+  // Periodic check for bill updates while MainMenu is active
+  useEffect(() => {
+    const checkForBillUpdates = async () => {
+      try {
+        const refreshNeeded = await AsyncStorage.getItem("mainMenuRefreshNeeded");
+        if (refreshNeeded === "true") {
+          console.log("🔄 Periodic check: Bill data updated, refreshing...");
+          await loadBillData();
+          await AsyncStorage.removeItem("mainMenuRefreshNeeded");
+        }
+      } catch (error) {
+        console.warn("Error in periodic bill update check:", error);
+      }
+    };
+
+    // Check every 2 seconds for bill updates
+    const interval = setInterval(checkForBillUpdates, 2000);
+
+    return () => clearInterval(interval);
+  }, [loadBillData]);
+
+  // Reload bill data when returning to MainMenu and check for updates
+  useFocusEffect(
+    useCallback(() => {
+      const checkAndLoadBillData = async () => {
+        try {
+          // Check if MainMenu refresh is needed
+          const refreshNeeded = await AsyncStorage.getItem("mainMenuRefreshNeeded");
+          if (refreshNeeded === "true") {
+            console.log("🔄 MainMenu refresh needed, loading bill data...");
+            await loadBillData();
+            // Clear the refresh flag
+            await AsyncStorage.removeItem("mainMenuRefreshNeeded");
+          } else {
+            // Normal load
+            await loadBillData();
+          }
+        } catch (error) {
+          console.warn("Error checking for bill updates:", error);
+        }
+      };
+      
+      checkAndLoadBillData();
+    }, [loadBillData])
+  );
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -408,7 +484,20 @@ const MainMenu = () => {
 
       <View style={styles.billCard}>
         <Text style={styles.billTitle}>Estimated Bill for this Month</Text>
-        <Text style={styles.billAmount}>₱2,413.73</Text>
+        {billLoading ? (
+          <ActivityIndicator size="small" color="#FFD600" />
+        ) : monthlyBill ? (
+          <>
+            <Text style={styles.billAmount}>{monthlyBill}</Text>
+            {billTimestamp && (
+              <Text style={[styles.billLabel, { fontSize: 10, opacity: 0.7 }]}>
+                Updated: {new Date(billTimestamp).toLocaleDateString()}
+              </Text>
+            )}
+          </>
+        ) : (
+          <Text style={styles.billAmount}>No data</Text>
+        )}
         <Text style={styles.billLabel}>Monthly Bill</Text>
       </View>
 

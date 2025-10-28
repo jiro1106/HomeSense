@@ -95,12 +95,14 @@ const Bills = () => {
   const [totalKwh, setTotalKwh] = useState<number>(0);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [ratePerKwh, setRatePerKwh] = useState<number>(10.5);
+  const [ratePerKwh, setRatePerKwh] = useState<number>(0);
   const [monthDaily, setMonthDaily] = useState<MonthDayKwh[]>([]);
   const [weekBounds, setWeekBounds] = useState<WeekBoundary[]>([]);
   const [breakdownVisible, setBreakdownVisible] = useState(false);
   const [breakdownTitle, setBreakdownTitle] = useState<string>("");
   const [breakdownItems, setBreakdownItems] = useState<BreakdownItem[]>([]);
+  const [hasFetchedData, setHasFetchedData] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   const computeTotal = (items: WeeklyRow[]) => {
     const sumBill = items.reduce((acc, r) => acc + r.bill, 0);
@@ -113,14 +115,10 @@ const Bills = () => {
   };
 
   const loadProviderRate = async () => {
-    try {
-      const provider = await AsyncStorage.getItem("electricityProvider");
-      const p = (provider || "BATELEC").toUpperCase();
-      if (p === "MERALCO") setRatePerKwh(7.6962);
-      else setRatePerKwh(5.3874); // default to BATELEC
-    } catch (e) {
-      setRatePerKwh(5.3874);
-    }
+    const provider = await AsyncStorage.getItem("electricityProvider");
+    const p = (provider || "BATELEC").toUpperCase();
+    if (p === "MERALCO") setRatePerKwh(7.6962);
+    else setRatePerKwh(5.3874);
   };
 
   const getMonthIndex = (monthName: string) =>
@@ -370,32 +368,46 @@ const Bills = () => {
       const providerRate = ratePerKwh;
 
       const weeklyRows: WeeklyRow[] = [];
+      console.log(`📊 Starting bill prediction for ${company.toUpperCase()} with rate: ₱${providerRate}`);
+      console.log(`🔗 Regression API URL: ${regressionBase}/predict-bill`);
+      
       for (const w of weekCalcs) {
         const weekKwh = Number(w.kwh.toFixed(6));
-        let weekBill = weekKwh * providerRate;
-        try {
-          const resp = await fetch(`${regressionBase}/predict-bill`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              company,
-              total_kwh: weekKwh,
-              rate: providerRate,
-            }),
-          });
-          const dataPred = await resp.json();
-          const modelBill =
-            typeof dataPred?.predicted_consumption_price === "number"
-              ? dataPred.predicted_consumption_price
-              : parseFloat(String(dataPred?.predicted_consumption_price));
-          if (!isNaN(modelBill) && modelBill >= 0) {
-            weekBill = modelBill;
-          } else {
-            weekBill = Math.max(0, weekKwh * providerRate);
-          }
-        } catch (e) {
-          // ignore model error, fallback to simple calc
+        
+        const requestBody = {
+          company,
+          total_kwh: weekKwh,
+          rate: providerRate,
+        };
+        
+        console.log(`📤 Requesting prediction for ${w.label}: ${JSON.stringify(requestBody)}`);
+        
+        // Fetch with 10-second timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+        
+        const resp = await fetch(`${regressionBase}/predict-bill`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(requestBody),
+          signal: controller.signal,
+        });
+        
+        clearTimeout(timeoutId);
+        
+        console.log(`📥 Response status: ${resp.status}`);
+        const dataPred = await resp.json();
+        console.log(`📥 Response data:`, dataPred);
+        const modelBill =
+          typeof dataPred?.predicted_consumption_price === "number"
+            ? dataPred.predicted_consumption_price
+            : parseFloat(String(dataPred?.predicted_consumption_price));
+        
+        if (isNaN(modelBill) || modelBill < 0) {
+          throw new Error("Invalid model prediction");
         }
+        
+        const weekBill = modelBill;
 
         weeklyRows.push({
           weekLabel: w.extrapolated ? `${w.label} (Extrapolated)` : w.label,
@@ -408,17 +420,49 @@ const Bills = () => {
 
       setRows(weeklyRows);
       computeTotal(weeklyRows);
-    } catch (err) {
+      setHasFetchedData(true);
+      setFetchError(null);
+      
+       // Save bill data to AsyncStorage for MainMenu
+       const billData = {
+         totalBill: weeklyRows.reduce((sum, row) => sum + row.bill, 0),
+         totalKwh: weeklyRows.reduce((sum, row) => sum + row.kwh, 0),
+         ratePerKwh: providerRate,
+         company: company,
+         month: selectedMonth,
+         timestamp: new Date().toISOString(),
+         rows: weeklyRows
+       };
+       await AsyncStorage.setItem("monthlyBillData", JSON.stringify(billData));
+       // Set flag to notify MainMenu that bill data has been updated
+       await AsyncStorage.setItem("billDataUpdated", new Date().toISOString());
+       // Also set a specific flag for immediate MainMenu refresh
+       await AsyncStorage.setItem("mainMenuRefreshNeeded", "true");
+       console.log("💾 Bill data saved to AsyncStorage:", billData);
+    } catch (err: any) {
       console.log("fetchMonthlyAndEstimate error", err);
+      console.log("Error details:", JSON.stringify(err, null, 2));
+      console.log("Error name:", err.name);
+      console.log("Error message:", err.message);
       setRows([]);
       setTotalBill(0);
+      setHasFetchedData(false);
+      if (err.name === 'AbortError') {
+        setFetchError("Request timeout after 10 seconds. The model API is not responding.");
+      } else if (err.message && err.message.includes("Network request failed")) {
+        setFetchError("Network error: Cannot connect to model API. Is the server running on port 5000?");
+      } else if (err.message && err.message.includes("Invalid model prediction")) {
+        setFetchError("Model returned invalid data. Check if MERALCO model is properly trained.");
+      } else {
+        setFetchError(`Failed to fetch: ${err.message || "Unknown error"}. Check console for details.`);
+      }
     }
     setLoading(false);
   };
 
   const initLoad = async () => {
     await loadProviderRate();
-    await fetchMonthlyAndEstimate();
+    // Don't automatically fetch data - wait for user to click button
   };
 
   useEffect(() => {
@@ -426,25 +470,51 @@ const Bills = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Re-fetch when month filter changes
+  // Re-fetch when month filter changes (only if user has already fetched data)
   useEffect(() => {
-    fetchMonthlyAndEstimate();
+    if (hasFetchedData) {
+      fetchMonthlyAndEstimate();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedMonth]);
 
-  // Recompute bills if rate changes (e.g., provider changed on another screen)
+  // Recompute bills if rate changes (only if user has already fetched data)
   useEffect(() => {
-    if (rows.length > 0) {
+    if (hasFetchedData && rows.length > 0) {
       // Re-fetch to get model-predicted bills with the new rate
       fetchMonthlyAndEstimate();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ratePerKwh]);
 
+  const handleManualFetch = async () => {
+    setLoading(true);
+    setFetchError(null);
+    try {
+      // Load provider rate first to ensure it's set
+      await loadProviderRate();
+      
+      // Small delay to ensure state is updated
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      await fetchMonthlyAndEstimate();
+      
+      // Immediately notify MainMenu of the update
+      await AsyncStorage.setItem("mainMenuRefreshNeeded", "true");
+      console.log("🔄 Notified MainMenu of bill data update");
+    } catch (err) {
+      console.log("Manual fetch error", err);
+    }
+    setLoading(false);
+  };
+
   const onRefresh = async () => {
     setRefreshing(true);
     await loadProviderRate();
     await fetchMonthlyAndEstimate();
+    // Notify MainMenu of the update
+    await AsyncStorage.setItem("mainMenuRefreshNeeded", "true");
+    console.log("🔄 Notified MainMenu of bill data update (refresh)");
     setRefreshing(false);
   };
 
@@ -705,6 +775,33 @@ const Bills = () => {
               color="#000"
               style={{ marginTop: 20 }}
             />
+          ) : !hasFetchedData ? (
+            <View style={{ alignItems: "center", marginTop: 50, paddingHorizontal: 20 }}>
+              <Icon name="receipt" size={80} color="#ccc" />
+              <Text style={{ fontSize: 18, color: "#666", marginTop: 20, textAlign: "center" }}>
+                No model loaded yet
+              </Text>
+              <Text style={{ fontSize: 14, color: "#999", marginTop: 10, textAlign: "center" }}>
+                {fetchError || "Click the button below to feed your bill consumption to the model"}
+              </Text>
+              <TouchableOpacity
+                style={{
+                  backgroundColor: "#FFD700",
+                  paddingHorizontal: 30,
+                  paddingVertical: 15,
+                  borderRadius: 25,
+                  marginTop: 30,
+                  flexDirection: "row",
+                  alignItems: "center",
+                }}
+                onPress={handleManualFetch}
+              >
+                <Icon name="play-arrow" size={24} color="#000" />
+                <Text style={{ color: "#000", fontSize: 16, fontWeight: "bold", marginLeft: 8 }}>
+                  {fetchError ? "Try Again" : "Start Fetching Model"}
+                </Text>
+              </TouchableOpacity>
+            </View>
           ) : (
             <>
               {/* Table Header */}
@@ -842,6 +939,33 @@ const Bills = () => {
             color="#000"
             style={{ marginTop: 20 }}
           />
+        ) : !hasFetchedData ? (
+          <View style={{ alignItems: "center", marginTop: 50, paddingHorizontal: 20 }}>
+            <Icon name="bar-chart" size={80} color="#ccc" />
+            <Text style={{ fontSize: 18, color: "#666", marginTop: 20, textAlign: "center" }}>
+              No bill data yet
+            </Text>
+            <Text style={{ fontSize: 14, color: "#999", marginTop: 10, textAlign: "center" }}>
+              {fetchError || "Click the button below to visualize your monthly bill consumption"}
+            </Text>
+            <TouchableOpacity
+              style={{
+                backgroundColor: "#FFD700",
+                paddingHorizontal: 30,
+                paddingVertical: 15,
+                borderRadius: 25,
+                marginTop: 30,
+                flexDirection: "row",
+                alignItems: "center",
+              }}
+              onPress={handleManualFetch}
+            >
+              <Icon name="play-arrow" size={24} color="#000" />
+              <Text style={{ color: "#000", fontSize: 16, fontWeight: "bold", marginLeft: 8 }}>
+                {fetchError ? "Try Again" : "Start Fetching Bills"}
+              </Text>
+            </TouchableOpacity>
+          </View>
         ) : (
           <View style={{ alignItems: "center", marginTop: 20 }}>
             <BarChart
@@ -891,19 +1015,23 @@ const Bills = () => {
           <Text style={styles.highlightTitle}>
             Estimated Bill for {selectedMonth}
           </Text>
-          <Text style={styles.highlightAmount}>{`₱${totalBill.toFixed(
-            2
-          )}`}</Text>
+          <Text style={styles.highlightAmount}>
+            {hasFetchedData ? `₱${totalBill.toFixed(2)}` : "No data available"}
+          </Text>
         </View>
 
         {/* Forecast */}
         <View style={styles.forecastBox}>
           <Icon name="trending-up" size={28} color="#2ecc71" />
           <Text style={styles.forecastText}>
-            If you keep this up, next month's bill will be{" "}
-            <Text style={styles.forecastAmount}>{`₱${(totalBill * 1.03).toFixed(
-              2
-            )}`}</Text>
+            {hasFetchedData ? (
+              <>
+                If you keep this up, next month's bill will be{" "}
+                <Text style={styles.forecastAmount}>{`₱${(totalBill * 1.03).toFixed(2)}`}</Text>
+              </>
+            ) : (
+              "Fetch your bill data to see next month's forecast"
+            )}
           </Text>
         </View>
       </ScrollView>
