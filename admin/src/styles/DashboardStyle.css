@@ -303,6 +303,7 @@
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
   border: 2px solid #e2e8f0;
   animation: slideDown 0.3s ease;
+  max-width: 100%;
 }
 
 @keyframes slideDown {
@@ -412,7 +413,12 @@
 }
 
 .energy-table-container {
-  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
+  width: 100%;
+  max-width: 100%;
   overflow: auto;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
@@ -431,7 +437,7 @@
 }
 
 .energy-breakdown-table {
-  width: 100%;
+  width: 95%;
   border-collapse: collapse;
   background: white;
 }
@@ -479,22 +485,33 @@
 
 /* =================== ENERGY DETAILS PANEL =================== */
 .energy-details-panel {
-  background: #f8fafc;
-  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
   padding: 0;
   margin: 10px 0;
   border: 1px solid #e2e8f0;
 }
 
+.energy-details-wrapper {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 100%;
+  margin-bottom: 5rem;
+}
 .household-header {
   background: linear-gradient(135deg, #f6de80 0%, #e8c411cc 100%);
   color: rgb(0, 0, 0);
-  border-radius: 8px 8px 0 0;
+  border-radius: 15px;
+  margin-top: 2rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 2rem 5rem;
+  padding: 0 2rem;
   gap: 5rem;
+  width: 92%;
   height: 20vh;
 }
 
@@ -528,9 +545,12 @@
 .summary-cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  align-items: center;
+  justify-content: center;
   gap: 15px;
-  padding: 20px;
+  padding: 50px;
   background: white;
+  width: 95%;
 }
 
 .summary-card {
@@ -590,8 +610,10 @@
 }
 
 .energy-breakdown-section {
+  width: 95%;
   margin: 0;
   padding: 20px;
+  margin-top: 1rem;
   border-bottom: 1px solid #e2e8f0;
 }
 
@@ -733,12 +755,15 @@
 
 .details-row {
   background: #f8fafc;
+  width: 100%;
 }
 
 .details-row td {
   padding: 0 !important;
   border-top: none;
   background: #f8fafc;
+  width: 90%;
+  max-width: 90%;
 }
 
 .household-id-cell {
@@ -770,6 +795,12 @@
   font-family: "Courier New", monospace;
   font-weight: 600;
   color: #010248;
+}
+
+.provider-cell {
+  text-align: center;
+  font-weight: 500;
+  color: #333;
 }
 
 .center-align {
@@ -809,7 +840,6 @@
 }
 
 .preview-table table {
-  width: 100%;
   border-collapse: separate;
   border-spacing: 0;
   background: white;

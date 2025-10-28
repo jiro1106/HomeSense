@@ -55,6 +55,7 @@ function Dashboard() {
   // 📊 Energy breakdown by household
   const [energyBreakdown, setEnergyBreakdown] = useState([]);
   const [breakdownLoading, setBreakdownLoading] = useState(false);
+  const [expandedHousehold, setExpandedHousehold] = useState(null);
 
   // Track active card
   const [activeCard, setActiveCard] = useState(null);
@@ -534,6 +535,7 @@ function Dashboard() {
   const getFieldDisplayName = (key) => {
     const fieldNames = {
       household_id: "Household ID",
+      electricity_provider: "Electricity Provider",
       username: "Username",
       email: "Email",
       device_name: "Device Name",
@@ -643,13 +645,20 @@ function Dashboard() {
       doc.text(`Generated: ${dateStr}`, 14, 28);
       doc.text(`Household ID: ${householdId}`, 14, 36);
       doc.text(`Number of Users: ${householdData?.user_count ?? 0}`, 14, 44);
+      doc.text(
+        `Electricity Provider: ${
+          householdData?.electricity_provider || "Unknown"
+        }`,
+        14,
+        52
+      );
 
       const safeDetails = details || {};
       const daily = safeDetails.daily || [];
       const weekly = safeDetails.weekly || [];
       const monthly = safeDetails.monthly || [];
 
-      let startY = 52;
+      let startY = 67;
 
       doc.setFontSize(14);
       doc.text("Daily Consumption", 14, startY);
@@ -1466,6 +1475,10 @@ function Dashboard() {
                               key: "total_household_kwh",
                               label: "Total Energy",
                             },
+                            {
+                              key: "electricity_provider",
+                              label: "Electricity Provider",
+                            },
                           ]}
                           type="energy"
                         />
@@ -1492,90 +1505,98 @@ function Dashboard() {
                               consumption
                             </p>
                           </div>
+
                           <table className="energy-breakdown-table">
                             <thead>
                               <tr>
                                 <th style={{ width: "60px" }}></th>
                                 <th>Household ID</th>
+                                <th>Electricity Provider</th>
                                 <th>Number of Users</th>
                                 <th>Total Energy (kWh)</th>
                               </tr>
                             </thead>
                             <tbody>
                               {getSortedEnergy().map((household, idx) => (
-                                <React.Fragment key={idx}>
-                                  <tr
-                                    className={`expandable-row ${
-                                      expandedHouseholds[household.household_id]
-                                        ? "expanded"
-                                        : ""
-                                    }`}
-                                    onClick={() =>
-                                      toggleHouseholdExpansion(
+                                <tr
+                                  key={idx}
+                                  className={`expandable-row ${
+                                    expandedHousehold === household.household_id
+                                      ? "expanded"
+                                      : ""
+                                  }`}
+                                  onClick={() => {
+                                    // ✅ Only one open at a time
+                                    if (
+                                      expandedHousehold ===
+                                      household.household_id
+                                    ) {
+                                      setExpandedHousehold(null); // collapse if same clicked
+                                    } else {
+                                      setExpandedHousehold(
                                         household.household_id
-                                      )
+                                      ); // open new one
                                     }
-                                  >
-                                    <td className="expand-icon">
-                                      {expandedHouseholds[
-                                        household.household_id
-                                      ] ? (
-                                        <FaChevronUp />
-                                      ) : (
-                                        <FaChevronDown />
-                                      )}
-                                    </td>
-                                    <td className="household-id-cell">
-                                      <FaHome className="household-icon-small" />
-                                      {household.household_id || "Unknown"}
-                                    </td>
-                                    <td className="center-align">
-                                      <span className="user-count-badge">
-                                        {household.user_count}
-                                      </span>
-                                    </td>
-                                    <td className="energy-value-cell">
-                                      {household.total_household_kwh.toFixed(4)}{" "}
-                                      kWh
-                                    </td>
-                                  </tr>
-                                  {expandedHouseholds[
-                                    household.household_id
-                                  ] && (
-                                    <tr className="details-row">
-                                      <td colSpan="4">
-                                        {loadingDetails[
-                                          household.household_id
-                                        ] ? (
-                                          <div className="loading-details">
-                                            <p>
-                                              Loading detailed energy
-                                              consumption data...
-                                            </p>
-                                          </div>
-                                        ) : (
-                                          <EnergyDetailsPanel
-                                            householdId={household.household_id}
-                                            details={
-                                              energyDetails[
-                                                household.household_id
-                                              ]
-                                            }
-                                            householdData={household}
-                                            onGeneratePDF={generateHouseholdPDF}
-                                          />
-                                        )}
-                                      </td>
-                                    </tr>
-                                  )}
-                                </React.Fragment>
+                                  }}
+                                >
+                                  <td className="expand-icon">
+                                    {expandedHousehold ===
+                                    household.household_id ? (
+                                      <FaChevronUp />
+                                    ) : (
+                                      <FaChevronDown />
+                                    )}
+                                  </td>
+                                  <td className="household-id-cell">
+                                    <FaHome className="household-icon-small" />
+                                    {household.household_id || "Unknown"}
+                                  </td>
+                                  <td className="provider-cell">
+                                    {household.electricity_provider ||
+                                      "Unknown"}
+                                  </td>
+                                  <td className="center-align">
+                                    <span className="user-count-badge">
+                                      {household.user_count}
+                                    </span>
+                                  </td>
+                                  <td className="energy-value-cell">
+                                    {household.total_household_kwh.toFixed(4)}{" "}
+                                    kWh
+                                  </td>
+                                </tr>
                               ))}
                             </tbody>
                           </table>
+
+                          {/* ✅ Show details for only the expanded household */}
+                          {expandedHousehold && (
+                            <div
+                              className="energy-details-wrapper"
+                              style={{ marginTop: "1rem" }}
+                            >
+                              {loadingDetails[expandedHousehold] ? (
+                                <div className="loading-details">
+                                  <p>
+                                    Loading detailed energy consumption data...
+                                  </p>
+                                </div>
+                              ) : (
+                                <EnergyDetailsPanel
+                                  householdId={expandedHousehold}
+                                  details={energyDetails[expandedHousehold]}
+                                  householdData={getSortedEnergy().find(
+                                    (h) => h.household_id === expandedHousehold
+                                  )}
+                                  onGeneratePDF={generateHouseholdPDF}
+                                />
+                              )}
+                            </div>
+                          )}
                         </div>
                       ) : (
-                        <div className="no-data-state">
-                          <p>No energy consumption data available</p>
+                        <div className="no-data">
+                          <p>No energy breakdown data found.</p>
                         </div>
                       )}
                     </div>
