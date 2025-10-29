@@ -1,5 +1,6 @@
 cd Backend
 python -m venv venv # make a virtual environment
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 .\venv\Scripts\activate # (Windows)
 pip install -r api/requirements.txt
 uvicorn api.api_server:app --reload
