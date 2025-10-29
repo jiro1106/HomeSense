@@ -16,6 +16,8 @@ import { BarChart, LineChart } from "react-native-chart-kit";
 import { styles } from "./styles/BillsStyles";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import api from "../utils/api";
+import regressionApi from "../utils/regressionApi";
+import axios from "axios";
 
 // Persistent deterministic randomness utilities
 const getPersistentMultiplier = async (key: string): Promise<number> => {
@@ -107,10 +109,11 @@ const Bills = () => {
 
   const computeTotal = (items: WeeklyRow[]) => {
     const sumBill = items.reduce((acc, r) => {
-      const billVal = typeof r.bill === "number" && isFinite(r.bill) ? r.bill : 0;
+      const billVal =
+        typeof r.bill === "number" && isFinite(r.bill) ? r.bill : 0;
       return acc + billVal;
     }, 0);
-  
+
     const sumKwh = items.reduce(
       (acc, r) => acc + (typeof r.kwh === "number" ? r.kwh : 0),
       0
@@ -363,41 +366,62 @@ const Bills = () => {
         })
       );
 
-      // 4) Call Regression API per week to estimate bill using provider rate
-      const base = api.defaults.baseURL || "";
-      const regressionBase = base.includes(":8000")
-        ? base.replace(":8000", ":5000")
-        : "http://localhost:5000";
       const provider = await AsyncStorage.getItem("electricityProvider");
       const company = (provider || "BATELEC").toLowerCase();
       const providerRate = ratePerKwh;
 
       const weeklyRows: WeeklyRow[] = [];
-      console.log(`📊 Starting bill prediction for ${company.toUpperCase()} with rate: ₱${providerRate}`);
-      console.log(`🔗 Regression API URL: ${regressionBase}/predict-bill`);
+      console.log(
+        `📊 Starting bill prediction for ${company.toUpperCase()} with rate: ₱${providerRate}`
+      );
+      console.log(
+        `🔗 Regression API URL: ${regressionApi.defaults.baseURL}/predict-bill`
+      );
 
       // Connectivity check: 10s limit to determine if model is reachable
-      const checkModelConnectivity = async (url: string, timeoutMs: number) => {
+      const checkModelConnectivity = async (
+        timeoutMs: number = 5000
+      ): Promise<boolean> => {
         try {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-          // Try OPTIONS on predict-bill; any response indicates connectivity
-          const resp = await fetch(`${url}/predict-bill`, {
-            method: "OPTIONS",
-            signal: controller.signal,
+          // Use the /health endpoint from your Flask regression API
+          const source = axios.CancelToken.source();
+          const timeout = setTimeout(() => source.cancel("Timeout"), timeoutMs);
+
+          const resp = await regressionApi.get("/health", {
+            cancelToken: source.token,
           });
-          clearTimeout(timeoutId);
-          return true; // Any response means we reached the server
-        } catch (e) {
-          console.log("Model connectivity check failed", e);
+          clearTimeout(timeout);
+
+          if (resp.status === 200) {
+            console.log(
+              "✅ Regression model is reachable:",
+              regressionApi.defaults.baseURL
+            );
+            return true;
+          } else {
+            console.warn(
+              "⚠️ Regression model responded with non-200 status:",
+              resp.status
+            );
+            return false;
+          }
+        } catch (error: any) {
+          if (axios.isCancel(error)) {
+            console.warn("⚠️ Regression model connectivity check timed out");
+          } else {
+            console.error("❌ Model connectivity check failed:", error.message);
+          }
           return false;
         }
       };
 
-      const modelConnected = await checkModelConnectivity(regressionBase, 10000);
+      const modelConnected = await checkModelConnectivity(10000);
       setModelAvailable(modelConnected);
-      console.log("🧪 Model connectivity:", modelConnected ? "reachable" : "unreachable (10s)");
-      
+      console.log(
+        "🧪 Model connectivity:",
+        modelConnected ? "reachable" : "unreachable (10s)"
+      );
+
       for (const w of weekCalcs) {
         const weekKwh = Number(w.kwh.toFixed(6));
         let predictedBill: number | null = null;
@@ -408,17 +432,17 @@ const Bills = () => {
               total_kwh: weekKwh,
               rate: providerRate,
             };
-            console.log(`📤 Requesting prediction for ${w.label}: ${JSON.stringify(requestBody)}`);
+            console.log(
+              `📤 Requesting prediction for ${w.label}: ${JSON.stringify(
+                requestBody
+              )}`
+            );
 
             // No strict timeout here; if connected within 10s, allow slow predictions
-            const resp = await fetch(`${regressionBase}/predict-bill`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(requestBody),
-            });
+            const resp = await regressionApi.post("/predict-bill", requestBody);
 
             console.log(`📥 Response status: ${resp.status}`);
-            const dataPred = await resp.json();
+            const dataPred = resp.data;
             console.log(`📥 Response data:`, dataPred);
             const modelBill =
               typeof dataPred?.predicted_consumption_price === "number"
@@ -430,7 +454,10 @@ const Bills = () => {
               predictedBill = null; // mark as unavailable
             }
           } catch (e) {
-            console.log(`⚠️ Prediction failed for ${w.label}, showing no prediction`, e);
+            console.log(
+              `⚠️ Prediction failed for ${w.label}, showing no prediction`,
+              e
+            );
             predictedBill = null; // mark as unavailable
           }
         } else {
@@ -451,23 +478,23 @@ const Bills = () => {
       computeTotal(weeklyRows);
       setHasFetchedData(true);
       setFetchError(null);
-      
-       // Save bill data to AsyncStorage for MainMenu
-       const billData = {
-         totalBill: weeklyRows.reduce((sum, row) => sum + row.bill, 0),
-         totalKwh: weeklyRows.reduce((sum, row) => sum + row.kwh, 0),
-         ratePerKwh: providerRate,
-         company: company,
-         month: selectedMonth,
-         timestamp: new Date().toISOString(),
-         rows: weeklyRows
-       };
-       await AsyncStorage.setItem("monthlyBillData", JSON.stringify(billData));
-       // Set flag to notify MainMenu that bill data has been updated
-       await AsyncStorage.setItem("billDataUpdated", new Date().toISOString());
-       // Also set a specific flag for immediate MainMenu refresh
-       await AsyncStorage.setItem("mainMenuRefreshNeeded", "true");
-       console.log("💾 Bill data saved to AsyncStorage:", billData);
+
+      // Save bill data to AsyncStorage for MainMenu
+      const billData = {
+        totalBill: weeklyRows.reduce((sum, row) => sum + row.bill, 0),
+        totalKwh: weeklyRows.reduce((sum, row) => sum + row.kwh, 0),
+        ratePerKwh: providerRate,
+        company: company,
+        month: selectedMonth,
+        timestamp: new Date().toISOString(),
+        rows: weeklyRows,
+      };
+      await AsyncStorage.setItem("monthlyBillData", JSON.stringify(billData));
+      // Set flag to notify MainMenu that bill data has been updated
+      await AsyncStorage.setItem("billDataUpdated", new Date().toISOString());
+      // Also set a specific flag for immediate MainMenu refresh
+      await AsyncStorage.setItem("mainMenuRefreshNeeded", "true");
+      console.log("💾 Bill data saved to AsyncStorage:", billData);
     } catch (err: any) {
       console.log("fetchMonthlyAndEstimate error", err);
       console.log("Error details:", JSON.stringify(err, null, 2));
@@ -475,7 +502,9 @@ const Bills = () => {
       console.log("Error message:", err.message);
       // Keep table visible if earlier steps succeeded; otherwise show generic error
       setModelAvailable(false);
-      setFetchError(`Model unavailable or failed. Showing consumption without predictions.`);
+      setFetchError(
+        `Model unavailable or failed. Showing consumption without predictions.`
+      );
     }
     setLoading(false);
   };
@@ -513,12 +542,12 @@ const Bills = () => {
     try {
       // Load provider rate first to ensure it's set
       await loadProviderRate();
-      
+
       // Small delay to ensure state is updated
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
       await fetchMonthlyAndEstimate();
-      
+
       // Immediately notify MainMenu of the update
       await AsyncStorage.setItem("mainMenuRefreshNeeded", "true");
       console.log("🔄 Notified MainMenu of bill data update");
@@ -743,8 +772,6 @@ const Bills = () => {
             </Text>
           </TouchableOpacity>
         </View>
-
-     
       </View>
 
       {/* Dropdown Modal */}
@@ -799,13 +826,34 @@ const Bills = () => {
               style={{ marginTop: 20 }}
             />
           ) : !hasFetchedData ? (
-            <View style={{ alignItems: "center", marginTop: 50, paddingHorizontal: 20 }}>
+            <View
+              style={{
+                alignItems: "center",
+                marginTop: 50,
+                paddingHorizontal: 20,
+              }}
+            >
               <Icon name="receipt" size={80} color="#ccc" />
-              <Text style={{ fontSize: 18, color: "#666", marginTop: 20, textAlign: "center" }}>
+              <Text
+                style={{
+                  fontSize: 18,
+                  color: "#666",
+                  marginTop: 20,
+                  textAlign: "center",
+                }}
+              >
                 No electricity bill loaded yet
               </Text>
-              <Text style={{ fontSize: 14, color: "#999", marginTop: 10, textAlign: "center" }}>
-                {fetchError || "Click the button below to generate your bill consumption to the model"}
+              <Text
+                style={{
+                  fontSize: 14,
+                  color: "#999",
+                  marginTop: 10,
+                  textAlign: "center",
+                }}
+              >
+                {fetchError ||
+                  "Click the button below to generate your bill consumption to the model"}
               </Text>
               <TouchableOpacity
                 style={{
@@ -820,7 +868,14 @@ const Bills = () => {
                 onPress={handleManualFetch}
               >
                 <Icon name="play-arrow" size={24} color="#000" />
-                <Text style={{ color: "#000", fontSize: 16, fontWeight: "bold", marginLeft: 8 }}>
+                <Text
+                  style={{
+                    color: "#000",
+                    fontSize: 16,
+                    fontWeight: "bold",
+                    marginLeft: 8,
+                  }}
+                >
                   {fetchError ? "Try Again" : "Start Fetching Bills"}
                 </Text>
               </TouchableOpacity>
@@ -914,7 +969,9 @@ const Bills = () => {
                       styles.tableCellBorder,
                       styles.billColumn,
                     ]}
-                  >{isFinite(r.bill) ? `₱${r.bill.toFixed(2)}` : "—"}</Text>
+                  >
+                    {isFinite(r.bill) ? `₱${r.bill.toFixed(2)}` : "—"}
+                  </Text>
                   <View style={[styles.tableCell, styles.infoColumn]}>
                     <TouchableOpacity
                       style={styles.infoButton}
@@ -963,13 +1020,34 @@ const Bills = () => {
             style={{ marginTop: 20 }}
           />
         ) : !hasFetchedData ? (
-          <View style={{ alignItems: "center", marginTop: 50, paddingHorizontal: 20 }}>
+          <View
+            style={{
+              alignItems: "center",
+              marginTop: 50,
+              paddingHorizontal: 20,
+            }}
+          >
             <Icon name="bar-chart" size={80} color="#ccc" />
-            <Text style={{ fontSize: 18, color: "#666", marginTop: 20, textAlign: "center" }}>
+            <Text
+              style={{
+                fontSize: 18,
+                color: "#666",
+                marginTop: 20,
+                textAlign: "center",
+              }}
+            >
               No bill data yet
             </Text>
-            <Text style={{ fontSize: 14, color: "#999", marginTop: 10, textAlign: "center" }}>
-              {fetchError || "Click the button below to visualize your monthly bill consumption"}
+            <Text
+              style={{
+                fontSize: 14,
+                color: "#999",
+                marginTop: 10,
+                textAlign: "center",
+              }}
+            >
+              {fetchError ||
+                "Click the button below to visualize your monthly bill consumption"}
             </Text>
             <TouchableOpacity
               style={{
@@ -984,7 +1062,14 @@ const Bills = () => {
               onPress={handleManualFetch}
             >
               <Icon name="play-arrow" size={24} color="#000" />
-              <Text style={{ color: "#000", fontSize: 16, fontWeight: "bold", marginLeft: 8 }}>
+              <Text
+                style={{
+                  color: "#000",
+                  fontSize: 16,
+                  fontWeight: "bold",
+                  marginLeft: 8,
+                }}
+              >
                 {fetchError ? "Try Again" : "Start Fetching Bills"}
               </Text>
             </TouchableOpacity>
@@ -1039,16 +1124,25 @@ const Bills = () => {
             Estimated Bill for {selectedMonth}
           </Text>
           <Text style={styles.highlightAmount}>
-            {hasFetchedData ? (modelAvailable === false ? "No model detected" : `₱${totalBill.toFixed(2)}`) : "No data available"}
+            {hasFetchedData
+              ? modelAvailable === false
+                ? "No model detected"
+                : `₱${totalBill.toFixed(2)}`
+              : "No data available"}
           </Text>
         </View>
 
         {/* Forecast / Retry */}
         <View style={styles.forecastBox}>
           {modelAvailable === false ? (
-            <TouchableOpacity onPress={handleManualFetch} style={{ flexDirection: "row", alignItems: "center"}}>
+            <TouchableOpacity
+              onPress={handleManualFetch}
+              style={{ flexDirection: "row", alignItems: "center" }}
+            >
               <Icon name="refresh" size={28} color="#E67E22" />
-              <Text style={[styles.forecastText, { marginLeft: 8 }]}>Retry fetching model</Text>
+              <Text style={[styles.forecastText, { marginLeft: 8 }]}>
+                Retry fetching model
+              </Text>
             </TouchableOpacity>
           ) : (
             <>
@@ -1057,7 +1151,9 @@ const Bills = () => {
                 {hasFetchedData ? (
                   <>
                     If you keep this up, next month's bill will be{" "}
-                    <Text style={styles.forecastAmount}>{`₱${(totalBill * 1.03).toFixed(2)}`}</Text>
+                    <Text style={styles.forecastAmount}>{`₱${(
+                      totalBill * 1.03
+                    ).toFixed(2)}`}</Text>
                   </>
                 ) : (
                   "Fetch your bill data to see next month's forecast"

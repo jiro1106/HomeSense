@@ -22,7 +22,9 @@ import Recommendations from "./Recommendations";
 import Bills from "./Bills";
 import ConsumptionPage from "./ConsumptionPage";
 import api from "../utils/api";
+import regressionApi from "../utils/regressionApi";
 import RecoSummary from "./RecoSummary";
+import axios from "axios";
 
 type MainMenuNavProp = NativeStackNavigationProp<
   RootStackParamList,
@@ -102,13 +104,11 @@ const MainMenu = () => {
       const household_id = parsedUser.household_id;
       if (!household_id) return null;
 
-      // 🧮 Provider rate
       const provider =
         (await AsyncStorage.getItem("electricityProvider")) || "BATELEC";
       const company = provider.toLowerCase();
       const ratePerKwh = company === "meralco" ? 7.6962 : 5.3874;
 
-      // 🗓️ Month setup
       const now = new Date();
       const year = now.getUTCFullYear();
       const monthIdx = now.getUTCMonth();
@@ -170,7 +170,6 @@ const MainMenu = () => {
         if (!isNaN(day)) lastDayToKwh[day] = d.total_kwh;
       });
 
-      // --- Build weekly extrapolation ---
       const weeks = getWeekBoundaries(year, monthIdx);
       const prevWeeks = getWeekBoundaries(lastMonthYear, lastMonthIdx);
       const avgPerDay =
@@ -181,16 +180,33 @@ const MainMenu = () => {
             ) / daysSoFar
           : 0;
 
-      const regressionBase = (api.defaults.baseURL || "").includes(":8000")
-        ? (api.defaults.baseURL || "").replace(":8000", ":5000")
-        : "http://localhost:5000";
+      // ✅ Connectivity check before predictions
+      const checkModelConnectivity = async (timeoutMs: number = 5000) => {
+        try {
+          const source = axios.CancelToken.source();
+          const timeout = setTimeout(() => source.cancel("Timeout"), timeoutMs);
+          const resp = await regressionApi.get("/health", {
+            cancelToken: source.token,
+          });
+          clearTimeout(timeout);
+          return resp.status === 200;
+        } catch {
+          return false;
+        }
+      };
+
+      const modelConnected = await checkModelConnectivity(5000);
+      if (!modelConnected) {
+        console.warn("⚠️ Regression model unreachable from MainMenu");
+        return null;
+      }
 
       let totalBill = 0;
       for (const [i, w] of weeks.entries()) {
         let observedKwh = 0;
         const missingDays: number[] = [];
-
         const observedEnd = isCurrentMonth ? Math.min(w.end, daysSoFar) : w.end;
+
         for (let d = w.start; d <= w.end; d++) {
           if (d <= observedEnd && dayToKwh[d]) observedKwh += dayToKwh[d];
           else if (d > observedEnd) missingDays.push(d);
@@ -222,21 +238,18 @@ const MainMenu = () => {
 
         const weekKwh = observedKwh + estimatedMissingKwh;
 
-        // --- Regression model call per week ---
-        const resp = await fetch(`${regressionBase}/predict-bill`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+        // --- Predict per week
+        try {
+          const resp = await regressionApi.post("/predict-bill", {
             company,
             total_kwh: weekKwh,
             rate: ratePerKwh,
-          }),
-        });
-
-        if (resp.ok) {
-          const data = await resp.json();
+          });
+          const data = resp.data;
           const pred = parseFloat(data?.predicted_consumption_price);
           if (isFinite(pred)) totalBill += pred;
+        } catch (e) {
+          console.warn(`⚠️ Prediction failed for ${w.label}`, e);
         }
       }
 
