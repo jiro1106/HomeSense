@@ -195,9 +195,9 @@ const MainMenu = () => {
       const household_id = parsedUser.household_id;
       console.log("Household logged in,", household_id);
 
-      const [todayRes, week7Res, monthRes] = await Promise.all([
+      const [todayRes, weekRes, monthRes] = await Promise.all([
         api.get(`/energy/daily/total?household_id=${household_id}`),
-        api.get(`/energy/weekly/recent/total?household_id=${household_id}`),
+        api.get(`energy/weekly/total?household_id=${household_id}&limit=1`),
         api.get(`/energy/monthly/total?household_id=${household_id}`),
       ]);
 
@@ -210,9 +210,14 @@ const MainMenu = () => {
       // ✅ today comes as single number
       setTodayUsage(safeFormat(todayRes.data?.total_kwh));
 
-      // ✅ weekly → last 7 days rolling total
-      const last7Total = week7Res.data?.total_kwh ?? 0;
-      setWeekUsage(safeFormat(last7Total));
+      // ✅ weekly → get last item from data array
+      if (Array.isArray(weekRes.data?.data) && weekRes.data.data.length > 0) {
+        const lastWeek =
+          weekRes.data.data[weekRes.data.data.length - 1].weekly_total_kwh;
+        setWeekUsage(safeFormat(lastWeek));
+      } else {
+        setWeekUsage("0.00 kWh");
+      }
 
       // ✅ monthly → get last item from data array
       if (Array.isArray(monthRes.data?.data) && monthRes.data.data.length > 0) {
@@ -242,7 +247,9 @@ const MainMenu = () => {
       const billData = await AsyncStorage.getItem("monthlyBillData");
       if (billData) {
         const parsed = JSON.parse(billData);
-        setMonthlyBill(parsed.totalBill ? `₱${parsed.totalBill.toFixed(2)}` : null);
+        setMonthlyBill(
+          parsed.totalBill ? `₱${parsed.totalBill.toFixed(2)}` : null
+        );
         setBillTimestamp(parsed.timestamp || null);
       } else {
         setMonthlyBill(null);
@@ -261,7 +268,11 @@ const MainMenu = () => {
   const refreshAllData = useCallback(async () => {
     try {
       setRefreshing(true);
-      await Promise.all([fetchUsageSummary(), fetchTopEnergyDevices(), loadBillData()]);
+      await Promise.all([
+        fetchUsageSummary(),
+        fetchTopEnergyDevices(),
+        loadBillData(),
+      ]);
     } catch (error) {
       console.warn("Error refreshing data:", error);
     } finally {
@@ -277,7 +288,9 @@ const MainMenu = () => {
   useEffect(() => {
     const checkForBillUpdates = async () => {
       try {
-        const refreshNeeded = await AsyncStorage.getItem("mainMenuRefreshNeeded");
+        const refreshNeeded = await AsyncStorage.getItem(
+          "mainMenuRefreshNeeded"
+        );
         if (refreshNeeded === "true") {
           console.log("🔄 Periodic check: Bill data updated, refreshing...");
           await loadBillData();
@@ -300,7 +313,9 @@ const MainMenu = () => {
       const checkAndLoadBillData = async () => {
         try {
           // Check if MainMenu refresh is needed
-          const refreshNeeded = await AsyncStorage.getItem("mainMenuRefreshNeeded");
+          const refreshNeeded = await AsyncStorage.getItem(
+            "mainMenuRefreshNeeded"
+          );
           if (refreshNeeded === "true") {
             console.log("🔄 MainMenu refresh needed, loading bill data...");
             await loadBillData();
@@ -314,7 +329,7 @@ const MainMenu = () => {
           console.warn("Error checking for bill updates:", error);
         }
       };
-      
+
       checkAndLoadBillData();
     }, [loadBillData])
   );
@@ -484,11 +499,11 @@ const MainMenu = () => {
         ) : monthlyBill ? (
           <>
             <Text style={styles.billAmount}>{monthlyBill}</Text>
-            {billTimestamp
-            ? <Text style={[styles.billLabel, { fontSize: 10, opacity: 0.7 }]}>
+            {billTimestamp && (
+              <Text style={[styles.billLabel, { fontSize: 10, opacity: 0.7 }]}>
                 Updated: {new Date(billTimestamp).toLocaleDateString()}
               </Text>
-            : null}
+            )}
           </>
         ) : (
           <Text style={styles.billAmount}>No data</Text>
@@ -497,7 +512,7 @@ const MainMenu = () => {
       </View>
 
       <Text style={styles.sectionLabel}>
-        Top Energy Consuming Devices for the Month
+        Top Energy Consuming Devices in the Last 30 Days
       </Text>
       <TopDevicesSection />
 
