@@ -66,6 +66,187 @@ const MainMenu = () => {
   const [hasRegisteredAppliances, setHasRegisteredAppliances] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
+  // --- Persistent randomness (same as Bills.tsx) ---
+  const getPersistentMultiplier = async (key: string): Promise<number> => {
+    try {
+      const stored = await AsyncStorage.getItem(key);
+      if (stored !== null) return parseFloat(stored);
+      const multiplier = Math.random() < 0.5 ? 0.95 : 1.05;
+      await AsyncStorage.setItem(key, multiplier.toString());
+      return multiplier;
+    } catch {
+      return Math.random() < 0.5 ? 0.95 : 1.05;
+    }
+  };
+
+  const generateDayKey = (year: number, month: number, day: number) =>
+    `multiplier-${year}-${month}-${day}`;
+
+  const getWeekBoundaries = (year: number, monthIdx: number) => {
+    const daysInMonth = new Date(Date.UTC(year, monthIdx + 1, 0)).getUTCDate();
+    const ranges = [
+      { start: 1, end: Math.min(7, daysInMonth) },
+      { start: 8, end: Math.min(14, daysInMonth) },
+      { start: 15, end: Math.min(21, daysInMonth) },
+      { start: 22, end: daysInMonth },
+    ];
+    return ranges.map((r, i) => ({ ...r, label: `Week ${i + 1}` }));
+  };
+
+  // Helper: fetch estimated monthly bill using regression model
+  const fetchEstimatedBill = async (): Promise<number | null> => {
+    try {
+      const storedUserData = await AsyncStorage.getItem("userData");
+      if (!storedUserData) return null;
+      const parsedUser = JSON.parse(storedUserData);
+      const household_id = parsedUser.household_id;
+      if (!household_id) return null;
+
+      // 🧮 Provider rate
+      const provider =
+        (await AsyncStorage.getItem("electricityProvider")) || "BATELEC";
+      const company = provider.toLowerCase();
+      const ratePerKwh = company === "meralco" ? 7.6962 : 5.3874;
+
+      // 🗓️ Month setup
+      const now = new Date();
+      const year = now.getUTCFullYear();
+      const monthIdx = now.getUTCMonth();
+      const start = new Date(Date.UTC(year, monthIdx, 1))
+        .toISOString()
+        .split("T")[0];
+      const end = new Date(Date.UTC(year, monthIdx + 1, 0))
+        .toISOString()
+        .split("T")[0];
+      const isCurrentMonth =
+        now.getUTCMonth() === monthIdx && now.getUTCFullYear() === year;
+      const daysInMonth = new Date(
+        Date.UTC(year, monthIdx + 1, 0)
+      ).getUTCDate();
+      const daysSoFar = isCurrentMonth ? now.getUTCDate() : daysInMonth;
+
+      // --- Fetch current and last month data ---
+      const res = await api.get("/energy/history/total_range", {
+        params: { start, end, household_id },
+      });
+      const arr = Array.isArray(res.data?.history || res.data?.data)
+        ? res.data.history || res.data.data
+        : [];
+      const daily = arr.map((d: any) => ({
+        date: d.date || d.day || d.timestamp || "",
+        total_kwh: parseFloat(String(d.total_kwh)) || 0,
+      }));
+
+      const lastMonthIdx = monthIdx === 0 ? 11 : monthIdx - 1;
+      const lastMonthYear = monthIdx === 0 ? year - 1 : year;
+      const lastStart = new Date(Date.UTC(lastMonthYear, lastMonthIdx, 1))
+        .toISOString()
+        .split("T")[0];
+      const lastEnd = new Date(Date.UTC(lastMonthYear, lastMonthIdx + 1, 0))
+        .toISOString()
+        .split("T")[0];
+
+      const lastRes = await api.get("/energy/history/total_range", {
+        params: { start: lastStart, end: lastEnd, household_id },
+      });
+      const lastArr = Array.isArray(lastRes.data?.history || lastRes.data?.data)
+        ? lastRes.data.history || lastRes.data.data
+        : [];
+      const lastMonthDaily = lastArr.map((d: any) => ({
+        date: d.date || d.day || d.timestamp || "",
+        total_kwh: parseFloat(String(d.total_kwh)) || 0,
+      }));
+
+      // --- Build maps ---
+      const dayToKwh: Record<number, number> = {};
+      daily.forEach((d: { date: string; total_kwh: number }) => {
+        const day = parseInt((d.date || "").split("-")[2] || "0", 10);
+        if (!isNaN(day)) dayToKwh[day] = d.total_kwh;
+      });
+
+      const lastDayToKwh: Record<number, number> = {};
+      lastMonthDaily.forEach((d: { date: string; total_kwh: number }) => {
+        const day = parseInt((d.date || "").split("-")[2] || "0", 10);
+        if (!isNaN(day)) lastDayToKwh[day] = d.total_kwh;
+      });
+
+      // --- Build weekly extrapolation ---
+      const weeks = getWeekBoundaries(year, monthIdx);
+      const prevWeeks = getWeekBoundaries(lastMonthYear, lastMonthIdx);
+      const avgPerDay =
+        daysSoFar > 0
+          ? daily.reduce(
+              (sum: number, d: { total_kwh: number }) => sum + d.total_kwh,
+              0
+            ) / daysSoFar
+          : 0;
+
+      const regressionBase = (api.defaults.baseURL || "").includes(":8000")
+        ? (api.defaults.baseURL || "").replace(":8000", ":5000")
+        : "http://localhost:5000";
+
+      let totalBill = 0;
+      for (const [i, w] of weeks.entries()) {
+        let observedKwh = 0;
+        const missingDays: number[] = [];
+
+        const observedEnd = isCurrentMonth ? Math.min(w.end, daysSoFar) : w.end;
+        for (let d = w.start; d <= w.end; d++) {
+          if (d <= observedEnd && dayToKwh[d]) observedKwh += dayToKwh[d];
+          else if (d > observedEnd) missingDays.push(d);
+        }
+
+        let estimatedMissingKwh = 0;
+        if (missingDays.length > 0) {
+          const prevWeek = prevWeeks[i];
+          let baseMissing = 0;
+          if (prevWeek) {
+            missingDays.forEach((curDay) => {
+              const idxInWeek = curDay - w.start;
+              const prevDay = Math.min(
+                prevWeek.start + idxInWeek,
+                prevWeek.end
+              );
+              baseMissing += lastDayToKwh[prevDay] || 0;
+            });
+          }
+          if (baseMissing > 0) {
+            for (const d of missingDays) {
+              const mult = await getPersistentMultiplier(
+                generateDayKey(year, monthIdx + 1, d)
+              );
+              estimatedMissingKwh += (baseMissing / missingDays.length) * mult;
+            }
+          } else estimatedMissingKwh = avgPerDay * missingDays.length;
+        }
+
+        const weekKwh = observedKwh + estimatedMissingKwh;
+
+        // --- Regression model call per week ---
+        const resp = await fetch(`${regressionBase}/predict-bill`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            company,
+            total_kwh: weekKwh,
+            rate: ratePerKwh,
+          }),
+        });
+
+        if (resp.ok) {
+          const data = await resp.json();
+          const pred = parseFloat(data?.predicted_consumption_price);
+          if (isFinite(pred)) totalBill += pred;
+        }
+      }
+
+      return Number(totalBill.toFixed(2));
+    } catch (err) {
+      console.warn("Error fetching extrapolated bill:", err);
+      return null;
+    }
+  };
+
   // =========================
   // Fetch registered appliances
   // =========================
@@ -244,19 +425,15 @@ const MainMenu = () => {
   const loadBillData = useCallback(async () => {
     try {
       setBillLoading(true);
-      const billData = await AsyncStorage.getItem("monthlyBillData");
-      if (billData) {
-        const parsed = JSON.parse(billData);
-        setMonthlyBill(
-          parsed.totalBill ? `₱${parsed.totalBill.toFixed(2)}` : null
-        );
-        setBillTimestamp(parsed.timestamp || null);
+      const estimate = await fetchEstimatedBill();
+      if (estimate !== null) {
+        setMonthlyBill(`₱${estimate.toFixed(2)}`);
+        setBillTimestamp(new Date().toISOString());
       } else {
         setMonthlyBill(null);
-        setBillTimestamp(null);
       }
     } catch (error) {
-      console.warn("Error loading bill data:", error);
+      console.warn("Error loading bill data dynamically:", error);
       setMonthlyBill(null);
     } finally {
       setBillLoading(false);
