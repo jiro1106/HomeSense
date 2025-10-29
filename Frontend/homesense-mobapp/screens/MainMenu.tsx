@@ -195,9 +195,9 @@ const MainMenu = () => {
       const household_id = parsedUser.household_id;
       console.log("Household logged in,", household_id);
 
-      const [todayRes, weekRes, monthRes] = await Promise.all([
+      const [todayRes, week7Res, monthRes] = await Promise.all([
         api.get(`/energy/daily/total?household_id=${household_id}`),
-        api.get(`energy/weekly/total?household_id=${household_id}&limit=1`),
+        api.get(`/energy/weekly/recent/total?household_id=${household_id}`),
         api.get(`/energy/monthly/total?household_id=${household_id}`),
       ]);
 
@@ -210,14 +210,9 @@ const MainMenu = () => {
       // ✅ today comes as single number
       setTodayUsage(safeFormat(todayRes.data?.total_kwh));
 
-      // ✅ weekly → get last item from data array
-      if (Array.isArray(weekRes.data?.data) && weekRes.data.data.length > 0) {
-        const lastWeek =
-          weekRes.data.data[weekRes.data.data.length - 1].weekly_total_kwh;
-        setWeekUsage(safeFormat(lastWeek));
-      } else {
-        setWeekUsage("0.00 kWh");
-      }
+      // ✅ weekly → last 7 days rolling total
+      const last7Total = week7Res.data?.total_kwh ?? 0;
+      setWeekUsage(safeFormat(last7Total));
 
       // ✅ monthly → get last item from data array
       if (Array.isArray(monthRes.data?.data) && monthRes.data.data.length > 0) {
@@ -489,11 +484,11 @@ const MainMenu = () => {
         ) : monthlyBill ? (
           <>
             <Text style={styles.billAmount}>{monthlyBill}</Text>
-            {billTimestamp && (
-              <Text style={[styles.billLabel, { fontSize: 10, opacity: 0.7 }]}>
+            {billTimestamp
+            ? <Text style={[styles.billLabel, { fontSize: 10, opacity: 0.7 }]}>
                 Updated: {new Date(billTimestamp).toLocaleDateString()}
               </Text>
-            )}
+            : null}
           </>
         ) : (
           <Text style={styles.billAmount}>No data</Text>

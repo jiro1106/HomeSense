@@ -73,7 +73,14 @@ export const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 8,
-    marginRight: -30,
+    marginRight: 8,
+  },
+  toggleGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  lastToggleButton: {
+    marginRight: 0,
   },
   toggleText: {
     color: "#fff",
