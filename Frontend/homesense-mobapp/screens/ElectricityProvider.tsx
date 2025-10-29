@@ -52,7 +52,7 @@ const ElectricityProvider = () => {
           await AsyncStorage.setItem("electricityProvider", provider);
         }
       } catch (error: any) {
-        console.error("Error fetching provider:", error.message);
+        console.warn("Error fetching provider:", error.message);
         // fallback to locally saved provider
         const savedProvider = await AsyncStorage.getItem("electricityProvider");
         if (savedProvider) setSelectedProvider(savedProvider);
@@ -100,7 +100,7 @@ const ElectricityProvider = () => {
         response.data?.message || "Electricity provider updated successfully!"
       );
     } catch (error: any) {
-      console.error("Error updating provider:", error.message);
+      console.warn("Error updating provider:", error.message);
       Alert.alert("Error", "Failed to save provider. Please try again.");
     } finally {
       setUpdating(false);

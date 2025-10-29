@@ -190,7 +190,7 @@ const Bills = () => {
           ? res.data.history || res.data.data
           : [];
       } catch (apiErr) {
-        console.error("Error fetching current month data:", apiErr);
+        console.warn("Error fetching current month data:", apiErr);
         arr = []; // fallback to empty array
       }
       const daily = arr.map((d: any) => ({
@@ -409,7 +409,7 @@ const Bills = () => {
           if (axios.isCancel(error)) {
             console.warn("⚠️ Regression model connectivity check timed out");
           } else {
-            console.error("❌ Model connectivity check failed:", error.message);
+            console.warn("❌ Model connectivity check failed:", error.message);
           }
           return false;
         }

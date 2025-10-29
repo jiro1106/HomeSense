@@ -1,10 +1,10 @@
 // regressionApi.ts
 import axios from "axios";
 
-// Use your local network IP if testing on your phone (same Wi-Fi)
-// Example: http://192.168.100.98:5000
-// Later, replace this with your Render ML API URL
-const REGRESSION_BASE_URL = "http://192.168.100.98:5000";
+// localhost: http://192.168.100.98:5000
+// deployed : https://homesense-regression.onrender.com
+
+const REGRESSION_BASE_URL = "https://homesense-regression.onrender.com";
 
 // Axios instance for the ML regression model
 const regressionApi = axios.create({
