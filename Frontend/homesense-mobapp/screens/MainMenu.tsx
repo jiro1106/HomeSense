@@ -576,11 +576,6 @@ const MainMenu = () => {
     refreshAllData();
   }, [refreshAllData]);
 
-  const handleLogout = async () => {
-    await AsyncStorage.removeItem("userData");
-    navigation.replace("Login");
-  };
-
   // =========================
   // Component: UsageCard
   // =========================

@@ -1,12 +1,22 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, Image, SafeAreaView, StatusBar } from 'react-native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../App';
-import { styles } from './styles/LandingPageStyles';
-// @ts-ignore
-import homesenseLogo from '../assets/homesenseLogo.png';
+import React from "react";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  Image,
+  SafeAreaView,
+  StatusBar,
+} from "react-native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { RootStackParamList } from "../App";
+import { styles } from "./styles/LandingPageStyles";
+// @ts-expect-error --image import
+import homesenseLogo from "../assets/homesenseLogo.png";
 
-type LandingPageNavProp = NativeStackNavigationProp<RootStackParamList, 'Landing'>;
+type LandingPageNavProp = NativeStackNavigationProp<
+  RootStackParamList,
+  "Landing"
+>;
 
 type Props = {
   navigation: LandingPageNavProp;
@@ -14,20 +24,24 @@ type Props = {
 
 const LandingPage: React.FC<Props> = ({ navigation }) => {
   const handleGetStarted = () => {
-    navigation.navigate('Login');
+    navigation.navigate("Login");
   };
 
   return (
     <>
-      <StatusBar barStyle="light-content" backgroundColor="#000" translucent={false} />
+      <StatusBar
+        barStyle="light-content"
+        backgroundColor="#000"
+        translucent={false}
+      />
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.container}>
           <View style={styles.content}>
             <View style={styles.logoContainer}>
               <View style={styles.logo}>
                 <Text style={styles.logoText}>H</Text>
-                <Image 
-                  source={homesenseLogo} 
+                <Image
+                  source={homesenseLogo}
                   style={styles.logoImage}
                   resizeMode="contain"
                 />
@@ -36,8 +50,8 @@ const LandingPage: React.FC<Props> = ({ navigation }) => {
             </View>
           </View>
 
-          <TouchableOpacity 
-            style={styles.getStartedBtn} 
+          <TouchableOpacity
+            style={styles.getStartedBtn}
             onPress={handleGetStarted}
             activeOpacity={0.8}
           >

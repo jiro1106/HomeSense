@@ -35,7 +35,6 @@ const PerformanceSummaryCard: React.FC<Props> = ({
   const { current, previous, diffPercent } = comparison;
   const isSaving = diffPercent < 0;
   const color = isSaving ? "#4CAF50" : "#E53935"; // green vs red
-  const sign = isSaving ? "-" : "+";
   const diffAmount = Math.abs(current - previous).toFixed(2);
 
   return (

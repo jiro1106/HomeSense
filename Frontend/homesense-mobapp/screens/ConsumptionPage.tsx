@@ -100,19 +100,6 @@ const ConsumptionPage = () => {
   const [totalUsage, setTotalUsage] = useState<string>("0 kWh");
   const [loadingTotal, setLoadingTotal] = useState(false);
 
-  // Helper function to format week range
-  const formatWeekRange = (weekStart: string) => {
-    const startDate = new Date(weekStart);
-    const endDate = new Date(startDate);
-    endDate.setDate(startDate.getDate() + 6);
-
-    const formatDate = (date: Date) => {
-      return date.toISOString().split("T")[0];
-    };
-
-    return `${formatDate(startDate)} to ${formatDate(endDate)}`;
-  };
-
   // Helper function to get week range from week_start
   const getWeekRange = (weekStart: string) => {
     const startDate = new Date(weekStart);
@@ -468,14 +455,22 @@ const ConsumptionPage = () => {
   };
 
   useEffect(() => {
-    fetchRegisteredAppliances();
+    const loadAppliances = async () => {
+      await fetchRegisteredAppliances(); // state update happens inside nested function
+    };
+
+    loadAppliances(); // call the nested function
   }, []);
 
   useEffect(() => {
-    if (registeredAppliances.length > 0) {
-      fetchData();
-      fetchTotalUsage();
-    }
+    if (registeredAppliances.length === 0) return;
+
+    const loadData = async () => {
+      await fetchData();
+      await fetchTotalUsage();
+    };
+
+    loadData(); // call the nested function
   }, [
     filterType,
     selectedAppliance,

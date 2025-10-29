@@ -1,17 +1,8 @@
 import React, { useEffect, useState } from "react";
-import {
-  View,
-  Text,
-  ActivityIndicator,
-  TouchableOpacity,
-  StyleSheet,
-} from "react-native";
+import { View, Text, ActivityIndicator } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Icon from "react-native-vector-icons/MaterialIcons";
 import api from "../utils/api";
-import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { useNavigation } from "@react-navigation/native";
-import { RootStackParamList } from "../App";
 import { styles } from "../screens/styles/RecoSummary";
 
 interface PerformanceSummary {
@@ -23,9 +14,6 @@ interface PerformanceSummary {
 }
 
 const RecoSummary = () => {
-  const navigation =
-    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-
   const [performanceSummary, setPerformanceSummary] =
     useState<PerformanceSummary | null>(null);
   const [savingsMode, setSavingsMode] = useState<string>("");

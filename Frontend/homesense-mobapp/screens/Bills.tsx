@@ -12,7 +12,7 @@ import {
   Dimensions,
 } from "react-native";
 import Icon from "react-native-vector-icons/MaterialIcons";
-import { BarChart, LineChart } from "react-native-chart-kit";
+import { BarChart } from "react-native-chart-kit";
 import { styles } from "./styles/BillsStyles";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import api from "../utils/api";
@@ -303,11 +303,9 @@ const Bills = () => {
       type WeekCalc = { label: string; kwh: number; extrapolated: boolean };
       const weekCalcs: WeekCalc[] = await Promise.all(
         weeks.map(async (w, weekIndex) => {
-          const totalDaysInWeek = w.end - w.start + 1;
           const observedEndDay = isCurrentMonth
             ? Math.min(w.end, daysSoFar)
             : w.end;
-          const observedDays = Math.max(0, observedEndDay - w.start + 1);
 
           // observed kWh (only for observed days in the current month)
           let observedKwh = 0;
@@ -515,26 +513,34 @@ const Bills = () => {
   };
 
   useEffect(() => {
-    initLoad();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const load = () => {
+      initLoad();
+    };
+
+    load();
   }, []);
 
   // Re-fetch when month filter changes (only if user has already fetched data)
   useEffect(() => {
-    if (hasFetchedData) {
-      fetchMonthlyAndEstimate();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedMonth]);
+    if (!hasFetchedData) return; // early exit
+
+    const loadEstimate = async () => {
+      await fetchMonthlyAndEstimate(); // safe: state updates happen inside nested function
+    };
+
+    loadEstimate();
+  }, [selectedMonth, hasFetchedData]);
 
   // Recompute bills if rate changes (only if user has already fetched data)
   useEffect(() => {
-    if (hasFetchedData && rows.length > 0) {
-      // Re-fetch to get model-predicted bills with the new rate
-      fetchMonthlyAndEstimate();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ratePerKwh]);
+    if (!(hasFetchedData && rows.length > 0)) return;
+
+    const loadEstimate = async () => {
+      await fetchMonthlyAndEstimate(); // safe: state update happens inside nested function
+    };
+
+    loadEstimate();
+  }, [ratePerKwh, hasFetchedData, rows.length]);
 
   const handleManualFetch = async () => {
     setLoading(true);

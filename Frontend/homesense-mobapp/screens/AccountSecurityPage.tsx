@@ -153,7 +153,7 @@ const AccountSecurityPage = () => {
         return;
       }
 
-      let updatePayload: any = {
+      const updatePayload: any = {
         username: username.trim(),
       };
 
