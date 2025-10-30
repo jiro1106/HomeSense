@@ -55,13 +55,16 @@ const SavingMode = () => {
             const savedMode = await AsyncStorage.getItem(storageKey);
             if (savedMode) {
               const formattedMode =
-                savedMode.charAt(0).toUpperCase() + savedMode.slice(1).toLowerCase();
+                savedMode.charAt(0).toUpperCase() +
+                savedMode.slice(1).toLowerCase();
               if (!cancelled) setSelectedMode(formattedMode);
             }
           } else {
             if (!cancelled) setSelectedMode(null);
           }
-        } catch {}
+        } catch (error) {
+          console.warn("Error syncing saving mode:", error);
+        }
       };
       syncFromExplicit();
       return () => {
@@ -81,7 +84,6 @@ const SavingMode = () => {
         const parsedUser = JSON.parse(storedUser);
         const householdId = parsedUser.household_id;
         if (!householdId) return;
-        const storageKey = `savingMode:${householdId}`;
         const explicitKey = `savingModeExplicit:${householdId}`;
 
         // Step 2: Fetch mode from backend
@@ -146,7 +148,10 @@ const SavingMode = () => {
       }
       if (storageKey) {
         await AsyncStorage.setItem(storageKey, mode.toLowerCase());
-        const explicitKey = storageKey.replace("savingMode:", "savingModeExplicit:");
+        const explicitKey = storageKey.replace(
+          "savingMode:",
+          "savingModeExplicit:"
+        );
         await AsyncStorage.setItem(explicitKey, "true");
       }
 
