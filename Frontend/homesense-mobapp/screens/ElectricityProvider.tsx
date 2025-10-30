@@ -28,6 +28,8 @@ const ElectricityProvider = () => {
   const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
+  const [nextSwitchDate, setNextSwitchDate] = useState<string | null>(null);
+  const [isCooldownActive, setIsCooldownActive] = useState(false);
 
   // 🧠 Load provider from backend or local storage
   useEffect(() => {
@@ -46,7 +48,20 @@ const ElectricityProvider = () => {
           `energy/household/${householdId}/provider`
         );
         const provider = response.data?.provider;
+        const nextDate = response.data?.next_switch_date;
 
+        if (nextDate) {
+          setNextSwitchDate(nextDate);
+
+          // 🕒 Check if still under cooldown
+          const now = new Date();
+          const nextSwitch = new Date(nextDate);
+          if (nextSwitch > now) {
+            setIsCooldownActive(true);
+          } else {
+            setIsCooldownActive(false);
+          }
+        }
         if (provider) {
           setSelectedProvider(provider);
           await AsyncStorage.setItem("electricityProvider", provider);
@@ -64,9 +79,34 @@ const ElectricityProvider = () => {
     loadProvider();
   }, []);
 
+  // 🕒 Cooldown checker (auto-unlock when date passes)
+  useEffect(() => {
+    if (nextSwitchDate) {
+      const now = new Date();
+      const next = new Date(nextSwitchDate);
+      if (now >= next) {
+        setIsCooldownActive(false);
+      }
+    }
+  }, [nextSwitchDate]);
+
   // ⚙️ Handle provider selection
   const handleSelectProvider = async (provider: string) => {
     try {
+      if (isCooldownActive) {
+        Alert.alert(
+          "Cooldown Active",
+          `You can only change your provider after ${new Date(
+            nextSwitchDate!
+          ).toLocaleDateString("en-US", {
+            month: "long",
+            day: "numeric",
+            year: "numeric",
+          })}.`
+        );
+        return;
+      }
+
       setUpdating(true);
       setSelectedProvider(provider);
       await AsyncStorage.setItem("electricityProvider", provider);
@@ -74,6 +114,7 @@ const ElectricityProvider = () => {
       const storedUser = await AsyncStorage.getItem("userData");
       if (!storedUser) {
         Alert.alert("Saved Locally", `You selected ${provider}.`);
+        setUpdating(false); // stop the spinner
         navigation.goBack();
         return;
       }
@@ -82,6 +123,7 @@ const ElectricityProvider = () => {
       const householdId = parsedUser.household_id;
       if (!householdId) {
         Alert.alert("Saved Locally", `You selected ${provider}.`);
+        setUpdating(false); // stop the spinner
         navigation.goBack();
         return;
       }
@@ -99,9 +141,31 @@ const ElectricityProvider = () => {
         "Saved",
         response.data?.message || "Electricity provider updated successfully!"
       );
+      setUpdating(false);
     } catch (error: any) {
       console.warn("Error updating provider:", error.message);
-      Alert.alert("Error", "Failed to save provider. Please try again.");
+      const backendMessage =
+        error.response?.data?.detail?.message ||
+        error.response?.data?.message ||
+        "Failed to save provider. Please try again.";
+
+      const nextDate = error.response?.data?.detail?.next_switch_date;
+      const daysRemaining = error.response?.data?.detail?.days_remaining;
+
+      let alertMessage = backendMessage;
+      if (nextDate && daysRemaining !== undefined) {
+        const date = new Date(nextDate);
+        const formattedDate = date.toLocaleDateString("en-US", {
+          month: "long",
+          day: "numeric",
+          year: "numeric",
+        });
+        alertMessage += `\n\nYou can switch again on ${formattedDate} (${daysRemaining} day${
+          daysRemaining > 1 ? "s" : ""
+        } remaining).`;
+      }
+
+      Alert.alert("Cooldown Active", alertMessage);
     } finally {
       setUpdating(false);
     }
@@ -149,7 +213,7 @@ const ElectricityProvider = () => {
 
         {/* BATELec Option */}
         <TouchableOpacity
-          disabled={updating}
+          disabled={updating || isCooldownActive}
           style={[
             styles.optionButton,
             selectedProvider === "BATELEC" && styles.selectedOption,
@@ -169,7 +233,7 @@ const ElectricityProvider = () => {
 
         {/* MERALCO Option */}
         <TouchableOpacity
-          disabled={updating}
+          disabled={updating || isCooldownActive}
           style={[
             styles.optionButton,
             selectedProvider === "MERALCO" && styles.selectedOption,
@@ -186,12 +250,19 @@ const ElectricityProvider = () => {
             <Text style={styles.optionText}>MERALCO</Text>
           </View>
         </TouchableOpacity>
-
-        {/* 🌀 Show small spinner during update */}
-        {updating && (
-          <View style={{ marginTop: 20, alignItems: "center" }}>
-            <ActivityIndicator size="small" color="#FFD700" />
-            <Text style={{ marginTop: 5 }}>Saving selection...</Text>
+        {nextSwitchDate && (
+          <View style={{ marginTop: 25, alignItems: "center" }}>
+            <Text style={{ fontSize: 14, color: "#ccc", textAlign: "center" }}>
+              You can switch providers again on{" "}
+              <Text style={{ color: "#FFD700", fontWeight: "bold" }}>
+                {new Date(nextSwitchDate).toLocaleDateString("en-US", {
+                  month: "long",
+                  day: "numeric",
+                  year: "numeric",
+                })}
+              </Text>
+              .
+            </Text>
           </View>
         )}
       </ScrollView>
