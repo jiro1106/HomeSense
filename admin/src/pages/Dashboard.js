@@ -538,7 +538,6 @@ function Dashboard() {
       electricity_provider: "Electricity Provider",
       username: "Username",
       email: "Email",
-      device_name: "Device Name",
       appliance_name: "Appliance Name",
       appliance_type: "Appliance Type",
       device_id: "Device ID",
@@ -1242,7 +1241,6 @@ function Dashboard() {
                         handleSort={handleDevicesSort}
                         sortOptions={[
                           { key: "household_id", label: "Household ID" },
-                          { key: "device_name", label: "Device Name" },
                           { key: "appliance_name", label: "Appliance Name" },
                           { key: "appliance_type", label: "Appliance Type" },
                           { key: "device_id", label: "Device ID" },
@@ -1257,7 +1255,6 @@ function Dashboard() {
                         <table>
                           <thead>
                             <tr>
-                              <th>Device Name</th>
                               <th>Device ID</th>
                               <th>Appliance Name</th>
                               <th>Appliance Type</th>
@@ -1284,7 +1281,6 @@ function Dashboard() {
                               };
                               return (
                                 <tr key={i}>
-                                  <td>{d.device_name || "N/A"}</td>
                                   <td>{d.device_id || "N/A"}</td>
                                   <td>
                                     {d.appliance_name || "Not Registered"}
