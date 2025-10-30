@@ -983,7 +983,7 @@ const Bills = () => {
                       style={styles.infoButton}
                       onPress={() =>
                         handleWeekPress(
-                          r.weekLabel.replace(" (Extrapolated)", "")
+                          r.weekLabel.replace(" (Estimated)", "")
                         )
                       }
                     >

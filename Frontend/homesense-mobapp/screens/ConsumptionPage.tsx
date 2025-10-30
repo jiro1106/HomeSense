@@ -101,42 +101,43 @@ const ConsumptionPage = () => {
   const [loadingTotal, setLoadingTotal] = useState(false);
 
   // Helper function to get week range from week_start
-  const getWeekRange = (dateString: string) => {
-    const date = new Date(dateString);
-    const year = date.getFullYear();
-    const month = date.getMonth();
-  
-    const startDay = date.getDate();
-  
-    let start: number, end: number;
-  
-    if (startDay >= 1 && startDay <= 7) {
-      start = 1;
-      end = 7;
-    } else if (startDay >= 8 && startDay <= 14) {
-      start = 8;
-      end = 14;
-    } else if (startDay >= 15 && startDay <= 21) {
-      start = 15;
-      end = 21;
-    } else {
-      start = 22;
-      // get last day of month
-      end = new Date(year, month + 1, 0).getDate();
-    }
-  
-    const format = (d: number) => {
-      const dd = d.toString().padStart(2, "0");
-      const mm = (month + 1).toString().padStart(2, "0");
-      return `${year}-${mm}-${dd}`;
-    };
-  
-    return {
-      start: format(start),
-      end: format(end),
-    };
+  // Helper function to get fixed week range within a month
+const getWeekRange = (dateString: string) => {
+  const date = new Date(dateString);
+  const year = date.getFullYear();
+  const month = date.getMonth();
+
+  const startDay = date.getDate();
+
+  let start: number, end: number;
+
+  if (startDay >= 1 && startDay <= 7) {
+    start = 1;
+    end = 7;
+  } else if (startDay >= 8 && startDay <= 14) {
+    start = 8;
+    end = 14;
+  } else if (startDay >= 15 && startDay <= 21) {
+    start = 15;
+    end = 21;
+  } else {
+    start = 22;
+    // get last day of month
+    end = new Date(year, month + 1, 0).getDate();
+  }
+
+  const format = (d: number) => {
+    const dd = d.toString().padStart(2, "0");
+    const mm = (month + 1).toString().padStart(2, "0");
+    return `${year}-${mm}-${dd}`;
   };
-  
+
+  return {
+    start: format(start),
+    end: format(end),
+  };
+};
+
 
   // Sort appliances data
   const sortAppliancesData = (data: ApplianceData[]) => {
