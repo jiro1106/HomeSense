@@ -464,7 +464,7 @@ const Bills = () => {
         }
 
         weeklyRows.push({
-          weekLabel: w.extrapolated ? `${w.label} (Extrapolated)` : w.label,
+          weekLabel: w.extrapolated ? `${w.label} (Estimated)` : w.label,
           rate: providerRate,
           kwh: Number((isFinite(weekKwh) ? weekKwh : 0).toFixed(3)),
           bill: typeof predictedBill === "number" ? predictedBill : NaN,
@@ -589,7 +589,7 @@ const Bills = () => {
     );
     const labels = rows.map((row) => {
       // Clean up the week label for chart display
-      const cleanLabel = row.weekLabel.replace(" (Extrapolated)", "");
+      const cleanLabel = row.weekLabel.replace(" (Estimated)", "");
       return cleanLabel.length > 8 ? cleanLabel.slice(0, 8) + "…" : cleanLabel;
     });
 
@@ -628,7 +628,7 @@ const Bills = () => {
   // Handle chart item press
   const handleChartItemPress = (index: number) => {
     if (rows[index]) {
-      const weekLabel = rows[index].weekLabel.replace(" (Extrapolated)", "");
+      const weekLabel = rows[index].weekLabel.replace(" (Estimated)", "");
       handleWeekPress(weekLabel);
     }
   };
@@ -650,7 +650,7 @@ const Bills = () => {
 
       // find corresponding row
       const weekRow = rows.find(
-        (r) => r.weekLabel.replace(" (Extrapolated)", "") === label
+        (r) => r.weekLabel.replace(" (Estimated)", "") === label
       );
       if (!weekRow) return;
 
@@ -694,7 +694,7 @@ const Bills = () => {
           const endRange = wb.end;
           const rangeLabel = `${year}-${pad2(monthIdx + 1)}-${pad2(
             startRange
-          )} to ${year}-${pad2(monthIdx + 1)}-${pad2(endRange)} (Extrapolated)`;
+          )} to ${year}-${pad2(monthIdx + 1)}-${pad2(endRange)} (Estimated)`;
           items.push({
             label: rangeLabel,
             kwh: Number(extrapolatedTotal.toFixed(6)),
@@ -819,6 +819,7 @@ const Bills = () => {
       {/* Content */}
       <ScrollView
         style={styles.content}
+        contentContainerStyle={{ paddingBottom: 150 }}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
@@ -982,9 +983,7 @@ const Bills = () => {
                     <TouchableOpacity
                       style={styles.infoButton}
                       onPress={() =>
-                        handleWeekPress(
-                          r.weekLabel.replace(" (Estimated)", "")
-                        )
+                        handleWeekPress(r.weekLabel.replace(" (Estimated)", ""))
                       }
                     >
                       <Icon name="info" size={16} color="#666" />
