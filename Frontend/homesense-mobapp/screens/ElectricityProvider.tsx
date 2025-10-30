@@ -31,6 +31,16 @@ const ElectricityProvider = () => {
   const [nextSwitchDate, setNextSwitchDate] = useState<string | null>(null);
   const [isCooldownActive, setIsCooldownActive] = useState(false);
 
+  // 🔑 Helper to build a per-household storage key
+  const getHouseholdStorageKey = async (): Promise<string | null> => {
+    const storedUser = await AsyncStorage.getItem("userData");
+    if (!storedUser) return null;
+    const parsedUser = JSON.parse(storedUser);
+    const householdId = parsedUser?.household_id;
+    if (!householdId) return null;
+    return `electricityProvider:${householdId}`;
+  };
+
   // 🧠 Load provider from backend or local storage
   useEffect(() => {
     const loadProvider = async () => {
@@ -42,6 +52,7 @@ const ElectricityProvider = () => {
         const parsedUser = JSON.parse(storedUser);
         const householdId = parsedUser.household_id;
         if (!householdId) return;
+        const storageKey = `electricityProvider:${householdId}`;
 
         // ✅ Fetch current provider from backend
         const response = await api.get(
@@ -64,13 +75,16 @@ const ElectricityProvider = () => {
         }
         if (provider) {
           setSelectedProvider(provider);
-          await AsyncStorage.setItem("electricityProvider", provider);
+          await AsyncStorage.setItem(storageKey, provider);
         }
       } catch (error: any) {
         console.warn("Error fetching provider:", error.message);
-        // fallback to locally saved provider
-        const savedProvider = await AsyncStorage.getItem("electricityProvider");
-        if (savedProvider) setSelectedProvider(savedProvider);
+        // fallback to locally saved provider (scoped to current household only)
+        const storageKey = await getHouseholdStorageKey();
+        if (storageKey) {
+          const savedProvider = await AsyncStorage.getItem(storageKey);
+          if (savedProvider) setSelectedProvider(savedProvider);
+        }
       } finally {
         setLoading(false);
       }
@@ -107,67 +121,123 @@ const ElectricityProvider = () => {
         return;
       }
 
-      setUpdating(true);
-      setSelectedProvider(provider);
-      await AsyncStorage.setItem("electricityProvider", provider);
-
-      const storedUser = await AsyncStorage.getItem("userData");
-      if (!storedUser) {
-        Alert.alert("Saved Locally", `You selected ${provider}.`);
-        setUpdating(false); // stop the spinner
-        navigation.goBack();
-        return;
-      }
-
-      const parsedUser = JSON.parse(storedUser);
-      const householdId = parsedUser.household_id;
-      if (!householdId) {
-        Alert.alert("Saved Locally", `You selected ${provider}.`);
-        setUpdating(false); // stop the spinner
-        navigation.goBack();
-        return;
-      }
-
-      // ✅ Update provider on backend
-      const response = await api.put(
-        `energy/household/${householdId}/provider`,
-        null,
-        {
-          params: { provider },
-        }
-      );
+      // Ask for confirmation with 15-day cooldown notice
+      const now = new Date();
+      const proposedNextDate = new Date(now.getTime() + 15 * 24 * 60 * 60 * 1000);
+      const proposedFormatted = proposedNextDate.toLocaleDateString("en-US", {
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+      });
 
       Alert.alert(
-        "Saved",
-        response.data?.message || "Electricity provider updated successfully!"
+        "Confirm Provider",
+        `After selecting ${provider}, you can change your provider again on ${proposedFormatted} (15-day cooldown). Continue?`,
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "OK",
+            onPress: async () => {
+              try {
+                setUpdating(true);
+                setSelectedProvider(provider);
+
+                const storedUser = await AsyncStorage.getItem("userData");
+                if (!storedUser) {
+                  // Save locally if we can scope it, then apply cooldown immediately
+                  const storageKey = await getHouseholdStorageKey();
+                  if (storageKey) {
+                    await AsyncStorage.setItem(storageKey, provider);
+                  }
+                  setIsCooldownActive(true);
+                  setNextSwitchDate(proposedNextDate.toISOString());
+                  Alert.alert(
+                    "Saved",
+                    `Provider set to ${provider}. You can switch again on ${proposedFormatted}.`
+                  );
+                  return;
+                }
+
+                const parsedUser = JSON.parse(storedUser);
+                const householdId = parsedUser.household_id;
+                if (!householdId) {
+                  setIsCooldownActive(true);
+                  setNextSwitchDate(proposedNextDate.toISOString());
+                  Alert.alert(
+                    "Saved",
+                    `Provider set to ${provider}. You can switch again on ${proposedFormatted}.`
+                  );
+                  return;
+                }
+
+                // Save locally scoped to household
+                const storageKey = `electricityProvider:${householdId}`;
+                await AsyncStorage.setItem(storageKey, provider);
+
+                // ✅ Update provider on backend
+                const response = await api.put(
+                  `energy/household/${householdId}/provider`,
+                  null,
+                  {
+                    params: { provider },
+                  }
+                );
+
+                // Use server-provided next switch date if available, else fallback to 15 days
+                const serverNext = response.data?.next_switch_date
+                  ? new Date(response.data.next_switch_date)
+                  : null;
+                const finalNext = serverNext || proposedNextDate;
+                setIsCooldownActive(true);
+                setNextSwitchDate(finalNext.toISOString());
+
+                const savedMsg = response.data?.message
+                  ? `${response.data.message}\n\nYou can switch again on ${finalNext.toLocaleDateString("en-US", {
+                      month: "long",
+                      day: "numeric",
+                      year: "numeric",
+                    })}.`
+                  : `Electricity provider updated successfully!\n\nYou can switch again on ${finalNext.toLocaleDateString("en-US", {
+                      month: "long",
+                      day: "numeric",
+                      year: "numeric",
+                    })}.`;
+                Alert.alert("Saved", savedMsg);
+              } catch (error: any) {
+                console.warn("Error updating provider:", error.message);
+                const backendMessage =
+                  error.response?.data?.detail?.message ||
+                  error.response?.data?.message ||
+                  "Failed to save provider. Please try again.";
+
+                const nextDate = error.response?.data?.detail?.next_switch_date;
+                const daysRemaining = error.response?.data?.detail?.days_remaining;
+
+                let alertMessage = backendMessage;
+                if (nextDate && daysRemaining !== undefined) {
+                  const date = new Date(nextDate);
+                  const formattedDate = date.toLocaleDateString("en-US", {
+                    month: "long",
+                    day: "numeric",
+                    year: "numeric",
+                  });
+                  alertMessage += `\n\nYou can switch again on ${formattedDate} (${daysRemaining} day${
+                    daysRemaining > 1 ? "s" : ""
+                  } remaining).`;
+                }
+
+                Alert.alert("Cooldown Active", alertMessage);
+              } finally {
+                setUpdating(false);
+              }
+            },
+          },
+        ],
+        { cancelable: true }
       );
-      setUpdating(false);
-    } catch (error: any) {
-      console.warn("Error updating provider:", error.message);
-      const backendMessage =
-        error.response?.data?.detail?.message ||
-        error.response?.data?.message ||
-        "Failed to save provider. Please try again.";
-
-      const nextDate = error.response?.data?.detail?.next_switch_date;
-      const daysRemaining = error.response?.data?.detail?.days_remaining;
-
-      let alertMessage = backendMessage;
-      if (nextDate && daysRemaining !== undefined) {
-        const date = new Date(nextDate);
-        const formattedDate = date.toLocaleDateString("en-US", {
-          month: "long",
-          day: "numeric",
-          year: "numeric",
-        });
-        alertMessage += `\n\nYou can switch again on ${formattedDate} (${daysRemaining} day${
-          daysRemaining > 1 ? "s" : ""
-        } remaining).`;
-      }
-
-      Alert.alert("Cooldown Active", alertMessage);
+      return;
     } finally {
-      setUpdating(false);
+      // no-op here; updating is handled inside the confirm branch
     }
   };
 

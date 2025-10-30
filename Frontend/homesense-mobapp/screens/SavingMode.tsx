@@ -11,7 +11,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import Icon from "react-native-vector-icons/MaterialIcons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../App";
 import api from "../utils/api";
@@ -36,6 +36,40 @@ const SavingMode = () => {
     loadHouseholdId();
   }, []);
 
+  // Ensure no default is shown when returning to this screen unless explicitly set
+  useFocusEffect(
+    React.useCallback(() => {
+      let cancelled = false;
+      const syncFromExplicit = async () => {
+        try {
+          const storedUser = await AsyncStorage.getItem("userData");
+          if (!storedUser) return;
+          const parsedUser = JSON.parse(storedUser);
+          const hhId = parsedUser?.household_id;
+          if (!hhId) return;
+          const storageKey = `savingMode:${hhId}`;
+          const explicitKey = `savingModeExplicit:${hhId}`;
+          const wasExplicit = await AsyncStorage.getItem(explicitKey);
+          if (cancelled) return;
+          if (wasExplicit === "true") {
+            const savedMode = await AsyncStorage.getItem(storageKey);
+            if (savedMode) {
+              const formattedMode =
+                savedMode.charAt(0).toUpperCase() + savedMode.slice(1).toLowerCase();
+              if (!cancelled) setSelectedMode(formattedMode);
+            }
+          } else {
+            if (!cancelled) setSelectedMode(null);
+          }
+        } catch {}
+      };
+      syncFromExplicit();
+      return () => {
+        cancelled = true;
+      };
+    }, [])
+  );
+
   // Load saved mode from AsyncStorage
   useEffect(() => {
     const fetchSavingMode = async () => {
@@ -47,6 +81,8 @@ const SavingMode = () => {
         const parsedUser = JSON.parse(storedUser);
         const householdId = parsedUser.household_id;
         if (!householdId) return;
+        const storageKey = `savingMode:${householdId}`;
+        const explicitKey = `savingModeExplicit:${householdId}`;
 
         // Step 2: Fetch mode from backend
         const response = await api.get(`energy/household/${householdId}/mode`);
@@ -57,20 +93,33 @@ const SavingMode = () => {
           backendMode.charAt(0).toUpperCase() +
           backendMode.slice(1).toLowerCase();
 
-        // Step 4: Update state + AsyncStorage
-        setSelectedMode(formattedMode);
-        await AsyncStorage.setItem("savingMode", backendMode);
-      } catch (error) {
-        console.warn("Error fetching saving mode:", error);
-        // Fallback: use AsyncStorage if backend fetch fails
-        const savedMode = await AsyncStorage.getItem("savingMode");
-        if (savedMode) {
-          const formattedMode =
-            savedMode.charAt(0).toUpperCase() +
-            savedMode.slice(1).toLowerCase();
+        // Step 4: Only reflect selection if user explicitly chose before
+        const wasExplicit = await AsyncStorage.getItem(explicitKey);
+        if (wasExplicit === "true") {
           setSelectedMode(formattedMode);
         } else {
-          setSelectedMode("Medium"); // default fallback
+          // Ensure no default highlight for first-time users
+          setSelectedMode(null);
+        }
+      } catch (error) {
+        console.warn("Error fetching saving mode:", error);
+        // Fallback: use AsyncStorage if backend fetch fails, scoped to household
+        const storedUser = await AsyncStorage.getItem("userData");
+        if (storedUser) {
+          const parsedUser = JSON.parse(storedUser);
+          const hhId = parsedUser.household_id;
+          if (hhId) {
+            const storageKey = `savingMode:${hhId}`;
+            const explicitKey = `savingModeExplicit:${hhId}`;
+            const savedMode = await AsyncStorage.getItem(storageKey);
+            const wasExplicit = await AsyncStorage.getItem(explicitKey);
+            if (savedMode && wasExplicit === "true") {
+              const formattedMode =
+                savedMode.charAt(0).toUpperCase() +
+                savedMode.slice(1).toLowerCase();
+              setSelectedMode(formattedMode);
+            }
+          }
         }
       }
     };
@@ -83,21 +132,41 @@ const SavingMode = () => {
     try {
       setLoading(true);
       setSelectedMode(mode);
-      await AsyncStorage.setItem("savingMode", mode);
+      let storageKey: string | null = null;
+      if (householdId) {
+        storageKey = `savingMode:${householdId}`;
+      } else {
+        const storedUser = await AsyncStorage.getItem("userData");
+        if (storedUser) {
+          const parsedUser = JSON.parse(storedUser);
+          if (parsedUser?.household_id) {
+            storageKey = `savingMode:${parsedUser.household_id}`;
+          }
+        }
+      }
+      if (storageKey) {
+        await AsyncStorage.setItem(storageKey, mode.toLowerCase());
+        const explicitKey = storageKey.replace("savingMode:", "savingModeExplicit:");
+        await AsyncStorage.setItem(explicitKey, "true");
+      }
 
       // Convert to lowercase for backend
       const backendMode = mode.toLowerCase();
 
       // Send PUT request to API
-      const response = await api.put(
-        `energy/household/${householdId}/mode`,
-        null,
-        {
-          params: { mode: backendMode },
-        }
-      );
+      if (householdId) {
+        const response = await api.put(
+          `energy/household/${householdId}/mode`,
+          null,
+          {
+            params: { mode: backendMode },
+          }
+        );
 
-      Alert.alert("Success", response.data.message);
+        Alert.alert("Success", response.data.message);
+      } else {
+        Alert.alert("Saved", "Mode saved locally.");
+      }
       // navigation.goBack();
     } catch (error: any) {
       console.warn("Error updating savings mode:", error);
