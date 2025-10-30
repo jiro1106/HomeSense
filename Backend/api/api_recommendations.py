@@ -149,62 +149,109 @@ def generate_recommendations(appliances, mode):
 # API ROUTES
 # ==========================
 
+from datetime import datetime, timedelta
+from fastapi import HTTPException
+
 @router.put("/household/{household_id}/provider")
 def set_electricity_provider(household_id: str, provider: str):
     """
-    Updates or creates a household's electricity provider in MongoDB.
+    Updates a household's electricity provider with cooldown control.
+    Returns when the user can switch again if still on cooldown.
     Example: PUT /household/household1/provider?provider=BATELEC
     """
-
     try:
         valid_providers = ["BATELEC", "MERALCO"]
+        cooldown_days = 15  # ⏳ adjust if you want 30 days
 
-        # 🧩 Validate input
         if provider not in valid_providers:
             raise HTTPException(
                 status_code=400,
                 detail=f"Invalid provider. Choose from {', '.join(valid_providers)}."
             )
 
-        # 🧩 Update or create entry
-        result = households_collection.update_one(
+        household = households_collection.find_one({"household_id": household_id})
+
+        # 🆕 If household does not exist, create it
+        if not household:
+            households_collection.insert_one({
+                "household_id": household_id,
+                "electricity_provider": provider,
+                "last_switch_date": datetime.utcnow()
+            })
+            return {
+                "message": f"New household created with provider {provider.upper()}.",
+                "next_switch_date": (datetime.utcnow() + timedelta(days=cooldown_days)).isoformat()
+            }
+
+        # 🕒 Cooldown check
+        last_switch = household.get("last_switch_date")
+        if last_switch:
+            if isinstance(last_switch, str):
+                last_switch = datetime.fromisoformat(last_switch)
+            diff_days = (datetime.utcnow() - last_switch).days
+
+            if diff_days < cooldown_days:
+                next_switch_date = last_switch + timedelta(days=cooldown_days)
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        "message": f"You can only change your provider every {cooldown_days} days.",
+                        "days_remaining": cooldown_days - diff_days,
+                        "next_switch_date": next_switch_date.isoformat()
+                    }
+                )
+
+        # ✅ Passed cooldown — update provider
+        households_collection.update_one(
             {"household_id": household_id},
-            {"$set": {"electricity_provider": provider}},
+            {
+                "$set": {
+                    "electricity_provider": provider,
+                    "last_switch_date": datetime.utcnow()
+                }
+            },
             upsert=True
         )
 
-        # 🧩 Response depending on whether it existed before
-        if result.matched_count == 0:
-            return {
-                "message": f"Household not found. Created new entry with provider {provider.upper()}."
-            }
-
         return {
-            "message": f"Electricity provider set to {provider.upper()} for Household ID: {household_id}"
+            "message": f"Electricity provider set to {provider.upper()} for Household ID: {household_id}",
+            "next_switch_date": (datetime.utcnow() + timedelta(days=cooldown_days)).isoformat()
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
-        # 🧩 Handle any other unexpected errors
         raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
+
 
 
 @router.get("/household/{household_id}/provider")
 def get_electricity_provider(household_id: str):
     """
-    Retrieves the saved electricity provider for a specific household.
+    Retrieves the saved electricity provider and next eligible switch date.
     Example: GET /household/household1/provider
     """
-
     try:
+        cooldown_days = 15
         household = households_collection.find_one({"household_id": household_id})
         if not household:
             raise HTTPException(status_code=404, detail="Household not found.")
 
-        # 🧩 Default to None if provider not yet set
         provider = household.get("electricity_provider", None)
+        last_switch = household.get("last_switch_date")
 
-        return {"provider": provider}
-    
+        next_switch_date = None
+        if last_switch:
+            if isinstance(last_switch, str):
+                last_switch = datetime.fromisoformat(last_switch)
+            next_switch_date = (last_switch + timedelta(days=cooldown_days)).isoformat()
+
+        return {
+            "provider": provider,
+            "last_switch_date": last_switch.isoformat() if last_switch else None,
+            "next_switch_date": next_switch_date,
+        }
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
     
