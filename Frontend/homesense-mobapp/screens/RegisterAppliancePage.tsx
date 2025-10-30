@@ -27,7 +27,6 @@ interface RegisterAppliancePageProps {
 }
 
 const RegisterAppliancePage: React.FC<RegisterAppliancePageProps> = ({
-  navigation,
   onSuccess,
 }) => {
   const [applianceName, setApplianceName] = useState("");
