@@ -16,6 +16,7 @@ import { RootStackParamList } from "../App";
 import { styles } from "./styles/RecoStyles";
 import api from "../utils/api";
 import EnergyAnalysis from "./EnergyAnalysis";
+import * as Notifications from "expo-notifications";
 
 const getApplianceIcon = (type?: string) => {
   switch (type?.toLowerCase()) {

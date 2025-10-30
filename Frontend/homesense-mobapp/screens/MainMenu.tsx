@@ -25,6 +25,7 @@ import api from "../utils/api";
 import regressionApi from "../utils/regressionApi";
 import RecoSummary from "./RecoSummary";
 import axios from "axios";
+import * as Notifications from "expo-notifications";
 
 type MainMenuNavProp = NativeStackNavigationProp<
   RootStackParamList,
@@ -94,6 +95,52 @@ const MainMenu = () => {
     ];
     return ranges.map((r, i) => ({ ...r, label: `Week ${i + 1}` }));
   };
+
+  async function sendUsageAlert(applianceName: string, message: string) {
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: `⚠️ High Usage Alert: ${applianceName}`,
+        body: message,
+        sound: "default",
+      },
+      trigger: null,
+    });
+  }
+
+  useEffect(() => {
+    const checkHighUsage = async () => {
+      try {
+        const storedUser = await AsyncStorage.getItem("userData");
+        if (!storedUser) return;
+        const household_id = JSON.parse(storedUser).household_id;
+        if (!household_id) return;
+
+        // 🔍 Fetch recommendation data
+        const response = await api.get(
+          `/energy/recommendations/${household_id}`
+        );
+        const recs = response.data.recommendations || [];
+
+        // 🔔 Trigger notification for high usage appliances
+        recs.forEach((r: any) => {
+          if (!r.recommendations) return;
+          const hasHighUsage = r.recommendations.some((msg: string) =>
+            msg.toLowerCase().includes("high amount of energy")
+          );
+          if (hasHighUsage) {
+            sendUsageAlert(
+              r.appliance_name,
+              `Your ${r.appliance_type} in ${r.location} is using a high amount of energy!`
+            );
+          }
+        });
+      } catch (error) {
+        console.log("❌ Error checking high usage:", error);
+      }
+    };
+
+    checkHighUsage();
+  }, []);
 
   // Helper: fetch estimated monthly bill using regression model
   const fetchEstimatedBill = async (): Promise<number | null> => {

@@ -17,6 +17,7 @@ import AccountSecurityPage from "./screens/AccountSecurityPage";
 import ElectricityProvider from "./screens/ElectricityProvider";
 import SavingMode from "./screens/SavingMode";
 import InstructionPage from "./screens/InstructionPage";
+import * as Notifications from "expo-notifications";
 
 export type RootStackParamList = {
   Landing: undefined;
@@ -36,6 +37,16 @@ export type RootStackParamList = {
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+    shouldShowBanner: true,
+    shouldShowList: true,
+  }),
+});
+
 export default function App() {
   // Disable Android back button
   useEffect(() => {
@@ -46,6 +57,26 @@ export default function App() {
       );
       return () => backHandler.remove();
     }
+  }, []);
+
+  useEffect(() => {
+    async function setupNotifications() {
+      const { status } = await Notifications.requestPermissionsAsync();
+      if (status !== "granted") {
+        alert("Permission for notifications not granted!");
+        return;
+      }
+
+      // Android-specific notification channel (required)
+      if (Platform.OS === "android") {
+        await Notifications.setNotificationChannelAsync("default", {
+          name: "default",
+          importance: Notifications.AndroidImportance.MAX,
+        });
+      }
+    }
+
+    setupNotifications();
   }, []);
 
   return (
