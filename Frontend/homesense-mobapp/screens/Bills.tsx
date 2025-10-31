@@ -1222,7 +1222,7 @@ const Bills = () => {
           <View
             style={{
               width: "92%",
-              maxHeight: "80%",
+              maxHeight: "70%",
               backgroundColor: "#fff",
               borderRadius: 16,
               padding: 20,
@@ -1267,7 +1267,7 @@ const Bills = () => {
                   Consumption
                 </Text>
               </View>
-              <ScrollView style={{ marginTop: 6, maxHeight: "80%" }}>
+              <ScrollView style={{ marginTop: 6, maxHeight: "75%" }}>
                 {breakdownItems.map((it, i) => (
                   <View
                     key={`${it.label}-${i}`}
@@ -1295,17 +1295,18 @@ const Bills = () => {
               <View
                 style={{
                   flexDirection: "row",
+                  alignItems: "center",
                   justifyContent: "space-between",
                   paddingTop: 12,
                 }}
               >
                 <Text
-                  style={{ color: "#000", fontWeight: "700", marginTop: 10 }}
+                  style={{ color: "#000", fontWeight: "700", marginTop: 5 }}
                 >
                   Week total
                 </Text>
                 <Text
-                  style={{ color: "#000", fontWeight: "700", marginTop: 10 }}
+                  style={{ color: "#000", fontWeight: "700", marginTop: 5 }}
                 >{`${breakdownItems
                   .reduce((a, b) => a + b.kwh, 0)
                   .toFixed(3)} kWh`}</Text>
