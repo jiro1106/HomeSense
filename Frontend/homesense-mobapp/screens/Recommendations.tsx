@@ -110,9 +110,9 @@ const Recommendations = () => {
           const lowerMsg = msg.toLowerCase();
 
           if (filter === "high") {
-            return lowerMsg.includes("consuming a lot");
+            return lowerMsg.includes("high amount of energy");
           } else if (filter === "quick") {
-            return lowerMsg.includes("slightly above threshold");
+            return lowerMsg.includes("slightly more energy");
           }
           return false;
         });
@@ -450,7 +450,15 @@ const Recommendations = () => {
 
           {/* Recommendations */}
           {Object.keys(filteredRecommendations).length === 0 ? (
-            <Text style={{ color: "#888", textAlign: "center", marginTop: 30 }}>
+            <Text
+              style={{
+                color: "#888",
+                textAlign: "center",
+                fontSize: 16,
+                marginTop: 30,
+                marginBottom: 80,
+              }}
+            >
               No recommendations available for today.
             </Text>
           ) : (
