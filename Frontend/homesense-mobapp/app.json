@@ -4,20 +4,24 @@
     "slug": "homesense",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/homesenseLogo.png",
+    "icon": "./assets/homesenseLogo2.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/logo2.png",
       "resizeMode": "cover",
       "backgroundColor": "#000000"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.jiro1106.homesense",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/homesenseLogo.png",
+        "foregroundImage": "./assets/homesenseLogo2.png",
         "backgroundColor": "#000000"
       },
       "edgeToEdgeEnabled": true,
