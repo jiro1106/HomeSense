@@ -151,9 +151,15 @@ const MainMenu = () => {
       const household_id = parsedUser.household_id;
       if (!household_id) return null;
 
-      const provider =
-        (await AsyncStorage.getItem("electricityProvider")) || "BATELEC";
-      const company = provider.toLowerCase();
+      // Fetch provider from backend (source of truth)
+      let backendProvider = "BATELEC";
+      try {
+        const res = await api.get(`energy/household/${household_id}/provider`);
+        backendProvider = (res.data?.provider || "BATELEC").toString().toUpperCase();
+      } catch (e) {
+        console.warn("Failed to fetch provider for MainMenu estimation, defaulting to BATELEC");
+      }
+      const company = backendProvider.toLowerCase();
       const ratePerKwh = company === "meralco" ? 7.6962 : 5.3874;
 
       const now = new Date();

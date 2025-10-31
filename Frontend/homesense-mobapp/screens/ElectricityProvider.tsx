@@ -203,6 +203,11 @@ const ElectricityProvider = () => {
                       year: "numeric",
                     })}.`;
                 Alert.alert("Saved", savedMsg);
+
+                // Notify MainMenu to refresh estimated bill
+                try {
+                  await AsyncStorage.setItem("mainMenuRefreshNeeded", "true");
+                } catch {}
               } catch (error: any) {
                 console.warn("Error updating provider:", error.message);
                 const backendMessage =

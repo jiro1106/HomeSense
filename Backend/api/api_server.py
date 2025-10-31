@@ -1543,5 +1543,3 @@ def get_recent_monthly(device_name: str, household_id: str = Query(...)):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"DB error: {str(e)}")
-
-

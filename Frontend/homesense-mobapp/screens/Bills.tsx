@@ -97,7 +97,11 @@ const Bills = () => {
   const [totalKwh, setTotalKwh] = useState<number>(0);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [ratePerKwh, setRatePerKwh] = useState<number>(0);
+
+  // ✔ provider state and rate
+  const [provider, setProvider] = useState<string>("BATELEC");
+  const [ratePerKwh, setRatePerKwh] = useState<number>(5.3874);
+
   const [modelAvailable, setModelAvailable] = useState<boolean | null>(null);
   const [monthDaily, setMonthDaily] = useState<MonthDayKwh[]>([]);
   const [weekBounds, setWeekBounds] = useState<WeekBoundary[]>([]);
@@ -122,11 +126,35 @@ const Bills = () => {
     setTotalKwh(sumKwh);
   };
 
-  const loadProviderRate = async () => {
-    const provider = await AsyncStorage.getItem("electricityProvider");
-    const p = (provider || "BATELEC").toUpperCase();
-    if (p === "MERALCO") setRatePerKwh(7.6962);
-    else setRatePerKwh(5.3874);
+  // Fetch provider from backend and set rate mapping locally
+  const loadProviderAndRate = async (): Promise<void> => {
+    try {
+      const storedUser = await AsyncStorage.getItem("userData");
+      const parsedUser = storedUser ? JSON.parse(storedUser) : null;
+      const householdId = parsedUser?.household_id;
+      if (!householdId) {
+        setProvider("BATELEC");
+        setRatePerKwh(5.3874);
+        return;
+      }
+
+      // Get provider from backend
+      const res = await api.get(`energy/household/${householdId}/provider`);
+      const backendProvider = (res.data?.provider || "BATELEC").toString().toUpperCase();
+      setProvider(backendProvider);
+
+      // Map provider -> rate locally (source of truth = backend provider)
+      if (backendProvider === "MERALCO") {
+        setRatePerKwh(7.6962);
+      } else {
+        setRatePerKwh(5.3874);
+      }
+    } catch (error: any) {
+      // If backend says not found or any error, fallback to defaults
+      console.warn("Failed to fetch provider from backend:", error?.message || error);
+      setProvider("BATELEC");
+      setRatePerKwh(5.3874);
+    }
   };
 
   const getMonthIndex = (monthName: string) =>
@@ -364,7 +392,7 @@ const Bills = () => {
         })
       );
 
-      const provider = await AsyncStorage.getItem("electricityProvider");
+      // Use provider from backend-loaded state and mapped rate
       const company = (provider || "BATELEC").toLowerCase();
       const providerRate = ratePerKwh;
 
@@ -508,7 +536,7 @@ const Bills = () => {
   };
 
   const initLoad = async () => {
-    await loadProviderRate();
+    await loadProviderAndRate(); // <-- updated function name
     // Don't automatically fetch data - wait for user to click button
   };
 
@@ -547,7 +575,7 @@ const Bills = () => {
     setFetchError(null);
     try {
       // Load provider rate first to ensure it's set
-      await loadProviderRate();
+      await loadProviderAndRate();
 
       // Small delay to ensure state is updated
       await new Promise((resolve) => setTimeout(resolve, 100));
@@ -565,7 +593,7 @@ const Bills = () => {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadProviderRate();
+    await loadProviderAndRate();
     await fetchMonthlyAndEstimate();
     // Notify MainMenu of the update
     await AsyncStorage.setItem("mainMenuRefreshNeeded", "true");

@@ -5,6 +5,71 @@ export const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#fff",
   },
+  safeArea: {
+    flex: 1,
+    backgroundColor: "#fff",
+  },
+  scrollView: {
+    flex: 1,
+    paddingHorizontal: 16,
+  },
+  headerContainer: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 12,
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: "bold",
+    color: "#000",
+  },
+  subtitle: {
+    marginTop: 4,
+    color: "#555",
+  },
+  emptyText: {
+    textAlign: "center",
+    color: "#777",
+    marginTop: 16,
+  },
+  billCard: {
+    backgroundColor: "#f9f9f9",
+    borderRadius: 10,
+    padding: 12,
+    marginHorizontal: 16,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: "#eee",
+  },
+  billTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#000",
+    marginBottom: 4,
+  },
+  billDetail: {
+    color: "#333",
+    marginTop: 2,
+  },
+  predictedBill: {
+    backgroundColor: "#fff8dc",
+    borderRadius: 10,
+    padding: 14,
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: "#ffe58a",
+  },
+  predictedLabel: {
+    color: "#000",
+    fontWeight: "600",
+    marginBottom: 4,
+  },
+  predictedValue: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#000",
+  },
   headerSafeArea: {
     backgroundColor: "#000",
   },
