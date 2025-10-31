@@ -1216,6 +1216,7 @@ const Bills = () => {
             justifyContent: "center",
             alignItems: "center",
             paddingHorizontal: 16,
+            marginBottom: 20,
           }}
         >
           <View
