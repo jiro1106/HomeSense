@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -89,6 +89,7 @@ type SettingsPageNavProp = NativeStackNavigationProp<
 
 const SettingsPage = () => {
   const navigation = useNavigation<SettingsPageNavProp>();
+  const [householdId, setHouseholdId] = useState<string | null>(null);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
 
   const handleLogout = async () => {
@@ -96,20 +97,50 @@ const SettingsPage = () => {
     navigation.replace("Login");
   };
 
-  const handleNotificationsToggle = useCallback((value: boolean) => {
-    setNotificationsEnabled(value);
-    if (value) {
-      Alert.alert(
-        "Notifications Enabled",
-        "You will now receive notifications."
-      );
-    } else {
-      Alert.alert(
-        "Notifications Disabled",
-        "You will no longer receive notifications."
-      );
-    }
+  // Load household ID and existing preference on mount
+  useEffect(() => {
+    const loadPreference = async () => {
+      try {
+        const storedUser = await AsyncStorage.getItem("userData");
+        if (!storedUser) return;
+        const parsedUser = JSON.parse(storedUser);
+        const hhId = parsedUser.household_id;
+        setHouseholdId(hhId);
+
+        const key = `notificationsEnabled:${hhId}`;
+        const storedPref = await AsyncStorage.getItem(key);
+        if (storedPref !== null) {
+          setNotificationsEnabled(JSON.parse(storedPref));
+        }
+      } catch (error) {
+        console.warn("Error loading notification preference:", error);
+      }
+    };
+    loadPreference();
   }, []);
+
+  // Toggle handler
+  const handleNotificationsToggle = useCallback(
+    async (value: boolean) => {
+      setNotificationsEnabled(value);
+      if (!householdId) return;
+
+      try {
+        const key = `notificationsEnabled:${householdId}`;
+        await AsyncStorage.setItem(key, JSON.stringify(value));
+      } catch (error) {
+        console.warn("Error saving notification preference:", error);
+      }
+
+      Alert.alert(
+        value ? "Notifications Enabled" : "Notifications Disabled",
+        value
+          ? "You will now receive notifications."
+          : "You will no longer receive notifications."
+      );
+    },
+    [householdId]
+  );
 
   return (
     <View style={styles.container}>

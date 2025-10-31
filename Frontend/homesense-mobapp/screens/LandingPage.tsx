@@ -49,7 +49,6 @@ const LandingPage: React.FC<Props> = ({ navigation }) => {
               </View>
             </View>
           </View>
-
           <TouchableOpacity
             style={styles.getStartedBtn}
             onPress={handleGetStarted}

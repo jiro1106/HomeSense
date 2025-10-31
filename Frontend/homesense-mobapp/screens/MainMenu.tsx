@@ -107,6 +107,37 @@ const MainMenu = () => {
     });
   }
 
+  const triggerNotifications = async (recs: any[]) => {
+    try {
+      const storedUser = await AsyncStorage.getItem("userData");
+      if (!storedUser) return;
+      const hhId = JSON.parse(storedUser).household_id;
+      if (!hhId) return;
+
+      const key = `notificationsEnabled:${hhId}`;
+      const storedPref = await AsyncStorage.getItem(key);
+      const notificationsEnabled =
+        storedPref !== null ? JSON.parse(storedPref) : true;
+
+      if (!notificationsEnabled) return;
+
+      recs.forEach((r: any) => {
+        if (!r.recommendations) return;
+        const hasHighUsage = r.recommendations.some((msg: string) =>
+          msg.toLowerCase().includes("high amount of energy")
+        );
+        if (hasHighUsage) {
+          sendUsageAlert(
+            r.appliance_name,
+            `Your ${r.appliance_type} in ${r.location} is using a high amount of energy!`
+          );
+        }
+      });
+    } catch (error) {
+      console.warn("Error checking notification preference:", error);
+    }
+  };
+
   useEffect(() => {
     const checkHighUsage = async () => {
       try {
@@ -122,18 +153,7 @@ const MainMenu = () => {
         const recs = response.data.recommendations || [];
 
         // 🔔 Trigger notification for high usage appliances
-        recs.forEach((r: any) => {
-          if (!r.recommendations) return;
-          const hasHighUsage = r.recommendations.some((msg: string) =>
-            msg.toLowerCase().includes("high amount of energy")
-          );
-          if (hasHighUsage) {
-            sendUsageAlert(
-              r.appliance_name,
-              `Your ${r.appliance_type} in ${r.location} is using a high amount of energy!`
-            );
-          }
-        });
+        triggerNotifications(recs);
       } catch (error) {
         console.log("❌ Error checking high usage:", error);
       }
