@@ -242,7 +242,7 @@ export const styles = StyleSheet.create({
     backgroundColor: "#FFD700",
     borderRadius: 10,
     padding: 15,
-    marginTop: 20,
+    marginTop: 30,
   },
   highlightTitle: {
     fontSize: 14,
@@ -258,10 +258,11 @@ export const styles = StyleSheet.create({
   forecastBox: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 20,
+    marginTop: 30,
     backgroundColor: "#f9f9f9",
     borderRadius: 10,
     padding: 12,
+    marginBottom: 50,
   },
   forecastText: {
     fontSize: 14,

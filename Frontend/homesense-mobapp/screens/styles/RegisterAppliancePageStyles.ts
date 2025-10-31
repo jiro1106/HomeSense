@@ -38,6 +38,7 @@ export const styles = StyleSheet.create({
     paddingHorizontal: 15,
     fontSize: 16,
     backgroundColor: "#fff",
+    color: "#000",
   },
   dropdownContainer: {
     borderWidth: 1,
@@ -118,20 +119,19 @@ export const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#000",
   },
-   otherInputContainer: {
+  otherInputContainer: {
     marginTop: 10,
     padding: 10,
-    backgroundColor: '#f8f8f8',
+    backgroundColor: "#f8f8f8",
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#e0e0e0',
+    borderColor: "#e0e0e0",
   },
-  
+
   otherInputLabel: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#333',
+    fontWeight: "600",
+    color: "#333",
     marginBottom: 8,
   },
-  
 });

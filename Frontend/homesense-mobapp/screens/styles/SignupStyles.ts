@@ -69,6 +69,7 @@ export const signupStyles = StyleSheet.create({
     paddingHorizontal: 14,
     fontSize: 16,
     backgroundColor: "#fff",
+    color: "#000",
   },
 
   joinContainer: {
@@ -136,7 +137,7 @@ export const signupStyles = StyleSheet.create({
     fontWeight: "500",
     marginLeft: 4,
   },
-    backButton: {
+  backButton: {
     marginTop: 12,
     paddingVertical: 12,
     paddingHorizontal: 16,
@@ -154,7 +155,7 @@ export const signupStyles = StyleSheet.create({
     color: "#374151",
     textAlign: "center",
   },
-   // ===== CODE INPUT STYLES =====
+  // ===== CODE INPUT STYLES =====
   codeInputContainer: {
     flexDirection: "row",
     alignItems: "center",
@@ -267,7 +268,7 @@ export const signupStyles = StyleSheet.create({
     color: "#374151",
     lineHeight: 20,
     marginBottom: 8,
-    textAlign: 'justify',
+    textAlign: "justify",
   },
   modalFooter: {
     paddingHorizontal: 16,

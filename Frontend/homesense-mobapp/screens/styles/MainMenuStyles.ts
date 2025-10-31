@@ -71,22 +71,27 @@ export const styles = StyleSheet.create({
     marginBottom: 25,
   },
   usageCard: {
+    flex: 1,
     backgroundColor: "#FFD700",
     borderRadius: 12,
-    padding: 15,
+    paddingVertical: 15,
+    paddingHorizontal: 6,
     alignItems: "center",
-    flex: 1,
-    marginHorizontal: 3,
+    justifyContent: "center",
+    marginHorizontal: 5,
+    minHeight: 80, // ensures all cards have at least this height
   },
   cardIcon: {
     marginBottom: 8,
   },
   usageValue: {
-    fontSize: 17,
-    fontWeight: "bold",
+    fontSize: 16,
+    fontWeight: "800",
     textAlign: "center",
     color: "#000",
     marginBottom: 4,
+    includeFontPadding: false,
+    textAlignVertical: "center",
   },
   usageLabel: {
     fontSize: 12,

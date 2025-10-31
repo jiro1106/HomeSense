@@ -77,52 +77,43 @@ const SavingMode = () => {
   useEffect(() => {
     const fetchSavingMode = async () => {
       try {
-        // Step 1: Get current user
         const storedUser = await AsyncStorage.getItem("userData");
         if (!storedUser) return;
-
         const parsedUser = JSON.parse(storedUser);
-        const householdId = parsedUser.household_id;
-        if (!householdId) return;
-        const explicitKey = `savingModeExplicit:${householdId}`;
+        const hhId = parsedUser.household_id;
+        if (!hhId) return;
 
-        // Step 2: Fetch mode from backend
-        const response = await api.get(`energy/household/${householdId}/mode`);
-        const backendMode = response.data.mode; // assuming API returns { mode: "low" }
+        // Fetch mode from backend
+        const response = await api.get(`energy/household/${hhId}/mode`);
+        let backendMode = response.data.mode; // "low", "medium", or "high"
 
-        // Step 3: Format for display
-        const formattedMode =
+        // Format mode for display
+        backendMode =
           backendMode.charAt(0).toUpperCase() +
           backendMode.slice(1).toLowerCase();
 
-        // Step 4: Only reflect selection if user explicitly chose before
+        // Check if user explicitly chose a mode before
+        const explicitKey = `savingModeExplicit:${hhId}`;
         const wasExplicit = await AsyncStorage.getItem(explicitKey);
+
         if (wasExplicit === "true") {
-          setSelectedMode(formattedMode);
-        } else {
-          // Ensure no default highlight for first-time users
-          setSelectedMode(null);
-        }
-      } catch (error) {
-        console.warn("Error fetching saving mode:", error);
-        // Fallback: use AsyncStorage if backend fetch fails, scoped to household
-        const storedUser = await AsyncStorage.getItem("userData");
-        if (storedUser) {
-          const parsedUser = JSON.parse(storedUser);
-          const hhId = parsedUser.household_id;
-          if (hhId) {
-            const storageKey = `savingMode:${hhId}`;
-            const explicitKey = `savingModeExplicit:${hhId}`;
-            const savedMode = await AsyncStorage.getItem(storageKey);
-            const wasExplicit = await AsyncStorage.getItem(explicitKey);
-            if (savedMode && wasExplicit === "true") {
-              const formattedMode =
-                savedMode.charAt(0).toUpperCase() +
-                savedMode.slice(1).toLowerCase();
-              setSelectedMode(formattedMode);
-            }
+          // If explicit, use AsyncStorage mode
+          const storageKey = `savingMode:${hhId}`;
+          const savedMode = await AsyncStorage.getItem(storageKey);
+          if (savedMode) {
+            const formattedMode =
+              savedMode.charAt(0).toUpperCase() +
+              savedMode.slice(1).toLowerCase();
+            setSelectedMode(formattedMode);
+            return;
           }
         }
+
+        // Otherwise, default to backend mode
+        setSelectedMode(backendMode);
+      } catch (error) {
+        console.warn("Error fetching saving mode:", error);
+        setSelectedMode(null);
       }
     };
 

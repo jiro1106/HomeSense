@@ -68,6 +68,7 @@ export const styles = StyleSheet.create({
   bottomContainer: {
     padding: 20,
     paddingBottom: 40,
+    marginBottom: 40,
   },
   logoutButton: {
     backgroundColor: "#ff0000",

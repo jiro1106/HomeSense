@@ -9,7 +9,7 @@
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
+      "resizeMode": "cover",
       "backgroundColor": "#000000"
     },
     "ios": {
@@ -17,13 +17,19 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/homesenseLogo.png",
         "backgroundColor": "#000000"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.jiro1106.homesense"
     },
     "web": {
       "favicon": "./assets/homesenseLogo.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "e9334bf5-1eaf-48cb-9f0a-63d1829f991e"
+      }
     }
   }
 }

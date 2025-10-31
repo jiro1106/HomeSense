@@ -107,6 +107,37 @@ const MainMenu = () => {
     });
   }
 
+  const triggerNotifications = async (recs: any[]) => {
+    try {
+      const storedUser = await AsyncStorage.getItem("userData");
+      if (!storedUser) return;
+      const hhId = JSON.parse(storedUser).household_id;
+      if (!hhId) return;
+
+      const key = `notificationsEnabled:${hhId}`;
+      const storedPref = await AsyncStorage.getItem(key);
+      const notificationsEnabled =
+        storedPref !== null ? JSON.parse(storedPref) : true;
+
+      if (!notificationsEnabled) return;
+
+      recs.forEach((r: any) => {
+        if (!r.recommendations) return;
+        const hasHighUsage = r.recommendations.some((msg: string) =>
+          msg.toLowerCase().includes("high amount of energy")
+        );
+        if (hasHighUsage) {
+          sendUsageAlert(
+            r.appliance_name,
+            `Your ${r.appliance_type} in ${r.location} is using a high amount of energy!`
+          );
+        }
+      });
+    } catch (error) {
+      console.warn("Error checking notification preference:", error);
+    }
+  };
+
   useEffect(() => {
     const checkHighUsage = async () => {
       try {
@@ -122,18 +153,7 @@ const MainMenu = () => {
         const recs = response.data.recommendations || [];
 
         // 🔔 Trigger notification for high usage appliances
-        recs.forEach((r: any) => {
-          if (!r.recommendations) return;
-          const hasHighUsage = r.recommendations.some((msg: string) =>
-            msg.toLowerCase().includes("high amount of energy")
-          );
-          if (hasHighUsage) {
-            sendUsageAlert(
-              r.appliance_name,
-              `Your ${r.appliance_type} in ${r.location} is using a high amount of energy!`
-            );
-          }
-        });
+        triggerNotifications(recs);
       } catch (error) {
         console.log("❌ Error checking high usage:", error);
       }
@@ -434,52 +454,54 @@ const MainMenu = () => {
   const fetchUsageSummary = useCallback(async () => {
     try {
       setLoadingUsage(true);
-  
+
       // Get household_id of logged-in user
       const storedUserData = await AsyncStorage.getItem("userData");
       if (!storedUserData) return;
       const parsedUser = JSON.parse(storedUserData);
       const household_id = parsedUser.household_id;
       console.log("Household logged in,", household_id);
-  
+
       const [todayRes, weekRes, monthRes] = await Promise.all([
         api.get(`/energy/daily/total?household_id=${household_id}`),
         api.get(`energy/weekly/total?household_id=${household_id}&limit=1`),
         api.get(`/energy/monthly/total?household_id=${household_id}`),
       ]);
-  
+
       const safeFormat = (val: any) => {
         if (typeof val === "number") return val.toFixed(2) + " kWh";
         if (typeof val === "string") return val;
         return "0.00 kWh";
       };
-  
+
       // ✅ TODAY
       setTodayUsage(safeFormat(todayRes.data?.total_kwh));
-  
+
       // Prepare month boundaries (use UTC to match other parts of your code)
       const now = new Date();
       const year = now.getUTCFullYear();
       const monthIdx = now.getUTCMonth();
-      const daysInMonth = new Date(Date.UTC(year, monthIdx + 1, 0)).getUTCDate();
+      const daysInMonth = new Date(
+        Date.UTC(year, monthIdx + 1, 0)
+      ).getUTCDate();
       const monthStart = new Date(Date.UTC(year, monthIdx, 1))
         .toISOString()
         .split("T")[0];
       const monthEnd = new Date(Date.UTC(year, monthIdx + 1, 0))
         .toISOString()
         .split("T")[0];
-  
+
       // We want Week 4 = days 22 -> end of month
       const lastWeekStartDay = 22;
       const lastWeekEndDay = daysInMonth;
-  
+
       // Build dailyData array with shape: [{ date: 'YYYY-MM-DD', total_kwh: number }, ...]
       let dailyData: { date: string; total_kwh: number }[] = [];
-  
+
       // Case A: weekRes.data.data might already include day-level entries with .date
       if (Array.isArray(weekRes.data?.data) && weekRes.data.data.length > 0) {
         const weekData = weekRes.data.data;
-  
+
         // Check whether entries look like day-level (have 'date' or 'day' fields)
         const looksLikeDaily =
           weekData.some(
@@ -489,7 +511,7 @@ const MainMenu = () => {
               typeof e.day === "number"
           ) && // and not only weekly_total_kwh
           !weekData.every((e: any) => typeof e.weekly_total_kwh === "number");
-  
+
         if (looksLikeDaily) {
           // Normalize day-level entries
           dailyData = weekData.map((e: any) => {
@@ -497,10 +519,9 @@ const MainMenu = () => {
               e.date ||
               (typeof e.day === "string" || typeof e.day === "number"
                 ? // if day only, construct full date string using current month
-                  `${year.toString().padStart(4, "0")}-${String(monthIdx + 1).padStart(
-                    2,
-                    "0"
-                  )}-${String(e.day).padStart(2, "0")}`
+                  `${year.toString().padStart(4, "0")}-${String(
+                    monthIdx + 1
+                  ).padStart(2, "0")}-${String(e.day).padStart(2, "0")}`
                 : "");
             const total_kwh =
               Number(e.total_kwh ?? e.kwh ?? e.daily_total_kwh ?? 0) ||
@@ -512,18 +533,20 @@ const MainMenu = () => {
           dailyData = [];
         }
       }
-  
+
       // Case B: If we still have no dailyData, explicitly request daily totals for current month
       if (dailyData.length === 0) {
         try {
           const historyRes = await api.get("/energy/history/total_range", {
             params: { start: monthStart, end: monthEnd, household_id },
           });
-  
-          const arr = Array.isArray(historyRes.data?.history || historyRes.data?.data)
+
+          const arr = Array.isArray(
+            historyRes.data?.history || historyRes.data?.data
+          )
             ? historyRes.data.history || historyRes.data.data
             : [];
-  
+
           dailyData = arr.map((d: any) => ({
             date: d.date || d.day || d.timestamp || "",
             total_kwh: parseFloat(String(d.total_kwh ?? d.total_kwh ?? 0)) || 0,
@@ -533,7 +556,7 @@ const MainMenu = () => {
           dailyData = [];
         }
       }
-  
+
       // Now compute total for week 4 (22 -> end of month)
       let lastWeekTotal = 0;
       if (dailyData.length > 0) {
@@ -551,15 +574,17 @@ const MainMenu = () => {
           // Try to find an entry that has a date range or label that matches week 4
           const maybeWeekly = weekRes.data.data[weekRes.data.data.length - 1];
           const fallbackVal =
-            Number(maybeWeekly.weekly_total_kwh ?? maybeWeekly.total_kwh ?? 0) || 0;
+            Number(
+              maybeWeekly.weekly_total_kwh ?? maybeWeekly.total_kwh ?? 0
+            ) || 0;
           lastWeekTotal = fallbackVal;
         } else {
           lastWeekTotal = 0;
         }
       }
-  
+
       setWeekUsage(safeFormat(lastWeekTotal));
-  
+
       // ✅ MONTHLY (unchanged)
       if (Array.isArray(monthRes.data?.data) && monthRes.data.data.length > 0) {
         const lastMonth =
@@ -577,8 +602,6 @@ const MainMenu = () => {
       setLoadingUsage(false);
     }
   }, []);
-  
-
 
   // =========================
   // =========================

@@ -123,7 +123,7 @@ def generate_recommendations(appliances, mode):
             )
         elif kwh == 0:
             app_recs.append(
-                 f"Your {a_type} in {location} is using slightly more energy than expected ({kwh:.1f} kWh). Try to shorten its usage time a bit to save more."
+                 f"Your {a_type} in {location} is currently off or not consuming energy. Great job on saving electricity!"
             )
         else:
             app_recs.append(f"Good job! Your {a_type} in {location} is running efficiently ({kwh:.1f} kWh). Great job on your energy-saving habits!"
