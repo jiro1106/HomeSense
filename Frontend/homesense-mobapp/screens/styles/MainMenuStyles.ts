@@ -71,12 +71,15 @@ export const styles = StyleSheet.create({
     marginBottom: 25,
   },
   usageCard: {
+    flex: 1,
     backgroundColor: "#FFD700",
     borderRadius: 12,
-    padding: 15,
+    paddingVertical: 15,
+    paddingHorizontal: 10,
     alignItems: "center",
-    flex: 1,
-    marginHorizontal: 3,
+    justifyContent: "center",
+    marginHorizontal: 5,
+    minHeight: 80, // ensures all cards have at least this height
   },
   cardIcon: {
     marginBottom: 8,
@@ -87,6 +90,8 @@ export const styles = StyleSheet.create({
     textAlign: "center",
     color: "#000",
     marginBottom: 4,
+    includeFontPadding: false,
+    textAlignVertical: "center",
   },
   usageLabel: {
     fontSize: 12,
