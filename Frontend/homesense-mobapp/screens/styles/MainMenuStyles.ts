@@ -86,7 +86,7 @@ export const styles = StyleSheet.create({
   },
   usageValue: {
     fontSize: 16,
-    fontWeight: "800",
+    fontWeight: "bold",
     textAlign: "center",
     color: "#000",
     marginBottom: 4,

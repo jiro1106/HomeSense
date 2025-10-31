@@ -140,7 +140,9 @@ const Bills = () => {
 
       // Get provider from backend
       const res = await api.get(`energy/household/${householdId}/provider`);
-      const backendProvider = (res.data?.provider || "BATELEC").toString().toUpperCase();
+      const backendProvider = (res.data?.provider || "BATELEC")
+        .toString()
+        .toUpperCase();
       setProvider(backendProvider);
 
       // Map provider -> rate locally (source of truth = backend provider)
@@ -151,7 +153,10 @@ const Bills = () => {
       }
     } catch (error: any) {
       // If backend says not found or any error, fallback to defaults
-      console.warn("Failed to fetch provider from backend:", error?.message || error);
+      console.warn(
+        "Failed to fetch provider from backend:",
+        error?.message || error
+      );
       setProvider("BATELEC");
       setRatePerKwh(5.3874);
     }
@@ -1261,7 +1266,7 @@ const Bills = () => {
                   Consumption
                 </Text>
               </View>
-              <ScrollView style={{ marginTop: 6 }}>
+              <ScrollView style={{ marginTop: 6, maxHeight: "80%" }}>
                 {breakdownItems.map((it, i) => (
                   <View
                     key={`${it.label}-${i}`}
@@ -1293,11 +1298,13 @@ const Bills = () => {
                   paddingTop: 12,
                 }}
               >
-                <Text style={{ color: "#000", fontWeight: "700" }}>
+                <Text
+                  style={{ color: "#000", fontWeight: "700", marginTop: 10 }}
+                >
                   Week total
                 </Text>
                 <Text
-                  style={{ color: "#000", fontWeight: "700" }}
+                  style={{ color: "#000", fontWeight: "700", marginTop: 10 }}
                 >{`${breakdownItems
                   .reduce((a, b) => a + b.kwh, 0)
                   .toFixed(3)} kWh`}</Text>
