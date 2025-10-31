@@ -48,6 +48,9 @@ const RegisterAppliancePage: React.FC<RegisterAppliancePageProps> = ({
   const [availableDevices, setAvailableDevices] = useState<Device[]>([]);
   const [loadingDevices, setLoadingDevices] = useState(false);
 
+  //appliance name note state
+  const [showApplianceNameNote, setShowApplianceNameNote] = useState(false);
+
   const applianceTypes = [
     "Electric Fan",
     "Air Conditioner",
@@ -149,6 +152,7 @@ const RegisterAppliancePage: React.FC<RegisterAppliancePageProps> = ({
             setOtherLocation("");
             setShowOtherTypeInput(false);
             setShowOtherLocationInput(false);
+            setShowApplianceNameNote(false);
             onSuccess?.();
           },
         },
@@ -235,10 +239,23 @@ const RegisterAppliancePage: React.FC<RegisterAppliancePageProps> = ({
           <TextInput
             style={styles.input}
             value={applianceName}
-            onChangeText={setApplianceName}
+            onChangeText={(text) => {
+              setApplianceName(text);
+              if (text.trim().length > 0 && !showApplianceNameNote) {
+                setShowApplianceNameNote(true);
+              }
+            }}
             placeholder="Enter appliance name"
             placeholderTextColor="#999"
           />
+
+          {/* 📝 Show Note only when typing has started */}
+          {showApplianceNameNote && (
+            <Text style={styles.noteText}>
+              <Text style={styles.noteBold}>NOTE:</Text> Choose a name that
+              helps you easily recognize this appliance later on.
+            </Text>
+          )}
         </View>
 
         {/* Appliance Type */}

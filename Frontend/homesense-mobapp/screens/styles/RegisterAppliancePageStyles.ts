@@ -24,6 +24,23 @@ export const styles = StyleSheet.create({
   formField: {
     marginBottom: 20,
   },
+
+  noteText: {
+    borderRadius: 8,
+    backgroundColor: "#ffd50071",
+    marginTop: 20,
+    paddingVertical: 15,
+    paddingHorizontal: 12,
+    borderColor: "#FFD600",
+    borderWidth: 1,
+    fontSize: 14,
+    textAlign: "justify",
+  },
+  noteBold: {
+    fontWeight: "bold",
+    color: "#000",
+    fontSize: 16,
+  },
   label: {
     fontSize: 16,
     fontWeight: "500",
