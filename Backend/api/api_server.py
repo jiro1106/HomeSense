@@ -67,10 +67,12 @@ def clean_docs(docs: List[dict]) -> List[dict]:
     return [clean_doc(d) for d in docs]
 
 def parse_date(date_str: str) -> datetime.datetime:
-    """Convert YYYY-MM-DD to UTC midnight (tz-aware)."""
+    """Convert YYYY-MM-DD (PH time) to UTC midnight equivalent (tz-aware)."""
     try:
-        d = datetime.datetime.strptime(date_str, "%Y-%m-%d").date()
-        return datetime.datetime.combine(d, datetime.time.min, tzinfo=UTC)
+        # Parse as PH local midnight
+        local_date = datetime.datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=PH_TZ)
+        # Convert to UTC for storage/querying
+        return local_date.astimezone(UTC)
     except Exception:
         raise HTTPException(status_code=400, detail=f"Invalid date format: {date_str}")
 
@@ -1249,50 +1251,64 @@ def get_energy_summary(household_id: str = Query(...)):
 # 5️⃣ Historical daily totals per plug (scoped by household)
 # ========================
 @app.get("/energy/history/range/{device_name}")
-def get_daily_history(device_name: str,start: str = Query(...),end: str = Query(...),household_id: str = Query(...)):
-    device_id = validate_device(household_id,device_name)
-    ensure_registered(device_id, household_id)
-    start_date = parse_date(start)
-    end_date = parse_date(end)
-
-    
+def get_daily_history(
+    device_name: str,
+    start: str = Query(...),
+    end: str = Query(...),
+    household_id: str = Query(...)
+):
     try:
+        device_id = validate_device(household_id, device_name)
+        ensure_registered(device_id, household_id)
+
+        # Convert PH date range → UTC equivalents
+        ph_start = datetime.datetime.strptime(start, "%Y-%m-%d").replace(tzinfo=PH_TZ)
+        ph_end = datetime.datetime.strptime(end, "%Y-%m-%d").replace(tzinfo=PH_TZ)
+        start_date = ph_start.astimezone(UTC)
+        end_date = (ph_end + datetime.timedelta(days=1)).astimezone(UTC)
+
         cursor = db["daily_totals_per_plug"].find({
             "household_id": household_id,
             "device_id": device_id,
-            "date": {"$gte": start_date, "$lte": end_date}
+            "date": {"$gte": start_date, "$lt": end_date}
         }).sort("date", 1)
+
+        return {
+            "device_name": device_name,
+            "history": clean_docs(list(cursor))
+        }
+
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"DB error: {str(e)}")
-    
-    return {"device_name": device_name, "history": clean_docs(list(cursor))}
+        raise HTTPException(status_code=500, detail=f"Error fetching device history: {str(e)}")
+
 
 # ========================
 # 6️⃣ Historical household totals (scoped by household)
 # ========================
 @app.get("/energy/history/total_range")
-def get_household_history(start: str = Query(...),end: str = Query(...),household_id: str = Query(...)):
-    start_date = parse_date(start)
-    end_date = parse_date(end)
+def get_household_history(start: str = Query(...), end: str = Query(...), household_id: str = Query(...)):
     try:
-        registered_devices = get_registered_device_ids(household_id)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"DB error fetching registered devices: {str(e)}")
+        # Convert PH date range → UTC equivalents
+        ph_start = datetime.datetime.strptime(start, "%Y-%m-%d").replace(tzinfo=PH_TZ)
+        ph_end = datetime.datetime.strptime(end, "%Y-%m-%d").replace(tzinfo=PH_TZ)
+        start_date = ph_start.astimezone(UTC)
+        # include the whole end day, so add 1 day before converting
+        end_date = (ph_end + datetime.timedelta(days=1)).astimezone(UTC)
 
-    if not registered_devices:
-        return {
-            "status": "No registered appliances"
-        }
-    try:
+        registered_devices = get_registered_device_ids(household_id)
+        if not registered_devices:
+            return {"status": "No registered appliances"}
+
         cursor = db["daily_totals"].find({
             "household_id": household_id,
-            "date": {"$gte": start_date, "$lte": end_date}
+            "date": {"$gte": start_date, "$lt": end_date}
         }).sort("date", 1)
-        
+
+        return {"history": clean_docs(list(cursor))}
+
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"DB error: {str(e)}")
-    
-    return {"history": clean_docs(list(cursor))}
+        raise HTTPException(status_code=500, detail=f"Error fetching household history: {str(e)}")
+
 
 # ========================
 # 7. Weekly household total (Mon–Sun) with optional limit
@@ -1305,13 +1321,16 @@ def get_weekly_total_household(limit: int = Query(None, ge=1), household_id: str
 
     try:
         pipeline = [
-            {"$match": {"household_id": household_id, "device_id": {"$in": registered_devices}}},
-            {"$group": {
-                "_id": {"year": {"$isoWeekYear": "$date"}, "week": {"$isoWeek": "$date"}},
-                "total_kwh": {"$sum": "$total_kwh"}
-            }},
-            {"$sort": {"_id.year": -1, "_id.week": -1}}
-        ]
+    {"$match": {"household_id": household_id, "device_id": {"$in": registered_devices}}},
+    {"$group": {
+        "_id": {
+            "year": {"$isoWeekYear": {"date": "$date", "timezone": "Asia/Manila"}},
+            "week": {"$isoWeek": {"date": "$date", "timezone": "Asia/Manila"}}
+        },
+        "total_kwh": {"$sum": "$total_kwh"}
+    }},
+    {"$sort": {"_id.year": -1, "_id.week": -1}}
+]
         if limit:
             pipeline.append({"$limit": limit})
 
@@ -1347,7 +1366,20 @@ def get_weekly_total(device_name: str, limit: int = Query(None, ge=1), household
         pipeline = [
             {"$match": {"household_id": household_id, "device_id": device_id}},
             {"$group": {
-                "_id": {"year": {"$isoWeekYear": "$date"}, "week": {"$isoWeek": "$date"}},
+                "_id": {
+                    "year": {
+                        "$isoWeekYear": {
+                            "date": "$date",
+                            "timezone": "Asia/Manila"
+                        }
+                    },
+                    "week": {
+                        "$isoWeek": {
+                            "date": "$date",
+                            "timezone": "Asia/Manila"
+                        }
+                    }
+                },
                 "total_kwh": {"$sum": "$total_kwh"}
             }},
             {"$sort": {"_id.year": -1, "_id.week": -1}}
@@ -1389,8 +1421,10 @@ def get_monthly_total_household(limit: int = Query(None, ge=1), household_id: st
         pipeline = [
             {"$match": {"household_id": household_id, "device_id": {"$in": registered_devices}}},
             {"$group": {
-                "_id": {"year": {"$year": "$date"}, "month": {"$month": "$date"}},
-                "total_kwh": {"$sum": "$total_kwh"}
+                "_id": {
+    "year": {"$year": {"date": "$date", "timezone": "Asia/Manila"}},
+    "month": {"$month": {"date": "$date", "timezone": "Asia/Manila"}}
+            },"total_kwh": {"$sum": "$total_kwh"}
             }},
             {"$sort": {"_id.year": -1, "_id.month": -1}}
         ]
@@ -1422,7 +1456,20 @@ def get_monthly_total(device_name: str, limit: int = Query(None, ge=1), househol
         pipeline = [
             {"$match": {"household_id": household_id, "device_id": device_id}},
             {"$group": {
-                "_id": {"year": {"$year": "$date"}, "month": {"$month": "$date"}},
+                "_id": {
+                    "year": {
+                        "$year": {
+                            "date": "$date",
+                            "timezone": "Asia/Manila"
+                        }
+                    },
+                    "month": {
+                        "$month": {
+                            "date": "$date",
+                            "timezone": "Asia/Manila"
+                        }
+                    }
+                },
                 "total_kwh": {"$sum": "$total_kwh"}
             }},
             {"$sort": {"_id.year": -1, "_id.month": -1}}
