@@ -311,7 +311,7 @@ const Recommendations = () => {
       ) : (
         <ScrollView
           style={styles.content}
-          contentContainerStyle={{ paddingBottom: 100 }}
+          contentContainerStyle={{ paddingBottom: 150 }}
           showsVerticalScrollIndicator={false}
         >
           {/* Savings Mode Info */}

@@ -96,7 +96,7 @@ export const styles = StyleSheet.create({
     // borderWidth: 1.5,
     // borderColor: "#000000ff",
     padding: 15,
-    marginVertical: 10,
+    marginVertical: 15,
     borderRadius: 18,
   },
   cardContainer: {
