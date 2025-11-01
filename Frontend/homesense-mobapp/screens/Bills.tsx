@@ -330,6 +330,20 @@ const Bills = () => {
         }
       });
 
+      // Check if previous month has complete data
+      const daysInLastMonth = new Date(
+        Date.UTC(lastMonthYear, lastMonthIdx + 1, 0)
+      ).getUTCDate();
+      const daysWithDataInLastMonth = Object.keys(lastMonthDayToKwh).filter(
+        (day) => {
+          const dayNum = parseInt(day, 10);
+          return dayNum > 0 && dayNum <= daysInLastMonth;
+        }
+      ).length;
+      const lastMonthDataComplete =
+        daysWithDataInLastMonth >= Math.floor(daysInLastMonth * 0.9); // 90% or more days have data
+      const canExtrapolate = isCurrentMonth && lastMonthDataComplete;
+
       // get previous month's week boundaries to map positions within the week
       const prevWeeks = getWeekBoundaries(lastMonthYear, lastMonthIdx);
 
@@ -354,6 +368,12 @@ const Bills = () => {
 
           // if no missing days -> fully observed
           if (missingDayNumbers.length === 0) {
+            return { label: w.label, kwh: observedKwh, extrapolated: false };
+          }
+
+          // Only run extrapolation if current month AND previous month has complete data
+          if (!canExtrapolate) {
+            // No extrapolation: return only observed kWh
             return { label: w.label, kwh: observedKwh, extrapolated: false };
           }
 
