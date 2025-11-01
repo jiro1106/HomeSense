@@ -186,6 +186,98 @@ const getWeekRange = (dateString: string) => {
 
       let endpoint = "";
 
+      // For Weekly range, calculate calendar week total from daily data
+      if (selectedRange === "Weekly") {
+        const now = new Date();
+        const year = now.getUTCFullYear();
+        const monthIdx = now.getUTCMonth();
+        const daysInMonth = new Date(Date.UTC(year, monthIdx + 1, 0)).getUTCDate();
+        
+        // Determine current calendar week (Week 4 = days 22-end)
+        let weekStartDay = 22;
+        let weekEndDay = daysInMonth;
+        const currentDay = now.getUTCDate();
+        
+        if (currentDay >= 1 && currentDay <= 7) {
+          weekStartDay = 1;
+          weekEndDay = 7;
+        } else if (currentDay >= 8 && currentDay <= 14) {
+          weekStartDay = 8;
+          weekEndDay = 14;
+        } else if (currentDay >= 15 && currentDay <= 21) {
+          weekStartDay = 15;
+          weekEndDay = 21;
+        }
+        
+        const monthStart = new Date(Date.UTC(year, monthIdx, 1)).toISOString().split("T")[0];
+        const monthEnd = new Date(Date.UTC(year, monthIdx + 1, 0)).toISOString().split("T")[0];
+        
+        try {
+          if (filterType === "all" || filterType === "household") {
+            // Fetch household daily totals
+            const historyRes = await api.get("/energy/history/total_range", {
+              params: { start: monthStart, end: monthEnd, household_id },
+            });
+            
+            const arr = Array.isArray(
+              historyRes.data?.history || historyRes.data?.data
+            )
+              ? historyRes.data.history || historyRes.data.data
+              : [];
+            
+            let weekTotal = 0;
+            arr.forEach((d: any) => {
+              const dateStr = d.date || d.day || d.timestamp || "";
+              if (dateStr) {
+                const day = new Date(dateStr + "T00:00:00Z").getUTCDate();
+                if (day >= weekStartDay && day <= weekEndDay) {
+                  const kwh = typeof d.total_kwh === "number" 
+                    ? d.total_kwh 
+                    : parseFloat(String(d.total_kwh)) || 0;
+                  weekTotal += kwh;
+                }
+              }
+            });
+            
+            setTotalUsage(`${weekTotal.toFixed(6)} kWh`);
+            setLoadingTotal(false);
+            return;
+          } else if (selectedAppliance) {
+            // Fetch individual appliance daily totals
+            const historyRes = await api.get(`/energy/history/range/${selectedAppliance.device_id}`, {
+              params: { start: monthStart, end: monthEnd, household_id },
+            });
+            
+            const arr = Array.isArray(
+              historyRes.data?.history || historyRes.data?.data
+            )
+              ? historyRes.data.history || historyRes.data.data
+              : [];
+            
+            let weekTotal = 0;
+            arr.forEach((d: any) => {
+              const dateStr = d.date || d.day || d.timestamp || "";
+              if (dateStr) {
+                const day = new Date(dateStr + "T00:00:00Z").getUTCDate();
+                if (day >= weekStartDay && day <= weekEndDay) {
+                  const kwh = typeof d.total_kwh === "number" 
+                    ? d.total_kwh 
+                    : parseFloat(String(d.total_kwh)) || 0;
+                  weekTotal += kwh;
+                }
+              }
+            });
+            
+            setTotalUsage(`${weekTotal.toFixed(6)} kWh`);
+            setLoadingTotal(false);
+            return;
+          }
+        } catch (err) {
+          console.warn("Failed to fetch calendar week total, falling back to ISO week:", err);
+          // Fall through to use ISO week endpoint as fallback
+        }
+      }
+      
       if (filterType === "all") {
         // Total for all appliances
         if (selectedRange === "Daily") {
@@ -319,36 +411,126 @@ const getWeekRange = (dateString: string) => {
 
       // 🏠 If user selected "Household"
       if (filterType === "household") {
-        let endpoint = "";
-        if (selectedRange === "Daily")
-          endpoint = `/energy/daily/total?household_id=${household_id}`;
-        else if (selectedRange === "Weekly")
-          endpoint = `/energy/weekly/total?household_id=${household_id}&limit=4`;
-        else if (selectedRange === "Monthly")
-          endpoint = `/energy/monthly/total?household_id=${household_id}`;
-
-        const res = await api.get(endpoint);
-        const dataArr =
-          res.data.data || (Array.isArray(res.data) ? res.data : [res.data]);
-
-        const formatted = dataArr.map((d: any) => ({
-          label:
-            d.date ||
-            (d.week_start && d.week_end
-              ? `${d.week_start} - ${d.week_end}`
-              : d.month || "N/A"),
-          usage: d.total_kwh
-            ? `${d.total_kwh.toFixed(3)} kWh`
-            : d.weekly_total_kwh
-            ? `${d.weekly_total_kwh.toFixed(3)} kWh`
-            : d.monthly_total_kwh
-            ? `${d.monthly_total_kwh.toFixed(3)} kWh`
-            : "0 kWh",
-        }));
-
-        setTotalsData(formatted.reverse()); // newest last for better trend reading
-        setLoading(false);
-        return;
+        if (selectedRange === "Daily") {
+          const endpoint = `/energy/daily/total?household_id=${household_id}`;
+          const res = await api.get(endpoint);
+          const formatted = [{
+            label: res.data.date || "N/A",
+            usage: typeof res.data.total_kwh === "number"
+              ? `${res.data.total_kwh.toFixed(3)} kWh`
+              : `${parseFloat(res.data.total_kwh || 0).toFixed(3)} kWh`,
+          }];
+          setTotalsData(formatted);
+          setLoading(false);
+          return;
+        } else if (selectedRange === "Weekly") {
+          // Fetch daily totals and group into calendar month-based weeks
+          const now = new Date();
+          const year = now.getUTCFullYear();
+          const monthIdx = now.getUTCMonth();
+          const daysInMonth = new Date(Date.UTC(year, monthIdx + 1, 0)).getUTCDate();
+          const monthStart = new Date(Date.UTC(year, monthIdx, 1)).toISOString().split("T")[0];
+          const monthEnd = new Date(Date.UTC(year, monthIdx + 1, 0)).toISOString().split("T")[0];
+          
+          // Define calendar week boundaries (same as Bills.tsx)
+          const weekBoundaries = [
+            { start: 1, end: Math.min(7, daysInMonth) },
+            { start: 8, end: Math.min(14, daysInMonth) },
+            { start: 15, end: Math.min(21, daysInMonth) },
+            { start: 22, end: daysInMonth },
+          ];
+          
+          try {
+            // Fetch daily household totals for the current month
+            const historyRes = await api.get("/energy/history/total_range", {
+              params: { start: monthStart, end: monthEnd, household_id },
+            });
+            
+            const arr = Array.isArray(
+              historyRes.data?.history || historyRes.data?.data
+            )
+              ? historyRes.data.history || historyRes.data.data
+              : [];
+            
+            // Create a map of day -> total_kwh
+            const dayToKwh: Record<number, number> = {};
+            arr.forEach((d: any) => {
+              const dateStr = d.date || d.day || d.timestamp || "";
+              if (dateStr) {
+                const day = new Date(dateStr + "T00:00:00Z").getUTCDate();
+                if (!isNaN(day) && day > 0 && day <= 31) {
+                  const kwh = typeof d.total_kwh === "number" 
+                    ? d.total_kwh 
+                    : parseFloat(String(d.total_kwh)) || 0;
+                  dayToKwh[day] = (dayToKwh[day] || 0) + kwh;
+                }
+              }
+            });
+            
+            // Calculate totals for each calendar week
+            const pad2 = (n: number) => (n < 10 ? `0${n}` : `${n}`);
+            const formatted = weekBoundaries.map((week) => {
+              let weekTotal = 0;
+              for (let day = week.start; day <= week.end; day++) {
+                if (dayToKwh[day]) {
+                  weekTotal += dayToKwh[day];
+                }
+              }
+              
+              const weekStartDate = `${year}-${pad2(monthIdx + 1)}-${pad2(week.start)}`;
+              const weekEndDate = `${year}-${pad2(monthIdx + 1)}-${pad2(week.end)}`;
+              
+              return {
+                label: `${weekStartDate} - ${weekEndDate}`,
+                usage: `${weekTotal.toFixed(3)} kWh`,
+              };
+            }).reverse(); // newest last for better trend reading
+            
+            setTotalsData(formatted);
+            setLoading(false);
+            return;
+          } catch (err) {
+            console.warn("Failed to fetch calendar week totals, falling back to ISO weeks:", err);
+            // Fallback to ISO week endpoint
+            const endpoint = `/energy/weekly/total?household_id=${household_id}&limit=4`;
+            const res = await api.get(endpoint);
+            const dataArr =
+              res.data.data || (Array.isArray(res.data) ? res.data : [res.data]);
+            const formatted = dataArr.map((d: any) => ({
+              label:
+                d.date ||
+                (d.week_start && d.week_end
+                  ? `${d.week_start} - ${d.week_end}`
+                  : d.month || "N/A"),
+              usage: d.total_kwh
+                ? `${d.total_kwh.toFixed(3)} kWh`
+                : d.weekly_total_kwh
+                ? `${d.weekly_total_kwh.toFixed(3)} kWh`
+                : d.monthly_total_kwh
+                ? `${d.monthly_total_kwh.toFixed(3)} kWh`
+                : "0 kWh",
+            }));
+            setTotalsData(formatted.reverse());
+            setLoading(false);
+            return;
+          }
+        } else if (selectedRange === "Monthly") {
+          const endpoint = `/energy/monthly/total?household_id=${household_id}`;
+          const res = await api.get(endpoint);
+          const dataArr =
+            res.data.data || (Array.isArray(res.data) ? res.data : [res.data]);
+          const formatted = dataArr.map((d: any) => ({
+            label: d.month || d.date || "N/A",
+            usage: d.monthly_total_kwh
+              ? `${d.monthly_total_kwh.toFixed(3)} kWh`
+              : d.total_kwh
+              ? `${d.total_kwh.toFixed(3)} kWh`
+              : "0 kWh",
+          }));
+          setTotalsData(formatted.reverse());
+          setLoading(false);
+          return;
+        }
       }
       const applianceList =
         filterType === "all"
@@ -371,46 +553,159 @@ const getWeekRange = (dateString: string) => {
       const responses = await Promise.all(requests);
 
       const allData: ApplianceData[] = [];
-      responses.forEach((res, i) => {
-        const appliance = applianceList[i];
-        const dataArr = Array.isArray(res.data.history || res.data.data)
-          ? res.data.history || res.data.data
-          : [res.data];
-
-        dataArr.forEach((d: any) => {
-          let timeDisplay = "";
-          let week_start = "";
-          let week_end = "";
-          let timestamp = "";
-
-          if (selectedRange === "Weekly" && d.week_start) {
-            const weekRange = getWeekRange(d.week_start);
-            timeDisplay = `${weekRange.start} to ${weekRange.end}`;
-            week_start = weekRange.start;
-            week_end = weekRange.end;
-            timestamp = weekRange.start;
-          } else {
-            timeDisplay = d.date || d.week_start || d.month || "N/A";
-            timestamp = d.date || d.week_start || d.month || "";
+      
+      // For Weekly range, fetch daily totals to recalculate calendar week totals
+      if (selectedRange === "Weekly") {
+        const now = new Date();
+        const year = now.getUTCFullYear();
+        const monthIdx = now.getUTCMonth();
+        const monthStart = new Date(Date.UTC(year, monthIdx, 1)).toISOString().split("T")[0];
+        const monthEnd = new Date(Date.UTC(year, monthIdx + 1, 0)).toISOString().split("T")[0];
+        
+        // Fetch daily history for each appliance using the history/range endpoint
+        const dailyRequests = applianceList.map((appliance) => {
+          return api.get(`/energy/history/range/${appliance.device_id}`, {
+            params: {
+              start: monthStart,
+              end: monthEnd,
+              household_id: household_id,
+            },
+          }).catch(() => null); // Handle errors gracefully
+        });
+        
+        const dailyResponses = await Promise.all(dailyRequests);
+        
+        // Create a map of device_id -> day -> kwh for quick lookup
+        const deviceDayToKwh: Record<string, Record<number, number>> = {};
+        
+        // Process individual appliance daily totals
+        dailyResponses.forEach((dailyRes, i) => {
+          if (!dailyRes || !dailyRes.data) return;
+          
+          const appliance = applianceList[i];
+          if (!appliance) return;
+          
+          // Handle response format from /energy/history/range/{device_name}
+          const dailyArr = Array.isArray(dailyRes.data.history || dailyRes.data.data)
+            ? dailyRes.data.history || dailyRes.data.data
+            : dailyRes.data.date ? [dailyRes.data] : [];
+          
+          if (!deviceDayToKwh[appliance.device_id]) {
+            deviceDayToKwh[appliance.device_id] = {};
           }
-
-          allData.push({
-            device_id: appliance.device_id,
-            name: appliance?.appliance_name || "Unknown",
-            location: appliance?.location || "Unknown",
-            time: timeDisplay,
-            status: "N/A",
-            usage: d.total_kwh
-              ? `${d.total_kwh} kWh`
-              : d.kwh
-              ? `${d.kwh} kWh`
-              : "0 kWh",
-            week_start: week_start,
-            week_end: week_end,
-            timestamp: timestamp,
+          
+          dailyArr.forEach((d: any) => {
+            const dateStr = d.date || d.day || d.timestamp || "";
+            if (dateStr) {
+              // Parse the date and extract the day of month
+              const day = new Date(dateStr + "T00:00:00Z").getUTCDate();
+              if (!isNaN(day) && day > 0 && day <= 31) {
+                const kwh = typeof d.total_kwh === "number" 
+                  ? d.total_kwh 
+                  : parseFloat(String(d.total_kwh || d.kwh || 0)) || 0;
+                deviceDayToKwh[appliance.device_id][day] = 
+                  (deviceDayToKwh[appliance.device_id][day] || 0) + kwh;
+              }
+            }
           });
         });
-      });
+        
+        // Process responses and recalculate calendar week totals
+        responses.forEach((res, i) => {
+          const appliance = applianceList[i];
+          const dataArr = Array.isArray(res.data.history || res.data.data)
+            ? res.data.history || res.data.data
+            : [res.data];
+
+          dataArr.forEach((d: any) => {
+            let timeDisplay = "";
+            let week_start = "";
+            let week_end = "";
+            let timestamp = "";
+            let weekKwh = 0;
+
+            if (d.week_start) {
+              const weekRange = getWeekRange(d.week_start);
+              timeDisplay = `${weekRange.start} to ${weekRange.end}`;
+              week_start = weekRange.start;
+              week_end = weekRange.end;
+              timestamp = weekRange.start;
+
+              // Recalculate total for the calendar week range
+              const startDay = parseInt(weekRange.start.split("-")[2] || "0", 10);
+              const endDay = parseInt(weekRange.end.split("-")[2] || "0", 10);
+              
+              if (!isNaN(startDay) && !isNaN(endDay) && deviceDayToKwh[appliance.device_id]) {
+                for (let day = startDay; day <= endDay; day++) {
+                  if (deviceDayToKwh[appliance.device_id][day]) {
+                    weekKwh += deviceDayToKwh[appliance.device_id][day];
+                  }
+                }
+              }
+              
+              // If no daily data found, fallback to original ISO week total
+              if (weekKwh === 0) {
+                weekKwh = typeof d.total_kwh === "number" 
+                  ? d.total_kwh 
+                  : parseFloat(String(d.total_kwh || d.kwh || 0)) || 0;
+              }
+            } else {
+              timeDisplay = d.date || d.month || "N/A";
+              timestamp = d.date || d.month || "";
+              weekKwh = typeof d.total_kwh === "number" 
+                ? d.total_kwh 
+                : parseFloat(String(d.total_kwh || d.kwh || 0)) || 0;
+            }
+
+            allData.push({
+              device_id: appliance.device_id,
+              name: appliance?.appliance_name || "Unknown",
+              location: appliance?.location || "Unknown",
+              time: timeDisplay,
+              status: "N/A",
+              usage: `${weekKwh.toFixed(3)} kWh`,
+              week_start: week_start,
+              week_end: week_end,
+              timestamp: timestamp,
+            });
+          });
+        });
+      } else {
+        // For Daily and Monthly, use original logic
+        responses.forEach((res, i) => {
+          const appliance = applianceList[i];
+          const dataArr = Array.isArray(res.data.history || res.data.data)
+            ? res.data.history || res.data.data
+            : [res.data];
+
+          dataArr.forEach((d: any) => {
+            let timeDisplay = "";
+            let week_start = "";
+            let week_end = "";
+            let timestamp = "";
+
+            // For Daily and Monthly ranges
+            timeDisplay = d.date || d.week_start || d.month || "N/A";
+            timestamp = d.date || d.week_start || d.month || "";
+
+            allData.push({
+              device_id: appliance.device_id,
+              name: appliance?.appliance_name || "Unknown",
+              location: appliance?.location || "Unknown",
+              time: timeDisplay,
+              status: "N/A",
+              usage: d.total_kwh
+                ? `${d.total_kwh} kWh`
+                : d.kwh
+                ? `${d.kwh} kWh`
+                : "0 kWh",
+              week_start: week_start,
+              week_end: week_end,
+              timestamp: timestamp,
+            });
+          });
+        });
+      }
 
       // Sort the data based on current sort selection
       const sortedData = sortAppliancesData(allData);
