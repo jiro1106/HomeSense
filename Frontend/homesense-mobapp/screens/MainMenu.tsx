@@ -462,9 +462,8 @@ const MainMenu = () => {
       const household_id = parsedUser.household_id;
       console.log("Household logged in,", household_id);
 
-      const [todayRes, weekRes, monthRes] = await Promise.all([
+      const [todayRes, monthRes] = await Promise.all([
         api.get(`/energy/daily/total?household_id=${household_id}`),
-        api.get(`energy/weekly/total?household_id=${household_id}&limit=1`),
         api.get(`/energy/monthly/total?household_id=${household_id}`),
       ]);
 
@@ -477,113 +476,62 @@ const MainMenu = () => {
       // ✅ TODAY
       setTodayUsage(safeFormat(todayRes.data?.total_kwh));
 
-      // Prepare month boundaries (use UTC to match other parts of your code)
+      // ✅ WEEKLY - Calculate current calendar week total from daily data (same structure as ConsumptionPage)
       const now = new Date();
       const year = now.getUTCFullYear();
       const monthIdx = now.getUTCMonth();
-      const daysInMonth = new Date(
-        Date.UTC(year, monthIdx + 1, 0)
-      ).getUTCDate();
-      const monthStart = new Date(Date.UTC(year, monthIdx, 1))
-        .toISOString()
-        .split("T")[0];
-      const monthEnd = new Date(Date.UTC(year, monthIdx + 1, 0))
-        .toISOString()
-        .split("T")[0];
-
-      // We want Week 4 = days 22 -> end of month
-      const lastWeekStartDay = 22;
-      const lastWeekEndDay = daysInMonth;
-
-      // Build dailyData array with shape: [{ date: 'YYYY-MM-DD', total_kwh: number }, ...]
-      let dailyData: { date: string; total_kwh: number }[] = [];
-
-      // Case A: weekRes.data.data might already include day-level entries with .date
-      if (Array.isArray(weekRes.data?.data) && weekRes.data.data.length > 0) {
-        const weekData = weekRes.data.data;
-
-        // Check whether entries look like day-level (have 'date' or 'day' fields)
-        const looksLikeDaily =
-          weekData.some(
-            (e: any) =>
-              typeof e.date === "string" ||
-              typeof e.day === "string" ||
-              typeof e.day === "number"
-          ) && // and not only weekly_total_kwh
-          !weekData.every((e: any) => typeof e.weekly_total_kwh === "number");
-
-        if (looksLikeDaily) {
-          // Normalize day-level entries
-          dailyData = weekData.map((e: any) => {
-            const date =
-              e.date ||
-              (typeof e.day === "string" || typeof e.day === "number"
-                ? // if day only, construct full date string using current month
-                  `${year.toString().padStart(4, "0")}-${String(
-                    monthIdx + 1
-                  ).padStart(2, "0")}-${String(e.day).padStart(2, "0")}`
-                : "");
-            const total_kwh =
-              Number(e.total_kwh ?? e.kwh ?? e.daily_total_kwh ?? 0) ||
-              Number(e.weekly_total_kwh ?? 0);
-            return { date, total_kwh };
-          });
-        } else {
-          // weekRes doesn't include daily entries (likely aggregated weekly). We'll fall back.
-          dailyData = [];
-        }
+      const daysInMonth = new Date(Date.UTC(year, monthIdx + 1, 0)).getUTCDate();
+      
+      // Determine current calendar week (Week 4 = days 22-end)
+      let weekStartDay = 22;
+      let weekEndDay = daysInMonth;
+      const currentDay = now.getUTCDate();
+      
+      if (currentDay >= 1 && currentDay <= 7) {
+        weekStartDay = 1;
+        weekEndDay = 7;
+      } else if (currentDay >= 8 && currentDay <= 14) {
+        weekStartDay = 8;
+        weekEndDay = 14;
+      } else if (currentDay >= 15 && currentDay <= 21) {
+        weekStartDay = 15;
+        weekEndDay = 21;
       }
-
-      // Case B: If we still have no dailyData, explicitly request daily totals for current month
-      if (dailyData.length === 0) {
-        try {
-          const historyRes = await api.get("/energy/history/total_range", {
-            params: { start: monthStart, end: monthEnd, household_id },
-          });
-
-          const arr = Array.isArray(
-            historyRes.data?.history || historyRes.data?.data
-          )
-            ? historyRes.data.history || historyRes.data.data
-            : [];
-
-          dailyData = arr.map((d: any) => ({
-            date: d.date || d.day || d.timestamp || "",
-            total_kwh: parseFloat(String(d.total_kwh ?? d.total_kwh ?? 0)) || 0,
-          }));
-        } catch (err) {
-          console.warn("Failed to fetch daily range for month fallback:", err);
-          dailyData = [];
-        }
+      
+      const monthStart = new Date(Date.UTC(year, monthIdx, 1)).toISOString().split("T")[0];
+      const monthEnd = new Date(Date.UTC(year, monthIdx + 1, 0)).toISOString().split("T")[0];
+      
+      try {
+        // Fetch household daily totals
+        const historyRes = await api.get("/energy/history/total_range", {
+          params: { start: monthStart, end: monthEnd, household_id },
+        });
+        
+        const arr = Array.isArray(
+          historyRes.data?.history || historyRes.data?.data
+        )
+          ? historyRes.data.history || historyRes.data.data
+          : [];
+        
+        let weekTotal = 0;
+        arr.forEach((d: any) => {
+          const dateStr = d.date || d.day || d.timestamp || "";
+          if (dateStr) {
+            const day = new Date(dateStr + "T00:00:00Z").getUTCDate();
+            if (day >= weekStartDay && day <= weekEndDay) {
+              const kwh = typeof d.total_kwh === "number" 
+                ? d.total_kwh 
+                : parseFloat(String(d.total_kwh)) || 0;
+              weekTotal += kwh;
+            }
+          }
+        });
+        
+        setWeekUsage(safeFormat(weekTotal));
+      } catch (err) {
+        console.warn("Failed to fetch calendar week total:", err);
+        setWeekUsage("0.00 kWh");
       }
-
-      // Now compute total for week 4 (22 -> end of month)
-      let lastWeekTotal = 0;
-      if (dailyData.length > 0) {
-        lastWeekTotal = dailyData
-          .filter((d) => {
-            if (!d.date) return false;
-            // Use UTC day to avoid timezone shifts
-            const day = new Date(d.date + "T00:00:00Z").getUTCDate();
-            return day >= lastWeekStartDay && day <= lastWeekEndDay;
-          })
-          .reduce((sum, d) => sum + Number(d.total_kwh || 0), 0);
-      } else {
-        // Final fallback: if we have weekRes aggregated weekly entry(s) and they include weekly_total_kwh
-        if (Array.isArray(weekRes.data?.data) && weekRes.data.data.length > 0) {
-          // Try to find an entry that has a date range or label that matches week 4
-          const maybeWeekly = weekRes.data.data[weekRes.data.data.length - 1];
-          const fallbackVal =
-            Number(
-              maybeWeekly.weekly_total_kwh ?? maybeWeekly.total_kwh ?? 0
-            ) || 0;
-          lastWeekTotal = fallbackVal;
-        } else {
-          lastWeekTotal = 0;
-        }
-      }
-
-      setWeekUsage(safeFormat(lastWeekTotal));
 
       // ✅ MONTHLY (unchanged)
       if (Array.isArray(monthRes.data?.data) && monthRes.data.data.length > 0) {
