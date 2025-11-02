@@ -30,9 +30,9 @@ def generate_recommendations(appliances, mode):
 
     # Multi-level thresholds per savings mode
     mode_thresholds = {
-        "high": {"low": 1.0, "high": 1.5},
-        "medium": {"low": 3.0, "high": 4.0},
-        "low": {"low": 5.0, "high": 6.0}
+        "strict": {"low": 1.0, "high": 1.5},
+        "balanced": {"low": 3.0, "high": 4.0},
+        "relaxed": {"low": 5.0, "high": 6.0}
     }
 
     # Appliance type multipliers
@@ -258,8 +258,8 @@ def get_electricity_provider(household_id: str):
 @router.put("/household/{household_id}/mode")
 def set_savings_mode(household_id: str, mode: str):
 
-    if mode not in ["low", "medium", "high"]:
-        raise HTTPException(status_code=400, detail="Invalid mode. Choose from low, medium, or high.")
+    if mode not in ["relaxed", "balanced", "strict"]:
+        raise HTTPException(status_code=400, detail="Invalid mode. Choose from relaxed, balanced, or strict.")
 
     result = households_collection.update_one(
         {"household_id": household_id},
@@ -281,7 +281,7 @@ def get_savings_mode(household_id: str):
     if not household:
         raise HTTPException(status_code=404, detail="Household not found.")
 
-    mode = household.get("savings_mode", "medium")  # default to 'medium' if not set
+    mode = household.get("savings_mode", "balanced")  # default to 'medium' if not set
     return {"mode": mode}
 
 
