@@ -151,4 +151,12 @@ export const styles = StyleSheet.create({
     color: "#333",
     marginBottom: 8,
   },
+
+  noDevicesText: {
+    fontSize: 16,
+    textAlign: "center",
+    marginVertical: 20,
+    color: "#00000",
+    fontWeight: "500",
+  },
 });

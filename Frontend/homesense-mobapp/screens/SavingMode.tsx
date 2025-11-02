@@ -204,7 +204,7 @@ const SavingMode = () => {
           {/* Instructions */}
           <View style={styles.iconContainer}>
             <Icon
-              name="tune"
+              name="bolt"
               size={60}
               color="#040a04ff"
               style={styles.ecoIcon}
@@ -219,19 +219,19 @@ const SavingMode = () => {
           {/* Options */}
           {[
             {
-              mode: "High",
-              icon: "bolt",
+              mode: "Strict",
+              icon: "speed",
               color: "#F44336",
               desc: "Strict mode — frequent and detailed tips for small increases in usage.",
             },
             {
-              mode: "Medium",
+              mode: "Balanced",
               icon: "tune",
               color: "#FFC107",
               desc: "Balanced mode — helpful tips when usage rises noticeably.",
             },
             {
-              mode: "Low",
+              mode: "Relaxed",
               icon: "eco",
               color: "#4CAF50",
               desc: "Relaxed mode — suggests changes only for big or unusual spikes.",

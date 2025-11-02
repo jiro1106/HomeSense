@@ -87,9 +87,9 @@ const RecoSummary = () => {
             <Text
               style={[
                 styles.savingsText,
-                savingsMode.toLowerCase() === "high"
+                savingsMode.toLowerCase() === "strict"
                   ? styles.high
-                  : savingsMode.toLowerCase() === "medium"
+                  : savingsMode.toLowerCase() === "balanced"
                   ? styles.medium
                   : styles.low,
               ]}

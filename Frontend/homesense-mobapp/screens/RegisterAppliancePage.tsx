@@ -332,8 +332,11 @@ const RegisterAppliancePage: React.FC<RegisterAppliancePageProps> = ({
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Select Smart Plug ID</Text>
+
             {loadingDevices ? (
               <ActivityIndicator size="large" color="#000" />
+            ) : availableDevices.length === 0 ? (
+              <Text style={styles.noDevicesText}>No smart plugs found!</Text>
             ) : (
               <FlatList
                 data={availableDevices}
@@ -347,6 +350,7 @@ const RegisterAppliancePage: React.FC<RegisterAppliancePageProps> = ({
                 }
               />
             )}
+
             <TouchableOpacity
               style={styles.closeButton}
               onPress={() => setShowDeviceModal(false)}

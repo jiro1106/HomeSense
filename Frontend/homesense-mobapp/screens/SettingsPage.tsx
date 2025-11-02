@@ -175,7 +175,7 @@ const SettingsPage = () => {
         />
         <SettingsItem
           icon="eco"
-          title="Saving Mode"
+          title="Savings Mode"
           onPress={() => navigation.navigate("SavingMode")}
         />
         <SettingsItem
