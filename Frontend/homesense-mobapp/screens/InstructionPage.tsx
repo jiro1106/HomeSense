@@ -96,9 +96,17 @@ const InstructionPage = () => {
           <View style={styles.stepContent}>
             <Text style={styles.stepTitle}>Step 3: View Your Usage</Text>
             <Text style={styles.stepText}>
-              Open the <Text style={styles.bold}>Dashboard</Text> to see your
-              live and historical energy use. Tap any appliance to view detailed
-              graphs about individual and total consumption.
+              Open the <Text style={styles.bold}>Appliance Records Page</Text>{" "}
+              to see your live and historical energy use. Tap any appliance to
+              view detailed graphs about individual and total consumption.
+            </Text>
+            <Text style={styles.stepText}>
+              To{" "}
+              <Text style={styles.bold}>
+                unregister or remove an appliance,
+              </Text>{" "}
+              choose an appliance and swipe left to delete them. You can
+              register them anytime you want!
             </Text>
           </View>
         </View>
