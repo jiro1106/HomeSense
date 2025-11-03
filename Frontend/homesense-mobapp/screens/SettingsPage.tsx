@@ -183,6 +183,11 @@ const SettingsPage = () => {
           title="Instructions"
           onPress={() => navigation.navigate("InstructionPage")}
         />
+        <SettingsItem
+          icon="info"
+          title="About"
+          onPress={() => navigation.navigate("AboutPage")}
+        />
         {/* Notifications */}
         <SettingsItem
           id="notifications-switch"

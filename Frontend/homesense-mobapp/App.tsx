@@ -18,6 +18,7 @@ import ElectricityProvider from "./screens/ElectricityProvider";
 import SavingMode from "./screens/SavingMode";
 import InstructionPage from "./screens/InstructionPage";
 import * as Notifications from "expo-notifications";
+import AboutPage from "./screens/AboutPage";
 
 export type RootStackParamList = {
   Landing: undefined;
@@ -33,6 +34,7 @@ export type RootStackParamList = {
   ElectricityProvider: undefined;
   SavingMode: undefined;
   InstructionPage: undefined;
+  AboutPage: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -112,6 +114,7 @@ export default function App() {
           />
           <Stack.Screen name="SavingMode" component={SavingMode} />
           <Stack.Screen name="InstructionPage" component={InstructionPage} />
+          <Stack.Screen name="AboutPage" component={AboutPage} />
         </Stack.Navigator>
       </NavigationContainer>
     </GestureHandlerRootView>
