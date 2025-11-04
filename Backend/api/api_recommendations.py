@@ -50,49 +50,49 @@ def generate_recommendations(appliances, mode):
     # Context-aware tips per appliance type
     appliance_tips = {
     "Air Conditioner": {
-        "high": "Try setting your AC to around 24 °C and limit use during 6–10 PM peak hours.",
-        "medium": "Use a fan together with your AC to cool faster and save energy.",
-        "low": "Great job! Your AC usage is already efficient, keep it up!"
+        "strict": "Try setting your AC to around 24 °C and limit use during 6–10 PM peak hours.",
+        "balanced": "Use a fan together with your AC to cool faster and save energy.",
+        "relaxed": "Great job! Your AC usage is already efficient, keep it up!"
     },
     "Refrigerator": {
-        "high": "Defrost regularly and avoid overpacking to help cooling efficiency.",
-        "medium": "Check the door seal and clean coils to reduce power use.",
-        "low": "Your fridge is running efficiently, maintain good spacing and temperature settings!"
+        "strict": "Defrost regularly and avoid overpacking to help cooling efficiency.",
+        "balanced": "Check the door seal and clean coils to reduce power use.",
+        "relaxed": "Your fridge is running efficiently, maintain good spacing and temperature settings!"
     },
     "Electric Fan": {
-        "high": "Turn off the fan when not in use to save energy.",
-        "medium": "Use your fan with an AC for faster cooling and shorter AC time.",
-        "low": "Good job managing your fan usage efficiently."
+        "strict": "Turn off the fan when not in use to save energy.",
+        "balanced": "Use your fan with an AC for faster cooling and shorter AC time.",
+        "relaxed": "Good job managing your fan usage efficiently."
     },
     "Washing Machine": {
-        "high": "Run full loads and avoid using it during peak hours.",
-        "medium": "Use the eco cycle and avoid washing small loads frequently.",
-        "low": "Efficient washing habits detected, great work!"
+        "strict": "Run full loads and avoid using it during peak hours.",
+        "balanced": "Use the eco cycle and avoid washing small loads frequently.",
+        "relaxed": "Efficient washing habits detected, great work!"
     },
     "Television": {
-        "high": "Turn off when not watching and lower brightness to save power.",
-        "medium": "Enable sleep mode or auto power-off when idle.",
-        "low": "Nice! Your TV power usage is already efficient."
+        "strict": "Turn off when not watching and lower brightness to save power.",
+        "balanced": "Enable sleep mode or auto power-off when idle.",
+        "relaxed": "Nice! Your TV power usage is already efficient."
     },
     "Microwave": {
-        "high": "Use only when needed and unplug when idle to save power.",
-        "medium": "Avoid reheating multiple times, plan cooking efficiently.",
-        "low": "Your microwave usage looks efficient, keep it up!"
+        "strict": "Use only when needed and unplug when idle to save power.",
+        "balanced": "Avoid reheating multiple times, plan cooking efficiently.",
+        "relaxed": "Your microwave usage looks efficient, keep it up!"
     },
     "Router/WiFi": {
-        "high": "Turn off your router when not in use or overnight to save energy.",
-        "medium": "Limit the number of connected devices during peak hours.",
-        "low": "Your router’s energy usage is already optimized, great job!"
+        "strict": "Turn off your router when not in use or overnight to save energy.",
+        "balanced": "Limit the number of connected devices during peak hours.",
+        "relaxed": "Your router’s energy usage is already optimized, great job!"
     },
     "Computer": {
-        "high": "Shut down or sleep your computer when not in use for long periods.",
-        "medium": "Try reducing screen brightness and close unused applications.",
-        "low": "Your computer power habits are efficient, keep doing what you’re doing!"
+        "strict": "Shut down or sleep your computer when not in use for long periods.",
+        "balanced": "Try reducing screen brightness and close unused applications.",
+        "relaxed": "Your computer power habits are efficient, keep doing what you’re doing!"
     },
     "Other": {
-        "high": "Turn off and unplug devices when not in use.",
-        "medium": "Avoid leaving devices on standby for long periods.",
-        "low": "Energy use looks efficient for this device, nice work!"
+        "strict": "Turn off and unplug devices when not in use.",
+        "balanced": "Avoid leaving devices on standby for long periods.",
+        "relaxed": "Energy use looks efficient for this device, nice work!"
     }
 }
 
