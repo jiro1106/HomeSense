@@ -22,6 +22,96 @@ import api from "../utils/api";
 import { Swipeable } from "react-native-gesture-handler";
 import { LineChart, BarChart } from "react-native-chart-kit";
 
+/**
+ * Format a date string to human-readable format
+ * @param dateString - Date in format "YYYY-MM-DD"
+ * @param format - "full" for "Nov 20, 2025", "month" for "Nov 2025"
+ * @returns Formatted date string
+ */
+const formatDate = (dateString: string, format: 'full' | 'month' = 'full'): string => {
+  if (!dateString) return 'N/A';
+  
+  try {
+    const date = new Date(dateString + 'T00:00:00Z');
+    
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    
+    const month = months[date.getUTCMonth()];
+    const year = date.getUTCFullYear();
+    
+    if (format === 'month') {
+      return `${month} ${year}`;
+    }
+    
+    const day = date.getUTCDate();
+    return `${month} ${day}, ${year}`;
+  } catch (error) {
+    return dateString;
+  }
+};
+
+/**
+ * Format a date range to human-readable format
+ * @param startDate - Start date in format "YYYY-MM-DD"
+ * @param endDate - End date in format "YYYY-MM-DD"
+ * @returns Formatted range like "Nov 8–14, 2025"
+ */
+const formatDateRange = (startDate: string, endDate: string): string => {
+  if (!startDate || !endDate) return 'N/A';
+  
+  try {
+    const start = new Date(startDate + 'T00:00:00Z');
+    const end = new Date(endDate + 'T00:00:00Z');
+    
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    
+    const startMonth = months[start.getUTCMonth()];
+    const endMonth = months[end.getUTCMonth()];
+    const startDay = start.getUTCDate();
+    const endDay = end.getUTCDate();
+    const year = start.getUTCFullYear();
+    
+    // Same month
+    if (start.getUTCMonth() === end.getUTCMonth()) {
+      return `${startMonth} ${startDay}–${endDay}, ${year}`;
+    }
+    
+    // Different months
+    return `${startMonth} ${startDay}–${endMonth} ${endDay}, ${year}`;
+  } catch (error) {
+    return `${startDate} to ${endDate}`;
+  }
+};
+
+/**
+ * Format month string from "YYYY-MM" to "Month Year"
+ * @param monthString - Month in format "YYYY-MM"
+ * @returns Formatted month like "Nov 2025"
+ */
+const formatMonth = (monthString: string): string => {
+  if (!monthString) return 'N/A';
+  
+  try {
+    const [year, month] = monthString.split('-');
+    const monthIndex = parseInt(month, 10) - 1;
+    
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    
+    return `${months[monthIndex]} ${year}`;
+  } catch (error) {
+    return monthString;
+  }
+};
+
 type ConsumptionPageNavProp = NativeStackNavigationProp<
   RootStackParamList,
   "ConsumptionPage"
@@ -428,14 +518,13 @@ const ConsumptionPage = () => {
           const endpoint = `/energy/daily/total?household_id=${household_id}`;
           const res = await api.get(endpoint);
           const formatted = [
-            {
-              label: res.data.date || "N/A",
-              usage:
-                typeof res.data.total_kwh === "number"
-                  ? `${res.data.total_kwh.toFixed(3)} kWh`
-                  : `${parseFloat(res.data.total_kwh || 0).toFixed(3)} kWh`,
-            },
-          ];
+  {
+    label: formatDate(res.data.date || "N/A", 'full'), // Changed
+    usage: typeof res.data.total_kwh === "number"
+      ? `${res.data.total_kwh.toFixed(3)} kWh`
+      : `${parseFloat(res.data.total_kwh || 0).toFixed(3)} kWh`,
+  },
+];
           setTotalsData(formatted);
           setLoading(false);
           return;
@@ -509,9 +598,9 @@ const ConsumptionPage = () => {
                 )}`;
 
                 return {
-                  label: `${weekStartDate} - ${weekEndDate}`,
-                  usage: `${weekTotal.toFixed(3)} kWh`,
-                };
+  label: formatDateRange(weekStartDate, weekEndDate), // Changed
+  usage: `${weekTotal.toFixed(3)} kWh`,
+};
               })
               .reverse(); // newest last for better trend reading
 
@@ -553,13 +642,13 @@ const ConsumptionPage = () => {
           const dataArr =
             res.data.data || (Array.isArray(res.data) ? res.data : [res.data]);
           const formatted = dataArr.map((d: any) => ({
-            label: d.month || d.date || "N/A",
-            usage: d.monthly_total_kwh
-              ? `${d.monthly_total_kwh.toFixed(3)} kWh`
-              : d.total_kwh
-              ? `${d.total_kwh.toFixed(3)} kWh`
-              : "0 kWh",
-          }));
+  label: formatMonth(d.month || d.date || "N/A"), // Changed
+  usage: d.monthly_total_kwh
+    ? `${d.monthly_total_kwh.toFixed(3)} kWh`
+    : d.total_kwh
+    ? `${d.total_kwh.toFixed(3)} kWh`
+    : "0 kWh",
+}));
           setTotalsData(formatted.reverse());
           setLoading(false);
           return;
@@ -669,11 +758,11 @@ const ConsumptionPage = () => {
             let weekKwh = 0;
 
             if (d.week_start) {
-              const weekRange = getWeekRange(d.week_start);
-              timeDisplay = `${weekRange.start} to ${weekRange.end}`;
-              week_start = weekRange.start;
-              week_end = weekRange.end;
-              timestamp = weekRange.start;
+  const weekRange = getWeekRange(d.week_start);
+  timeDisplay = formatDateRange(weekRange.start, weekRange.end); // Changed
+  week_start = weekRange.start;
+  week_end = weekRange.end;
+  timestamp = weekRange.start;
 
               // Recalculate total for the calendar week range
               const startDay = parseInt(
@@ -702,7 +791,11 @@ const ConsumptionPage = () => {
                     : parseFloat(String(d.total_kwh || d.kwh || 0)) || 0;
               }
             } else {
-              timeDisplay = d.date || d.month || "N/A";
+              if (d.week_start && d.week_end) {
+  timeDisplay = formatDateRange(d.week_start, d.week_end);
+} else {
+  timeDisplay = d.date ? formatDate(d.date, "full") : "N/A";
+}
               timestamp = d.date || d.month || "";
               weekKwh =
                 typeof d.total_kwh === "number"
@@ -737,9 +830,18 @@ const ConsumptionPage = () => {
             let week_end = "";
             let timestamp = "";
 
-            // For Daily and Monthly ranges
-            timeDisplay = d.date || d.week_start || d.month || "N/A";
-            timestamp = d.date || d.week_start || d.month || "";
+            if (selectedRange === "Daily") {
+  timeDisplay = formatDate(d.date, "full");
+} else if (selectedRange === "Monthly") {
+  timeDisplay = formatMonth(d.month);
+} else if (selectedRange === "Weekly" && d.week_start && d.week_end) {
+  timeDisplay = formatDateRange(d.week_start, d.week_end);
+} else {
+  timeDisplay = "N/A";
+}
+
+timestamp = d.date || d.month || "";
+
 
             allData.push({
               device_id: appliance.device_id,
@@ -915,23 +1017,19 @@ const ConsumptionPage = () => {
         return isNaN(value) ? 0 : parseFloat(value.toFixed(2));
       });
 
-      labels = totalsData.map((item) => {
-        if (selectedRange === "Weekly") {
-          const parts = item.label.split(" - "); // split start and end
-          if (parts.length === 2) {
-            const start = new Date(parts[0]);
-            const end = new Date(parts[1]);
-            if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
-              // Format as MM/DD–DD
-              const startStr = `${start.getMonth() + 1}/${start.getDate()}`;
-              const endStr = `${end.getDate()}`; // only day for end
-              return `${startStr}–${endStr}`;
-            }
-          }
-        }
-        // Fallback for daily/monthly or invalid format
-        return item.label;
-      });
+     labels = totalsData.map((item) => {
+  if (selectedRange === "Weekly") {
+    const parts = item.label.split("–"); // Note: using en dash character
+    if (parts.length === 2) {
+      // Already formatted by formatDateRange, extract short version
+      const match = item.label.match(/(\w+)\s+(\d+)–(\d+)/);
+      if (match) {
+        return `${match[1]} ${match[2]}–${match[3]}`; // e.g., "Nov 8–14"
+      }
+    }
+  }
+  return item.label;
+});
 
       // Handle case when totalsData is empty
       if (totalsData.length === 0) {
@@ -1518,12 +1616,14 @@ const ConsumptionPage = () => {
               </Text>
             )}
             <Text style={{ fontSize: 12, color: "#000" }}>
-              {selectedRange === "Weekly" &&
-              selectedDataPoint.week_start &&
-              selectedDataPoint.week_end
-                ? `Week: ${selectedDataPoint.week_start} to ${selectedDataPoint.week_end}`
-                : `Date: ${selectedDataPoint.time}`}
-            </Text>
+  {selectedRange === "Weekly" &&
+  selectedDataPoint.week_start &&
+  selectedDataPoint.week_end
+    ? `Week: ${formatDateRange(selectedDataPoint.week_start, selectedDataPoint.week_end)}`
+    : selectedRange === "Monthly"
+    ? `Month: ${selectedDataPoint.time}`
+    : `Date: ${selectedDataPoint.time}`}
+</Text>
             <Text style={{ fontSize: 12, color: "#000" }}>
               Location: {selectedDataPoint.location}
             </Text>
