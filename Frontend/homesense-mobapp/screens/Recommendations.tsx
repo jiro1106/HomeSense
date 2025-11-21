@@ -92,6 +92,10 @@ const Recommendations = () => {
   const [selectedFilter, setSelectedFilter] = useState<
     "all" | "high" | "quick"
   >("all");
+  const [applianceMonthlyDiscrepancies, setApplianceMonthlyDiscrepancies] =
+    useState<
+      Record<string, { current: number; previous: number; diffPercent: number }>
+    >({});
 
   // ====== Helper Functions ======
   const filterRecommendations = (
@@ -122,6 +126,40 @@ const Recommendations = () => {
     });
 
     return filtered;
+  };
+
+  const fetchMonthlyDiscrepancies = async (
+    household_id: string,
+    appliancesList: any[]
+  ) => {
+    const results: Record<string, any> = {};
+
+    for (const ap of appliancesList) {
+      const deviceName = ap.device_id; // DEVICE ID is used in your endpoint
+      const apiPath = `/energy/monthly/${deviceName}?household_id=${household_id}&limit=2`;
+
+      try {
+        const res = await api.get(apiPath);
+        const months = res.data?.data || [];
+
+        if (months.length < 2) continue; // Not enough data
+
+        const prev = months[0].total_kwh;
+        const curr = months[1].total_kwh;
+
+        const diffPercent = prev !== 0 ? ((curr - prev) / prev) * 100 : 0;
+
+        results[ap.appliance_name] = {
+          previous: prev,
+          current: curr,
+          diffPercent,
+        };
+      } catch (err) {
+        console.log(`❌ Error getting monthly for: ${deviceName}`, err);
+      }
+    }
+
+    setApplianceMonthlyDiscrepancies(results);
   };
 
   // Effect
@@ -187,6 +225,20 @@ const Recommendations = () => {
             return acc;
           },
           {}
+        );
+
+        // Fetch all registered appliances
+        const apListRes = await api.get(
+          `/appliances?household_id=${household_id}`
+        );
+        const appliancesList = apListRes.data.appliances || [];
+
+        // Fetch appliance-level monthly discrepancies
+        await fetchMonthlyDiscrepancies(household_id, appliancesList);
+
+        console.log(
+          "📊 Monthly appliance discrepancies:",
+          applianceMonthlyDiscrepancies
         );
 
         setGroupedRecommendations(grouped);
@@ -390,6 +442,7 @@ const Recommendations = () => {
             <EnergyAnalysis
               weeklyComparison={weeklyComparison}
               monthlyComparison={monthlyComparison}
+              applianceMonthlyDiscrepancies={applianceMonthlyDiscrepancies}
             />
           </View>
 
