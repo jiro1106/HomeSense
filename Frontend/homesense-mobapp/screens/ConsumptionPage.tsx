@@ -28,24 +28,37 @@ import { LineChart, BarChart } from "react-native-chart-kit";
  * @param format - "full" for "Nov 20, 2025", "month" for "Nov 2025"
  * @returns Formatted date string
  */
-const formatDate = (dateString: string, format: 'full' | 'month' = 'full'): string => {
-  if (!dateString) return 'N/A';
-  
+const formatDate = (
+  dateString: string,
+  format: "full" | "month" = "full"
+): string => {
+  if (!dateString) return "N/A";
+
   try {
-    const date = new Date(dateString + 'T00:00:00Z');
-    
+    const date = new Date(dateString + "T00:00:00Z");
+
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec",
     ];
-    
+
     const month = months[date.getUTCMonth()];
     const year = date.getUTCFullYear();
-    
-    if (format === 'month') {
+
+    if (format === "month") {
       return `${month} ${year}`;
     }
-    
+
     const day = date.getUTCDate();
     return `${month} ${day}, ${year}`;
   } catch (error) {
@@ -60,28 +73,38 @@ const formatDate = (dateString: string, format: 'full' | 'month' = 'full'): stri
  * @returns Formatted range like "Nov 8–14, 2025"
  */
 const formatDateRange = (startDate: string, endDate: string): string => {
-  if (!startDate || !endDate) return 'N/A';
-  
+  if (!startDate || !endDate) return "N/A";
+
   try {
-    const start = new Date(startDate + 'T00:00:00Z');
-    const end = new Date(endDate + 'T00:00:00Z');
-    
+    const start = new Date(startDate + "T00:00:00Z");
+    const end = new Date(endDate + "T00:00:00Z");
+
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec",
     ];
-    
+
     const startMonth = months[start.getUTCMonth()];
     const endMonth = months[end.getUTCMonth()];
     const startDay = start.getUTCDate();
     const endDay = end.getUTCDate();
     const year = start.getUTCFullYear();
-    
+
     // Same month
     if (start.getUTCMonth() === end.getUTCMonth()) {
       return `${startMonth} ${startDay}–${endDay}, ${year}`;
     }
-    
+
     // Different months
     return `${startMonth} ${startDay}–${endMonth} ${endDay}, ${year}`;
   } catch (error) {
@@ -95,17 +118,27 @@ const formatDateRange = (startDate: string, endDate: string): string => {
  * @returns Formatted month like "Nov 2025"
  */
 const formatMonth = (monthString: string): string => {
-  if (!monthString) return 'N/A';
-  
+  if (!monthString) return "N/A";
+
   try {
-    const [year, month] = monthString.split('-');
+    const [year, month] = monthString.split("-");
     const monthIndex = parseInt(month, 10) - 1;
-    
+
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec",
     ];
-    
+
     return `${months[monthIndex]} ${year}`;
   } catch (error) {
     return monthString;
@@ -187,7 +220,9 @@ const ConsumptionPage = () => {
   } | null>(null);
 
   const [monthDropdownVisible, setMonthDropdownVisible] = useState(false);
-  const [selectedMonthLabel, setSelectedMonthLabel] = useState<string | null>(null);
+  const [selectedMonthLabel, setSelectedMonthLabel] = useState<string | null>(
+    null
+  );
 
   // Total usage state
   const [totalUsage, setTotalUsage] = useState<string>("0 kWh");
@@ -404,7 +439,7 @@ const ConsumptionPage = () => {
         } else if (selectedRange === "Weekly") {
           endpoint = `/energy/weekly/total?household_id=${household_id}&limit=1`;
         } else if (selectedRange === "Monthly") {
-          endpoint = `/energy/monthly/total?household_id=${household_id}&limit=1`;
+          endpoint = `/energy/monthly/total?household_id=${household_id}`;
         }
       } else if (filterType === "household") {
         if (selectedRange === "Daily") {
@@ -421,7 +456,7 @@ const ConsumptionPage = () => {
         } else if (selectedRange === "Weekly") {
           endpoint = `/energy/weekly/${selectedAppliance.device_id}?household_id=${household_id}&limit=1`;
         } else if (selectedRange === "Monthly") {
-          endpoint = `/energy/monthly/${selectedAppliance.device_id}?household_id=${household_id}&limit=1`;
+          endpoint = `/energy/monthly/${selectedAppliance.device_id}?household_id=${household_id}`;
         }
       }
       if (endpoint) {
@@ -447,13 +482,23 @@ const ConsumptionPage = () => {
                   : parseFloat(data[0].weekly_total_kwh) || 0;
             }
           } else if (selectedRange === "Monthly") {
-            // Response: { data: [{ month, monthly_total_kwh }] }
             const data = res.data.data || [];
-            if (data.length > 0) {
+
+            let entry = null;
+
+            if (selectedMonthLabel) {
+              entry = data.find(
+                (d: any) => formatMonth(d.month) === selectedMonthLabel
+              );
+            } else {
+              entry = data[data.length - 1]; // latest month
+            }
+
+            if (entry) {
               total =
-                typeof data[0].monthly_total_kwh === "number"
-                  ? data[0].monthly_total_kwh
-                  : parseFloat(data[0].monthly_total_kwh) || 0;
+                typeof entry.monthly_total_kwh === "number"
+                  ? entry.monthly_total_kwh
+                  : parseFloat(entry.monthly_total_kwh) || 0;
             }
           }
         } else if (filterType === "household") {
@@ -474,14 +519,37 @@ const ConsumptionPage = () => {
                   : parseFloat(data[0].weekly_total_kwh) || 0;
             }
           } else if (selectedRange === "Monthly") {
-            // Response: { data: [{ month, monthly_total_kwh }] }
+            // Fetch ALL monthly totals (no limit)
+            const res = await api.get(
+              `/energy/monthly/total?household_id=${household_id}`
+            );
             const data = res.data.data || [];
-            if (data.length > 0) {
-              total =
-                typeof data[0].monthly_total_kwh === "number"
-                  ? data[0].monthly_total_kwh
-                  : parseFloat(data[0].monthly_total_kwh) || 0;
+
+            let entry = null;
+
+            // If user selected a specific month → filter to that month
+            if (selectedMonthLabel) {
+              entry = data.find(
+                (d: any) => formatMonth(d.month) === selectedMonthLabel
+              );
+            } else {
+              // No specific month chosen → show latest month
+              entry = data[data.length - 1];
             }
+
+            if (entry) {
+              const value =
+                typeof entry.monthly_total_kwh === "number"
+                  ? entry.monthly_total_kwh
+                  : parseFloat(entry.monthly_total_kwh) || 0;
+
+              setTotalUsage(`${value.toFixed(6)} kWh`);
+            } else {
+              setTotalUsage("0 kWh");
+            }
+
+            setLoadingTotal(false);
+            return;
           }
         } else {
           // Individual appliance
@@ -495,13 +563,23 @@ const ConsumptionPage = () => {
             selectedRange === "Weekly" ||
             selectedRange === "Monthly"
           ) {
-            // Response: { data: [{ total_kwh }] }
             const data = res.data.data || [];
-            if (data.length > 0) {
+
+            let entry = null;
+
+            if (selectedRange === "Monthly" && selectedMonthLabel) {
+              entry = data.find(
+                (d: any) => formatMonth(d.month) === selectedMonthLabel
+              );
+            } else {
+              entry = data[0];
+            }
+
+            if (entry) {
               total =
-                typeof data[0].total_kwh === "number"
-                  ? data[0].total_kwh
-                  : parseFloat(data[0].total_kwh) || 0;
+                typeof entry.total_kwh === "number"
+                  ? entry.total_kwh
+                  : parseFloat(entry.total_kwh) || 0;
             }
           }
         }
@@ -534,13 +612,14 @@ const ConsumptionPage = () => {
           const endpoint = `/energy/daily/total?household_id=${household_id}`;
           const res = await api.get(endpoint);
           const formatted = [
-  {
-    label: formatDate(res.data.date || "N/A", 'full'), // Changed
-    usage: typeof res.data.total_kwh === "number"
-      ? `${res.data.total_kwh.toFixed(3)} kWh`
-      : `${parseFloat(res.data.total_kwh || 0).toFixed(3)} kWh`,
-  },
-];
+            {
+              label: formatDate(res.data.date || "N/A", "full"), // Changed
+              usage:
+                typeof res.data.total_kwh === "number"
+                  ? `${res.data.total_kwh.toFixed(3)} kWh`
+                  : `${parseFloat(res.data.total_kwh || 0).toFixed(3)} kWh`,
+            },
+          ];
           setTotalsData(formatted);
           setLoading(false);
           return;
@@ -614,9 +693,9 @@ const ConsumptionPage = () => {
                 )}`;
 
                 return {
-  label: formatDateRange(weekStartDate, weekEndDate), // Changed
-  usage: `${weekTotal.toFixed(3)} kWh`,
-};
+                  label: formatDateRange(weekStartDate, weekEndDate), // Changed
+                  usage: `${weekTotal.toFixed(3)} kWh`,
+                };
               })
               .reverse(); // newest last for better trend reading
 
@@ -658,13 +737,13 @@ const ConsumptionPage = () => {
           const dataArr =
             res.data.data || (Array.isArray(res.data) ? res.data : [res.data]);
           const formatted = dataArr.map((d: any) => ({
-  label: formatMonth(d.month || d.date || "N/A"), // Changed
-  usage: d.monthly_total_kwh
-    ? `${d.monthly_total_kwh.toFixed(3)} kWh`
-    : d.total_kwh
-    ? `${d.total_kwh.toFixed(3)} kWh`
-    : "0 kWh",
-}));
+            label: formatMonth(d.month || d.date || "N/A"), // Changed
+            usage: d.monthly_total_kwh
+              ? `${d.monthly_total_kwh.toFixed(3)} kWh`
+              : d.total_kwh
+              ? `${d.total_kwh.toFixed(3)} kWh`
+              : "0 kWh",
+          }));
           setTotalsData(formatted.reverse());
           setLoading(false);
           return;
@@ -774,11 +853,11 @@ const ConsumptionPage = () => {
             let weekKwh = 0;
 
             if (d.week_start) {
-  const weekRange = getWeekRange(d.week_start);
-  timeDisplay = formatDateRange(weekRange.start, weekRange.end); // Changed
-  week_start = weekRange.start;
-  week_end = weekRange.end;
-  timestamp = weekRange.start;
+              const weekRange = getWeekRange(d.week_start);
+              timeDisplay = formatDateRange(weekRange.start, weekRange.end); // Changed
+              week_start = weekRange.start;
+              week_end = weekRange.end;
+              timestamp = weekRange.start;
 
               // Recalculate total for the calendar week range
               const startDay = parseInt(
@@ -808,10 +887,10 @@ const ConsumptionPage = () => {
               }
             } else {
               if (d.week_start && d.week_end) {
-  timeDisplay = formatDateRange(d.week_start, d.week_end);
-} else {
-  timeDisplay = d.date ? formatDate(d.date, "full") : "N/A";
-}
+                timeDisplay = formatDateRange(d.week_start, d.week_end);
+              } else {
+                timeDisplay = d.date ? formatDate(d.date, "full") : "N/A";
+              }
               timestamp = d.date || d.month || "";
               weekKwh =
                 typeof d.total_kwh === "number"
@@ -847,17 +926,20 @@ const ConsumptionPage = () => {
             let timestamp = "";
 
             if (selectedRange === "Daily") {
-  timeDisplay = formatDate(d.date, "full");
-} else if (selectedRange === "Monthly") {
-  timeDisplay = formatMonth(d.month);
-} else if (selectedRange === "Weekly" && d.week_start && d.week_end) {
-  timeDisplay = formatDateRange(d.week_start, d.week_end);
-} else {
-  timeDisplay = "N/A";
-}
+              timeDisplay = formatDate(d.date, "full");
+            } else if (selectedRange === "Monthly") {
+              timeDisplay = formatMonth(d.month);
+            } else if (
+              selectedRange === "Weekly" &&
+              d.week_start &&
+              d.week_end
+            ) {
+              timeDisplay = formatDateRange(d.week_start, d.week_end);
+            } else {
+              timeDisplay = "N/A";
+            }
 
-timestamp = d.date || d.month || "";
-
+            timestamp = d.date || d.month || "";
 
             allData.push({
               device_id: appliance.device_id,
@@ -968,6 +1050,7 @@ timestamp = d.date || d.month || "";
     filterType,
     selectedAppliance,
     selectedRange,
+    selectedMonthLabel,
     registeredAppliances,
     sortBy,
   ]);
@@ -1392,7 +1475,10 @@ timestamp = d.date || d.month || "";
           </View>
           {selectedRange === "Monthly" && (
             <TouchableOpacity
-              style={[styles.dropdownButton, { minWidth: 140, marginTop: 8, alignSelf: "flex-end" }]}
+              style={[
+                styles.dropdownButton,
+                { minWidth: 140, marginTop: 8, alignSelf: "flex-end" },
+              ]}
               onPress={() => setMonthDropdownVisible(true)}
             >
               <Text style={styles.dropdownText}>
@@ -1441,7 +1527,6 @@ timestamp = d.date || d.month || "";
           </View>
         </View>
       </Modal>
-
 
       {/* Filter Modal */}
       <Modal visible={filterVisible} transparent animationType="fade">
@@ -1711,14 +1796,17 @@ timestamp = d.date || d.month || "";
               </Text>
             )}
             <Text style={{ fontSize: 12, color: "#000" }}>
-  {selectedRange === "Weekly" &&
-  selectedDataPoint.week_start &&
-  selectedDataPoint.week_end
-    ? `Week: ${formatDateRange(selectedDataPoint.week_start, selectedDataPoint.week_end)}`
-    : selectedRange === "Monthly"
-    ? `Month: ${selectedDataPoint.time}`
-    : `Date: ${selectedDataPoint.time}`}
-</Text>
+              {selectedRange === "Weekly" &&
+              selectedDataPoint.week_start &&
+              selectedDataPoint.week_end
+                ? `Week: ${formatDateRange(
+                    selectedDataPoint.week_start,
+                    selectedDataPoint.week_end
+                  )}`
+                : selectedRange === "Monthly"
+                ? `Month: ${selectedDataPoint.time}`
+                : `Date: ${selectedDataPoint.time}`}
+            </Text>
             <Text style={{ fontSize: 12, color: "#000" }}>
               Location: {selectedDataPoint.location}
             </Text>
@@ -1989,4 +2077,3 @@ timestamp = d.date || d.month || "";
 };
 
 export default ConsumptionPage;
-
