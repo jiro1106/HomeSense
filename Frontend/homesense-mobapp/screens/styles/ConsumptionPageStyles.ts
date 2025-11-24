@@ -66,9 +66,10 @@ export const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "#444",
     paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingVertical: 7,
     borderRadius: 8,
-    width: "22%",
+    marginHorizontal: 4,
+    flexShrink: 0,
   },
   toggleText: {
     color: "#fff",
@@ -82,6 +83,11 @@ export const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 4,
+    marginLeft: 6,
+  },
+  rightControls: {
+    flexDirection: "column",
+    alignItems: "flex-end",
   },
   content: {
     flex: 1,

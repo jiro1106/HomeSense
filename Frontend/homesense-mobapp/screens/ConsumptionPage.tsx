@@ -186,6 +186,9 @@ const ConsumptionPage = () => {
     week_end?: string;
   } | null>(null);
 
+  const [monthDropdownVisible, setMonthDropdownVisible] = useState(false);
+  const [selectedMonthLabel, setSelectedMonthLabel] = useState<string | null>(null);
+
   // Total usage state
   const [totalUsage, setTotalUsage] = useState<string>("0 kWh");
   const [loadingTotal, setLoadingTotal] = useState(false);
@@ -226,6 +229,19 @@ const ConsumptionPage = () => {
       start: format(start),
       end: format(end),
     };
+  };
+
+  const getAvailableMonthLabels = (): string[] => {
+    if (selectedRange !== "Monthly") return [];
+    if (filterType === "household") {
+      const labels = totalsData.map((t) => t.label).filter(Boolean);
+      return Array.from(new Set(labels));
+    }
+    const labels = appliances
+      .filter((a) => a.time)
+      .map((a) => a.time)
+      .filter(Boolean);
+    return Array.from(new Set(labels));
   };
 
   // Sort appliances data
@@ -956,6 +972,12 @@ timestamp = d.date || d.month || "";
     sortBy,
   ]);
 
+  useEffect(() => {
+    if (selectedRange !== "Monthly") {
+      setSelectedMonthLabel(null);
+    }
+  }, [selectedRange]);
+
   const renderRightActions = (device_id: string) => (
     <TouchableOpacity
       style={{
@@ -975,18 +997,25 @@ timestamp = d.date || d.month || "";
   // Chart data and handlers
   const handleChartItemPress = (index: number) => {
     if (filterType === "household") {
-      const total = totalsData[index];
+      const filteredTotals =
+        selectedRange === "Monthly" && selectedMonthLabel
+          ? totalsData.filter((t) => t.label === selectedMonthLabel)
+          : totalsData;
+      const total = filteredTotals[index];
       if (total) {
         setSelectedDataPoint({
-          time: total.label, // use label for household
+          time: total.label,
           usage: total.usage,
           name: "Household Total",
-          location: "n/a", // optional, can show "Total" or leave blank
-          // Remove appliance-specific fields like location, week_start, etc.
+          location: "n/a",
         });
       }
     } else {
-      const appliance = appliances[index];
+      const filteredAppliances =
+        selectedRange === "Monthly" && selectedMonthLabel
+          ? appliances.filter((a) => a.time === selectedMonthLabel)
+          : appliances;
+      const appliance = filteredAppliances[index];
       if (appliance) {
         setSelectedDataPoint({
           time: appliance.time,
@@ -1011,40 +1040,48 @@ timestamp = d.date || d.month || "";
     let labels: string[] = [];
 
     if (filterType === "household") {
-      // 🏠 Household total logic using totalsData
-      usageData = totalsData.map((item) => {
+      // Household total logic using totalsData
+      const filteredTotals =
+        selectedRange === "Monthly" && selectedMonthLabel
+          ? totalsData.filter((t) => t.label === selectedMonthLabel)
+          : totalsData;
+      usageData = filteredTotals.map((item) => {
         const value = parseFloat(item.usage.replace(" kWh", ""));
         return isNaN(value) ? 0 : parseFloat(value.toFixed(2));
       });
 
-     labels = totalsData.map((item) => {
-  if (selectedRange === "Weekly") {
-    const parts = item.label.split("–"); // Note: using en dash character
-    if (parts.length === 2) {
-      // Already formatted by formatDateRange, extract short version
-      const match = item.label.match(/(\w+)\s+(\d+)–(\d+)/);
-      if (match) {
-        return `${match[1]} ${match[2]}–${match[3]}`; // e.g., "Nov 8–14"
-      }
-    }
-  }
-  return item.label;
-});
+      labels = filteredTotals.map((item) => {
+        if (selectedRange === "Weekly") {
+          const parts = item.label.split("–"); // Note: using en dash character
+          if (parts.length === 2) {
+            // Already formatted by formatDateRange, extract short version
+            const match = item.label.match(/(\w+)\s+(\d+)–(\d+)/);
+            if (match) {
+              return `${match[1]} ${match[2]}–${match[3]}`; // e.g., "Nov 8–14"
+            }
+          }
+        }
+        return item.label;
+      });
 
       // Handle case when totalsData is empty
-      if (totalsData.length === 0) {
+      if (filteredTotals.length === 0) {
         usageData = [0];
         labels = ["No Data"];
       }
     } else {
-      // 🔹 Keep your original appliances logic for non-household filters
-      usageData = appliances.map((item) => {
+      // Keep your original appliances logic for non-household filters
+      const filteredAppliances =
+        selectedRange === "Monthly" && selectedMonthLabel
+          ? appliances.filter((a) => a.time === selectedMonthLabel)
+          : appliances;
+      usageData = filteredAppliances.map((item) => {
         const usageValue = parseFloat(item.usage.replace(" kWh", ""));
         const safeValue = isNaN(usageValue) ? 0 : usageValue;
         return parseFloat(safeValue.toFixed(2));
       });
 
-      labels = appliances.map((item) =>
+      labels = filteredAppliances.map((item) =>
         filterType === "all"
           ? item.name.length > 8
             ? item.name.slice(0, 8) + "…"
@@ -1055,7 +1092,7 @@ timestamp = d.date || d.month || "";
       );
 
       // Handle case when appliances is empty
-      if (appliances.length === 0) {
+      if (filteredAppliances.length === 0) {
         usageData = [0];
         labels = ["No Data"];
       }
@@ -1300,56 +1337,71 @@ timestamp = d.date || d.month || "";
           </View>
         </View>
 
-        <TouchableOpacity
-          style={[
-            styles.toggleButton,
-            { backgroundColor: viewType === "table" ? "#000" : "#f1f1f1" },
-          ]}
-          onPress={() => setViewType("table")}
-        >
-          <Icon
-            name="table-chart"
-            size={22}
-            color={viewType === "table" ? "#fff" : "#000"}
-          />
-          <Text
-            style={[
-              styles.toggleText,
-              { color: viewType === "table" ? "#fff" : "#000" },
-            ]}
-          >
-            Table
-          </Text>
-        </TouchableOpacity>
+        <View style={styles.rightControls}>
+          <View style={{ flexDirection: "row", alignItems: "center" }}>
+            <TouchableOpacity
+              style={[
+                styles.toggleButton,
+                { backgroundColor: viewType === "table" ? "#000" : "#f1f1f1" },
+              ]}
+              onPress={() => setViewType("table")}
+            >
+              <Icon
+                name="table-chart"
+                size={22}
+                color={viewType === "table" ? "#fff" : "#000"}
+              />
+              <Text
+                style={[
+                  styles.toggleText,
+                  { color: viewType === "table" ? "#fff" : "#000" },
+                ]}
+              >
+                Table
+              </Text>
+            </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[
-            styles.toggleButton,
-            { backgroundColor: viewType === "chart" ? "#000" : "#f1f1f1" },
-          ]}
-          onPress={() => setViewType("chart")}
-        >
-          <Icon
-            name="bar-chart"
-            size={22}
-            color={viewType === "chart" ? "#fff" : "#000"}
-          />
-          <Text
-            style={[
-              styles.toggleText,
-              { color: viewType === "chart" ? "#fff" : "#000" },
-            ]}
-          >
-            Chart
-          </Text>
-        </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.toggleButton,
+                { backgroundColor: viewType === "chart" ? "#000" : "#f1f1f1" },
+              ]}
+              onPress={() => setViewType("chart")}
+            >
+              <Icon
+                name="bar-chart"
+                size={22}
+                color={viewType === "chart" ? "#fff" : "#000"}
+              />
+              <Text
+                style={[
+                  styles.toggleText,
+                  { color: viewType === "chart" ? "#fff" : "#000" },
+                ]}
+              >
+                Chart
+              </Text>
+            </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.filterButton}
-          onPress={() => setFilterVisible(true)}
-        >
-          <Icon name="filter-list" size={17} color="#000" />
-        </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.filterButton}
+              onPress={() => setFilterVisible(true)}
+            >
+              <Icon name="filter-list" size={17} color="#000" />
+            </TouchableOpacity>
+          </View>
+          {selectedRange === "Monthly" && (
+            <TouchableOpacity
+              style={[styles.dropdownButton, { minWidth: 140, marginTop: 8, alignSelf: "flex-end" }]}
+              onPress={() => setMonthDropdownVisible(true)}
+            >
+              <Text style={styles.dropdownText}>
+                {selectedMonthLabel || "All Months"}
+              </Text>
+              <Icon name="arrow-drop-down" size={22} color="#000" />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       {/* Time Range Dropdown Modal */}
@@ -1389,6 +1441,7 @@ timestamp = d.date || d.month || "";
           </View>
         </View>
       </Modal>
+
 
       {/* Filter Modal */}
       <Modal visible={filterVisible} transparent animationType="fade">
@@ -1524,6 +1577,48 @@ timestamp = d.date || d.month || "";
                   <Text style={{ fontSize: 16, color: "#000" }}>
                     Sort by {item}
                   </Text>
+                </TouchableOpacity>
+              )}
+            />
+          </View>
+        </View>
+      </Modal>
+
+      {/* Month Dropdown Modal (Monthly chart filter) */}
+      <Modal visible={monthDropdownVisible} transparent animationType="fade">
+        <View style={{ flex: 1 }}>
+          <TouchableOpacity
+            style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.3)" }}
+            onPress={() => setMonthDropdownVisible(false)}
+          />
+          <View
+            style={{
+              position: "absolute",
+              top: 180,
+              left: 30,
+              right: 30,
+              backgroundColor: "#fff",
+              borderRadius: 10,
+              paddingVertical: 10,
+              elevation: 5,
+            }}
+          >
+            <FlatList
+              data={["All Months", ...getAvailableMonthLabels()]}
+              keyExtractor={(item, idx) => `${item}-${idx}`}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={{ padding: 12 }}
+                  onPress={() => {
+                    if (item === "All Months") {
+                      setSelectedMonthLabel(null);
+                    } else {
+                      setSelectedMonthLabel(item);
+                    }
+                    setMonthDropdownVisible(false);
+                  }}
+                >
+                  <Text style={{ fontSize: 16, color: "#000" }}>{item}</Text>
                 </TouchableOpacity>
               )}
             />
@@ -1668,7 +1763,10 @@ timestamp = d.date || d.month || "";
                 </Text>
               </View>
 
-              {totalsData.map((item, index) => {
+              {(selectedRange === "Monthly" && selectedMonthLabel
+                ? totalsData.filter((t) => t.label === selectedMonthLabel)
+                : totalsData
+              ).map((item, index) => {
                 return (
                   <View
                     key={index}
@@ -1746,7 +1844,11 @@ timestamp = d.date || d.month || "";
                 </Text>
               </View>
 
-              {sortAppliancesData(appliances).map((item, index) => (
+              {sortAppliancesData(
+                selectedRange === "Monthly" && selectedMonthLabel
+                  ? appliances.filter((a) => a.time === selectedMonthLabel)
+                  : appliances
+              ).map((item, index) => (
                 <Swipeable
                   key={index}
                   renderRightActions={() => renderRightActions(item.device_id)}
@@ -1887,3 +1989,4 @@ timestamp = d.date || d.month || "";
 };
 
 export default ConsumptionPage;
+
