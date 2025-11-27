@@ -164,6 +164,28 @@ const InstructionPage = () => {
           </View>
         </View>
 
+        {/* Maximize HomeSense Header */}
+        <View style={[styles.contentHeader, { marginTop: 32, marginBottom: 16 }]}>
+          <Icon name="star" size={28} color="#FFD700" />
+          <Text style={styles.contentTitle}>How to Maximize HomeSense</Text>
+        </View>
+
+        {/* Step 7 */}
+        <View style={styles.stepCard}>
+          <Icon name="insights" size={32} color="#FFD700" style={styles.icon} />
+          <View style={[styles.stepContent, { paddingRight: 15 }]}>
+            <Text style={styles.stepTitle}>
+              Monitor Your Usage Regularly
+            </Text>
+            <Text style={styles.stepText}>
+              Apply smart plugs to your appliances that you think consume the most energy. In that way, you can track their usage and make informed decisions about your energy consumption habits with the help of recommendations from the app.
+            </Text>
+            <Text style={styles.stepText}>
+              Use the <Text style={styles.bold}>HomeSense</Text> features to track and be aware of your energy consumption habits to prevent bill shock or lower your electricity bill.
+            </Text>
+          </View>
+        </View>
+
         {/* Done Section */}
         <View style={styles.footer}>
           <Icon name="check-circle" size={36} color="#2E7D32" />

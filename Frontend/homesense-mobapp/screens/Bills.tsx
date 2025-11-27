@@ -57,6 +57,26 @@ const months = [
   "December",
 ];
 
+const monthsShort = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
+
+// Helper function to format date as "Nov 1" (without year)
+const formatDateShort = (month: number, day: number): string => {
+  return `${monthsShort[month]} ${day}`;
+};
+
 const screenWidth = Dimensions.get("window").width;
 
 type ViewType = "table" | "chart";
@@ -110,6 +130,7 @@ const Bills = () => {
   const [breakdownItems, setBreakdownItems] = useState<BreakdownItem[]>([]);
   const [hasFetchedData, setHasFetchedData] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [calculationModalVisible, setCalculationModalVisible] = useState(false);
 
   const computeTotal = (items: WeeklyRow[]) => {
     const sumBill = items.reduce((acc, r) => {
@@ -147,9 +168,9 @@ const Bills = () => {
 
       // Map provider -> rate locally (source of truth = backend provider)
       if (backendProvider === "MERALCO") {
-        setRatePerKwh(7.6962);
+        setRatePerKwh(7.6962);//(7.6962)
       } else {
-        setRatePerKwh(5.3874);
+        setRatePerKwh(5.3874);//(5.3874)
       }
     } catch (error: any) {
       // If backend says not found or any error, fallback to defaults
@@ -725,7 +746,7 @@ const Bills = () => {
 
       // observed days
       for (let d = wb.start; d <= observedEndDay; d++) {
-        const dateStr = `${year}-${pad2(monthIdx + 1)}-${pad2(d)}`;
+        const dateStr = formatDateShort(monthIdx, d);
         const kwhVal = dayToKwh[d] || 0;
         totalObservedKwh += kwhVal;
         items.push({
@@ -745,9 +766,7 @@ const Bills = () => {
         if (missingDays > 0 && extrapolatedTotal > 0) {
           const startRange = Math.max(wb.start, observedEndDay + 1);
           const endRange = wb.end;
-          const rangeLabel = `${year}-${pad2(monthIdx + 1)}-${pad2(
-            startRange
-          )} to ${year}-${pad2(monthIdx + 1)}-${pad2(endRange)} (Estimated)`;
+          const rangeLabel = `${formatDateShort(monthIdx, startRange)} to ${formatDateShort(monthIdx, endRange)} (Estimated)`;
           items.push({
             label: rangeLabel,
             kwh: Number(extrapolatedTotal.toFixed(6)),
@@ -1188,9 +1207,26 @@ const Bills = () => {
                 : `₱${totalBill.toFixed(2)}`
               : "No data available"}
           </Text>
+          {hasFetchedData && modelAvailable !== false && (
+            <TouchableOpacity
+              onPress={() => setCalculationModalVisible(true)}
+              style={{ 
+                flexDirection: "row", 
+                alignItems: "center", 
+                position: "absolute", 
+                bottom: 12, 
+                right: 10 
+              }}
+            >
+              <Text style={{ fontSize: 14, color: "#000", marginRight: 4, fontWeight: "600" }}>
+                See more
+              </Text>
+              <Icon name="arrow-forward" size={20} color="#000" />
+            </TouchableOpacity>
+          )}
         </View>
 
-        {/* Forecast / Retry */}
+        {/* Disclaimer / Retry */}
         <View style={styles.forecastBox}>
           {modelAvailable === false ? (
             <TouchableOpacity
@@ -1204,23 +1240,83 @@ const Bills = () => {
             </TouchableOpacity>
           ) : (
             <>
-              <Icon name="trending-up" size={28} color="#2ecc71" />
-              <Text style={styles.forecastText}>
+              <Icon name="info" size={30} color="#3498db" />
+              <Text style={[styles.forecastText, { textAlign: 'justify' }]}>
                 {hasFetchedData ? (
-                  <>
-                    If you keep this up, next month's bill will be{" "}
-                    <Text style={styles.forecastAmount}>{`₱${(
-                      totalBill * 1.03
-                    ).toFixed(2)}`}</Text>
-                  </>
+                  "The predicted bills shown above are estimations based on the household's gathered data and may vary from actual billing amounts."
                 ) : (
-                  "Fetch your bill data to see next month's forecast"
+                  "Fetch your bill data to see estimated amounts based on your tracked usage."
                 )}
               </Text>
             </>
           )}
         </View>
       </ScrollView>
+
+      {/* Calculation Explanation Modal */}
+      <Modal
+        visible={calculationModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setCalculationModalVisible(false)}
+      >
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0,0,0,0.5)",
+            justifyContent: "center",
+            alignItems: "center",
+            paddingHorizontal: 20,
+          }}
+        >
+          <View
+            style={{
+              width: "90%",
+              backgroundColor: "#fff",
+              borderRadius: 16,
+              padding: 24,
+            }}
+          >
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 16,
+              }}
+            >
+              <Text style={{ fontSize: 20, fontWeight: "bold", color: "#000" }}>
+                How Your Bill Was Calculated
+              </Text>
+              <TouchableOpacity onPress={() => setCalculationModalVisible(false)}>
+                <Icon name="close" size={24} color="#000" />
+              </TouchableOpacity>
+            </View>
+            <View
+              style={{
+                borderTopWidth: 1,
+                borderTopColor: "#eee",
+                paddingTop: 16,
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 14,
+                  color: "#333",
+                  lineHeight: 22,
+                  textAlign: "justify",
+                }}
+              >
+                Your estimated bill is calculated using a machine learning model trained on historical billing data from {provider}. The model considers your household's energy consumption patterns and applies the current electricity rate of ₱{ratePerKwh.toFixed(4)} per kWh.
+                {"\n\n"}
+                For incomplete weeks in the current month, we estimate the remaining days based on your consumption patterns from the previous month, adjusted with a randomization factor to replicate for daily variations.
+                {"\n\n"}
+                The total bill shown is the sum of all weekly predictions, which includes both observed consumption data and estimated values for days that haven't occurred yet.
+              </Text>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Breakdown Modal */}
       <Modal
