@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   RefreshControl,
   Dimensions,
+  TextInput,
 } from "react-native";
 import Icon from "react-native-vector-icons/MaterialIcons";
 import { BarChart } from "react-native-chart-kit";
@@ -102,6 +103,11 @@ const Bills = () => {
   const [provider, setProvider] = useState<string>("BATELEC");
   const [ratePerKwh, setRatePerKwh] = useState<number>(5.3874);
 
+  // Rate selection mode: 'provider' or 'custom'
+  const [rateMode, setRateMode] = useState<"provider" | "custom">("provider");
+  const [customRate, setCustomRate] = useState<string>("");
+  const [providerRate, setProviderRate] = useState<number>(5.3874); // Store provider rate separately
+
   const [modelAvailable, setModelAvailable] = useState<boolean | null>(null);
   const [monthDaily, setMonthDaily] = useState<MonthDayKwh[]>([]);
   const [weekBounds, setWeekBounds] = useState<WeekBoundary[]>([]);
@@ -134,6 +140,7 @@ const Bills = () => {
       const householdId = parsedUser?.household_id;
       if (!householdId) {
         setProvider("BATELEC");
+        setProviderRate(5.3874);
         setRatePerKwh(5.3874);
         return;
       }
@@ -146,11 +153,9 @@ const Bills = () => {
       setProvider(backendProvider);
 
       // Map provider -> rate locally (source of truth = backend provider)
-      if (backendProvider === "MERALCO") {
-        setRatePerKwh(7.6962);
-      } else {
-        setRatePerKwh(5.3874);
-      }
+      const defaultRate = backendProvider === "MERALCO" ? 7.7 : 5.39;
+      setProviderRate(defaultRate);
+      setRatePerKwh(defaultRate);
     } catch (error: any) {
       // If backend says not found or any error, fallback to defaults
       console.warn(
@@ -158,6 +163,7 @@ const Bills = () => {
         error?.message || error
       );
       setProvider("BATELEC");
+      setProviderRate(5.3874);
       setRatePerKwh(5.3874);
     }
   };
@@ -417,13 +423,13 @@ const Bills = () => {
         })
       );
 
-      // Use provider from backend-loaded state and mapped rate
+      // Use provider from backend-loaded state and current effective rate (provider or custom)
       const company = (provider || "BATELEC").toLowerCase();
-      const providerRate = ratePerKwh;
+      const effectiveRate = ratePerKwh;
 
       const weeklyRows: WeeklyRow[] = [];
       console.log(
-        `📊 Starting bill prediction for ${company.toUpperCase()} with rate: ₱${providerRate}`
+        `📊 Starting bill prediction for ${company.toUpperCase()} with rate: ₱${effectiveRate} (mode: ${rateMode})`
       );
       console.log(
         `🔗 Regression API URL: ${regressionApi.defaults.baseURL}/predict-bill`
@@ -481,7 +487,7 @@ const Bills = () => {
             const requestBody = {
               company,
               total_kwh: weekKwh,
-              rate: providerRate,
+              rate: effectiveRate,
             };
             console.log(
               `📤 Requesting prediction for ${w.label}: ${JSON.stringify(
@@ -518,7 +524,7 @@ const Bills = () => {
 
         weeklyRows.push({
           weekLabel: w.extrapolated ? `${w.label} (Estimated)` : w.label,
-          rate: providerRate,
+          rate: effectiveRate,
           kwh: Number((isFinite(weekKwh) ? weekKwh : 0).toFixed(3)),
           bill: typeof predictedBill === "number" ? predictedBill : NaN,
           extrapolated: w.extrapolated,
@@ -534,7 +540,7 @@ const Bills = () => {
       const billData = {
         totalBill: weeklyRows.reduce((sum, row) => sum + row.bill, 0),
         totalKwh: weeklyRows.reduce((sum, row) => sum + row.kwh, 0),
-        ratePerKwh: providerRate,
+        ratePerKwh: effectiveRate,
         company: company,
         month: selectedMonth,
         timestamp: new Date().toISOString(),
@@ -595,12 +601,43 @@ const Bills = () => {
     loadEstimate();
   }, [ratePerKwh, hasFetchedData, rows.length]);
 
+  // Update rate when mode changes
+  useEffect(() => {
+    if (rateMode === "provider") {
+      setRatePerKwh(providerRate);
+    } else if (rateMode === "custom") {
+      const parsed = parseFloat(customRate);
+      if (!isNaN(parsed) && parsed > 0) {
+        setRatePerKwh(parsed);
+      }
+    }
+  }, [rateMode, customRate, providerRate]);
+
   const handleManualFetch = async () => {
     setLoading(true);
     setFetchError(null);
     try {
       // Load provider rate first to ensure it's set
       await loadProviderAndRate();
+
+      // Set the rate based on user's selection
+      let effectiveRate: number;
+      if (rateMode === "custom") {
+        const parsed = parseFloat(customRate);
+        if (isNaN(parsed) || parsed <= 0) {
+          setFetchError("Please enter a valid rate greater than 0");
+          setLoading(false);
+          return;
+        }
+        effectiveRate = parsed;
+        console.log(`🔧 Using custom rate: ₱${effectiveRate.toFixed(4)}/kWh`);
+      } else {
+        effectiveRate = providerRate;
+        console.log(`🔧 Using provider rate (${provider}): ₱${effectiveRate.toFixed(4)}/kWh`);
+      }
+
+      // Update the rate state
+      setRatePerKwh(effectiveRate);
 
       // Small delay to ensure state is updated
       await new Promise((resolve) => setTimeout(resolve, 100));
@@ -939,6 +976,162 @@ const Bills = () => {
                   {fetchError ? "Try Again" : "Start Fetching Bills"}
                 </Text>
               </TouchableOpacity>
+
+              {/* Rate Selection Options */}
+              <View
+                style={{
+                  marginTop: 30,
+                  width: "100%",
+                  alignItems: "center",
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: 16,
+                    color: "#333",
+                    fontWeight: "600",
+                    marginBottom: 15,
+                  }}
+                >
+                  Select Rate Type
+                </Text>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    gap: 10,
+                    marginBottom: 15,
+                  }}
+                >
+                  <TouchableOpacity
+                    style={{
+                      flex: 1,
+                      backgroundColor:
+                        rateMode === "provider" ? "#000" : "#f1f1f1",
+                      paddingVertical: 12,
+                      paddingHorizontal: 20,
+                      borderRadius: 10,
+                      alignItems: "center",
+                      borderWidth: 2,
+                      borderColor: rateMode === "provider" ? "#000" : "#ddd",
+                    }}
+                    onPress={() => setRateMode("provider")}
+                  >
+                    <Icon
+                      name="business"
+                      size={24}
+                      color={rateMode === "provider" ? "#fff" : "#000"}
+                    />
+                    <Text
+                      style={{
+                        color: rateMode === "provider" ? "#fff" : "#000",
+                        fontSize: 14,
+                        fontWeight: "600",
+                        marginTop: 5,
+                      }}
+                    >
+                      Provider Rate
+                    </Text>
+                    <Text
+                      style={{
+                        color: rateMode === "provider" ? "#fff" : "#666",
+                        fontSize: 11,
+                        marginTop: 3,
+                      }}
+                    >
+                      {provider}: ₱{providerRate.toFixed(4)}
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={{
+                      flex: 1,
+                      backgroundColor: rateMode === "custom" ? "#000" : "#f1f1f1",
+                      paddingVertical: 12,
+                      paddingHorizontal: 20,
+                      borderRadius: 10,
+                      alignItems: "center",
+                      borderWidth: 2,
+                      borderColor: rateMode === "custom" ? "#000" : "#ddd",
+                    }}
+                    onPress={() => setRateMode("custom")}
+                  >
+                    <Icon
+                      name="edit"
+                      size={24}
+                      color={rateMode === "custom" ? "#fff" : "#000"}
+                    />
+                    <Text
+                      style={{
+                        color: rateMode === "custom" ? "#fff" : "#000",
+                        fontSize: 14,
+                        fontWeight: "600",
+                        marginTop: 5,
+                      }}
+                    >
+                      Own Rate
+                    </Text>
+                    <Text
+                      style={{
+                        color: rateMode === "custom" ? "#fff" : "#666",
+                        fontSize: 11,
+                        marginTop: 3,
+                      }}
+                    >
+                      Custom value
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Custom Rate Input */}
+                {rateMode === "custom" && (
+                  <View
+                    style={{
+                      width: "100%",
+                      marginTop: 10,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 14,
+                        color: "#666",
+                        marginBottom: 8,
+                      }}
+                    >
+                      Enter your electricity rate (₱/kWh):
+                    </Text>
+                    <TextInput
+                      style={{
+                        backgroundColor: "#fff",
+                        borderWidth: 1,
+                        borderColor: "#ddd",
+                        borderRadius: 8,
+                        paddingHorizontal: 15,
+                        paddingVertical: 12,
+                        fontSize: 16,
+                        color: "#000",
+                      }}
+                      placeholder="e.g., 5.50"
+                      placeholderTextColor="#999"
+                      keyboardType="decimal-pad"
+                      value={customRate}
+                      onChangeText={setCustomRate}
+                    />
+                    {customRate &&
+                      (isNaN(parseFloat(customRate)) ||
+                        parseFloat(customRate) <= 0) && (
+                        <Text
+                          style={{
+                            color: "#e74c3c",
+                            fontSize: 12,
+                            marginTop: 5,
+                          }}
+                        >
+                          Please enter a valid rate greater than 0
+                        </Text>
+                      )}
+                  </View>
+                )}
+              </View>
             </View>
           ) : (
             <>
@@ -1069,6 +1262,55 @@ const Bills = () => {
                   )}`}</Text>
                 </Text>
               </View>
+
+              {/* Rate Information */}
+              <View
+                style={{
+                  backgroundColor: "#f8f9fa",
+                  padding: 15,
+                  borderRadius: 10,
+                  marginTop: 15,
+                  borderLeftWidth: 4,
+                  borderLeftColor: rateMode === "custom" ? "#FF6B6B" : "#4CAF50",
+                }}
+              >
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                  }}
+                >
+                  <View style={{ flexDirection: "row", alignItems: "center" }}>
+                    <Icon
+                      name={rateMode === "custom" ? "edit" : "business"}
+                      size={20}
+                      color={rateMode === "custom" ? "#FF6B6B" : "#4CAF50"}
+                    />
+                    <Text
+                      style={{
+                        marginLeft: 8,
+                        fontSize: 14,
+                        color: "#333",
+                        fontWeight: "600",
+                      }}
+                    >
+                      {rateMode === "custom"
+                        ? "Using Custom Rate"
+                        : `Using ${provider} Rate`}
+                    </Text>
+                  </View>
+                  <Text
+                    style={{
+                      fontSize: 16,
+                      fontWeight: "bold",
+                      color: "#000",
+                    }}
+                  >
+                    ₱{ratePerKwh.toFixed(4)}/kWh
+                  </Text>
+                </View>
+              </View>
             </>
           )
         ) : loading ? (
@@ -1131,6 +1373,162 @@ const Bills = () => {
                 {fetchError ? "Try Again" : "Start Fetching Bills"}
               </Text>
             </TouchableOpacity>
+
+            {/* Rate Selection Options */}
+            <View
+              style={{
+                marginTop: 30,
+                width: "100%",
+                alignItems: "center",
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 16,
+                  color: "#333",
+                  fontWeight: "600",
+                  marginBottom: 15,
+                }}
+              >
+                Select Rate Type
+              </Text>
+              <View
+                style={{
+                  flexDirection: "row",
+                  gap: 10,
+                  marginBottom: 15,
+                }}
+              >
+                <TouchableOpacity
+                  style={{
+                    flex: 1,
+                    backgroundColor:
+                      rateMode === "provider" ? "#000" : "#f1f1f1",
+                    paddingVertical: 12,
+                    paddingHorizontal: 20,
+                    borderRadius: 10,
+                    alignItems: "center",
+                    borderWidth: 2,
+                    borderColor: rateMode === "provider" ? "#000" : "#ddd",
+                  }}
+                  onPress={() => setRateMode("provider")}
+                >
+                  <Icon
+                    name="business"
+                    size={24}
+                    color={rateMode === "provider" ? "#fff" : "#000"}
+                  />
+                  <Text
+                    style={{
+                      color: rateMode === "provider" ? "#fff" : "#000",
+                      fontSize: 14,
+                      fontWeight: "600",
+                      marginTop: 5,
+                    }}
+                  >
+                    Provider Rate
+                  </Text>
+                  <Text
+                    style={{
+                      color: rateMode === "provider" ? "#fff" : "#666",
+                      fontSize: 11,
+                      marginTop: 3,
+                    }}
+                  >
+                    {provider}: ₱{providerRate.toFixed(4)}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={{
+                    flex: 1,
+                    backgroundColor: rateMode === "custom" ? "#000" : "#f1f1f1",
+                    paddingVertical: 12,
+                    paddingHorizontal: 20,
+                    borderRadius: 10,
+                    alignItems: "center",
+                    borderWidth: 2,
+                    borderColor: rateMode === "custom" ? "#000" : "#ddd",
+                  }}
+                  onPress={() => setRateMode("custom")}
+                >
+                  <Icon
+                    name="edit"
+                    size={24}
+                    color={rateMode === "custom" ? "#fff" : "#000"}
+                  />
+                  <Text
+                    style={{
+                      color: rateMode === "custom" ? "#fff" : "#000",
+                      fontSize: 14,
+                      fontWeight: "600",
+                      marginTop: 5,
+                    }}
+                  >
+                    Own Rate
+                  </Text>
+                  <Text
+                    style={{
+                      color: rateMode === "custom" ? "#fff" : "#666",
+                      fontSize: 11,
+                      marginTop: 3,
+                    }}
+                  >
+                    Custom value
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Custom Rate Input */}
+              {rateMode === "custom" && (
+                <View
+                  style={{
+                    width: "100%",
+                    marginTop: 10,
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 14,
+                      color: "#666",
+                      marginBottom: 8,
+                    }}
+                  >
+                    Enter your electricity rate (₱/kWh):
+                  </Text>
+                  <TextInput
+                    style={{
+                      backgroundColor: "#fff",
+                      borderWidth: 1,
+                      borderColor: "#ddd",
+                      borderRadius: 8,
+                      paddingHorizontal: 15,
+                      paddingVertical: 12,
+                      fontSize: 16,
+                      color: "#000",
+                    }}
+                    placeholder="e.g., 5.50"
+                    placeholderTextColor="#999"
+                    keyboardType="decimal-pad"
+                    value={customRate}
+                    onChangeText={setCustomRate}
+                  />
+                  {customRate &&
+                    (isNaN(parseFloat(customRate)) ||
+                      parseFloat(customRate) <= 0) && (
+                      <Text
+                        style={{
+                          color: "#e74c3c",
+                          fontSize: 12,
+                          marginTop: 5,
+                        }}
+                      >
+                        Please enter a valid rate greater than 0
+                      </Text>
+                    )}
+                </View>
+              )}
+            </View>
           </View>
         ) : (
           <View style={{ alignItems: "center", marginTop: 20 }}>
@@ -1172,6 +1570,56 @@ const Bills = () => {
                   onPress={() => handleChartItemPress(index)}
                 />
               ))}
+            </View>
+
+            {/* Rate Information */}
+            <View
+              style={{
+                backgroundColor: "#f8f9fa",
+                padding: 15,
+                borderRadius: 10,
+                marginTop: 15,
+                borderLeftWidth: 4,
+                borderLeftColor: rateMode === "custom" ? "#FF6B6B" : "#4CAF50",
+                width: screenWidth - 30,
+              }}
+            >
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                }}
+              >
+                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                  <Icon
+                    name={rateMode === "custom" ? "edit" : "business"}
+                    size={20}
+                    color={rateMode === "custom" ? "#FF6B6B" : "#4CAF50"}
+                  />
+                  <Text
+                    style={{
+                      marginLeft: 8,
+                      fontSize: 14,
+                      color: "#333",
+                      fontWeight: "600",
+                    }}
+                  >
+                    {rateMode === "custom"
+                      ? "Using Custom Rate"
+                      : `Using ${provider} Rate`}
+                  </Text>
+                </View>
+                <Text
+                  style={{
+                    fontSize: 16,
+                    fontWeight: "bold",
+                    color: "#000",
+                  }}
+                >
+                  ₱{ratePerKwh.toFixed(4)}/kWh
+                </Text>
+              </View>
             </View>
           </View>
         )}
