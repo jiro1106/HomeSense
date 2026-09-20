@@ -13,19 +13,36 @@ The web showcase is available at [homesense-web.vercel.app](https://homesense-we
 
 ## How it works
 
-```
-Tuya smart plug
-↓
-Python collector
-↓
-MongoDB
-↓
-FastAPI backend
-↓
-Prediction and recommendation services
-↓
-HomeSense mobile app
-```
+<div align="center">
+  <strong>Tuya smart plug</strong><br />
+  ↓<br />
+  <strong>Python collector</strong><br />
+  ↓<br />
+  <strong>MongoDB</strong><br />
+  ↓<br />
+  <strong>FastAPI backend</strong><br />
+  ↓<br />
+  <strong>Prediction and recommendation services</strong><br />
+  ↓<br />
+  <strong>HomeSense mobile app</strong>
+</div>
+
+## Screenshots
+
+<table align="center">
+  <tr><th>Live usage</th><th>Bill prediction</th><th>Usage history</th></tr>
+  <tr>
+    <td align="center"><img src="https://raw.githubusercontent.com/jiro1106/homesense-web/main/frontend/src/assets/bare-app-screen-1.png" alt="HomeSense live usage screen" width="150" /></td>
+    <td align="center"><img src="https://raw.githubusercontent.com/jiro1106/homesense-web/main/frontend/src/assets/bare-app-screen-2.png" alt="HomeSense bill prediction screen" width="150" /></td>
+    <td align="center"><img src="https://raw.githubusercontent.com/jiro1106/homesense-web/main/frontend/src/assets/bare-app-screen-3.png" alt="HomeSense usage history screen" width="150" /></td>
+  </tr>
+  <tr><th>Device details</th><th>Recommendations</th><th>Alerts</th></tr>
+  <tr>
+    <td align="center"><img src="https://raw.githubusercontent.com/jiro1106/homesense-web/main/frontend/src/assets/bare-app-screen-4.png" alt="HomeSense device details screen" width="150" /></td>
+    <td align="center"><img src="https://raw.githubusercontent.com/jiro1106/homesense-web/main/frontend/src/assets/bare-app-screen-5.png" alt="HomeSense recommendations screen" width="150" /></td>
+    <td align="center"><img src="https://raw.githubusercontent.com/jiro1106/homesense-web/main/frontend/src/assets/bare-app-screen-6.png" alt="HomeSense alerts screen" width="150" /></td>
+  </tr>
+</table>
 
 ## Architecture
 
